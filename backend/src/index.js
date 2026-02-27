@@ -16,6 +16,9 @@ const { ensureBucketExists } = require('./services/storage');
 const app = express();
 const httpServer = createServer(app);
 
+// ← REQUIRED for Render/Railway/Heroku — they sit behind a proxy
+app.set('trust proxy', 1);
+
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
@@ -23,10 +26,9 @@ app.set('io', io);
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// Open CORS - allow all Vercel URLs + localhost
 app.use(cors({
   origin: function (origin, callback) {
-    return callback(null, true); // Allow all origins (tighten after go-live)
+    return callback(null, true);
   },
   credentials: true,
 }));
@@ -41,7 +43,6 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/share', shareRoutes);
 
-// Root route - fixes "Cannot GET /"
 app.get('/', (req, res) => {
   res.json({ name: 'SnapBooth AI Backend', status: 'ok', version: '1.0.0' });
 });
