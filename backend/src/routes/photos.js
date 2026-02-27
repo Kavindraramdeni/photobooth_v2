@@ -99,11 +99,12 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
     if (dbError) console.error('DB insert error:', dbError);
 
     // Analytics
-    await supabase.from('analytics').insert({
+    try { await supabase.from('analytics').insert({
       event_id: eventId,
       action: 'photo_taken',
       metadata: { mode, photoId },
-    }).catch(e => console.error('Analytics error:', e));
+    } catch(e) { console.error('Analytics error:', e); }
+  // end analytics
 
     // Socket.IO
     try {
