@@ -2,11 +2,13 @@
   "name": "SnapBooth AI",
   "short_name": "SnapBooth",
   "description": "Professional AI-powered photobooth for events",
-  "start_url": "/",
-  "display": "standalone",
+  "start_url": "/booth",
+  "scope": "/",
+  "display": "fullscreen",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
-  "orientation": "landscape",
+  "orientation": "any",
+  "categories": ["photography", "entertainment"],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -20,5 +22,7 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }
