@@ -82,7 +82,7 @@ export function PreviewScreen() {
     // Set the print photo URL in a global so the print CSS can use it
     (window as any).__printPhotoUrl = currentPhoto.downloadUrl;
     (window as any).__printEventName = eventName;
-    (window as any).__printDate = event.date || new Date().toLocaleDateString();
+    (window as any).__printDate = (event as any).date || new Date().toLocaleDateString();
 
     await trackAction(event.id, 'photo_printed', { photoId: currentPhoto.id });
 
@@ -109,7 +109,7 @@ export function PreviewScreen() {
           <div className="print-footer">
             <span className="print-event-name">{eventName}</span>
             {event?.settings && (
-              <span className="print-date">{event.date || new Date().toLocaleDateString()}</span>
+              <span className="print-date">{(event as any).date || new Date().toLocaleDateString()}</span>
             )}
             <span className="print-branding">SnapBooth AI ✨</span>
           </div>
