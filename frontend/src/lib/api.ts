@@ -4,7 +4,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const api = axios.create({
   baseURL: `${API_BASE}/api`,
-  timeout: 120000, // 2 min for AI calls
+  timeout: 120000,
 });
 
 // ─── Photos ────────────────────────────────────────────────────────────────
@@ -46,6 +46,32 @@ export async function createStrip(photos: Blob[], eventId: string) {
 
   const res = await api.post('/photos/strip', form);
   return res.data;
+}
+
+export async function getEventPhotos(eventId: string, page = 1) {
+  const res = await api.get(`/photos/event/${eventId}?page=${page}`);
+  return res.data;
+}
+
+/**
+ * Permanently delete a photo (wipe)
+ */
+export async function deletePhoto(photoId: string) {
+  const res = await api.delete(`/photos/${photoId}`);
+  return res.data;
+}
+
+/**
+ * Trigger browser download of all event photos as ZIP
+ */
+export function downloadPhotosZip(eventId: string, eventName = 'event') {
+  const url = `${API_BASE}/api/photos/event/${eventId}/zip`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eventName.replace(/\s+/g, '_')}_photos.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ─── AI ────────────────────────────────────────────────────────────────────
@@ -107,13 +133,20 @@ export async function getEventStats(id: string) {
   return res.data.stats;
 }
 
+/**
+ * Get QR codes for booth URL and gallery URL
+ */
+export async function getEventQR(id: string) {
+  const res = await api.get(`/events/${id}/qr`);
+  return res.data;
+}
+
 // ─── Analytics ─────────────────────────────────────────────────────────────
 
 export async function trackAction(eventId: string, action: string, metadata = {}) {
   try {
     await api.post('/analytics/track', { eventId, action, metadata });
   } catch (e) {
-    // Non-critical - don't throw
     console.warn('Analytics track failed:', e);
   }
 }
@@ -123,9 +156,13 @@ export async function getDashboardStats(days = 30) {
   return res.data;
 }
 
-// ─── Event photos ──────────────────────────────────────────────────────────
+// ─── Diagnostics ───────────────────────────────────────────────────────────
 
-export async function getEventPhotos(eventId: string, page = 1) {
-  const res = await api.get(`/photos/event/${eventId}?page=${page}`);
-  return res.data;
+/**
+ * Ping the backend and return latency in ms
+ */
+export async function pingBackend(): Promise<number> {
+  const start = Date.now();
+  await api.get('/health', { timeout: 5000 }).catch(() => {});
+  return Date.now() - start;
 }
