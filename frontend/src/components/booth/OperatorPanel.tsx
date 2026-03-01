@@ -306,7 +306,42 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [localEvent, setLocalEvent] = useState(storeEvent ? JSON.parse(JSON.stringify(storeEvent)) : null);
+  const [localEvent, setLocalEvent] = useState(() => {
+    if (!storeEvent) return null;
+    const e = JSON.parse(JSON.stringify(storeEvent));
+    // Guarantee branding defaults so color picker always gets a valid hex
+    e.branding = {
+      primaryColor: '#7c3aed',
+      secondaryColor: '#4f46e5',
+      eventName: '',
+      footerText: '',
+      overlayText: '',
+      showDate: true,
+      template: 'classic',
+      logoUrl: null,
+      idleMediaUrl: null,
+      frameUrl: null,
+      ...(e.branding || {}),
+    };
+    if (!e.branding.primaryColor || !e.branding.primaryColor.startsWith('#')) {
+      e.branding.primaryColor = '#7c3aed';
+    }
+    e.settings = {
+      countdownSeconds: 3,
+      photosPerSession: 1,
+      allowRetakes: true,
+      allowAI: false,
+      allowGIF: true,
+      allowBoomerang: true,
+      allowPrint: true,
+      printCopies: 1,
+      aiStyles: [],
+      sessionTimeout: 60,
+      operatorPin: '1234',
+      ...(e.settings || {}),
+    };
+    return e;
+  });
 
   const eventId = storeEvent?.id || '';
 
@@ -322,13 +357,13 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
     if (!localEvent || !eventId) return;
     setSaving(true);
     try {
-      const updated = await updateEvent(eventId, {
+      await updateEvent(eventId, {
         name: localEvent.name,
         branding: localEvent.branding,
         settings: localEvent.settings,
       });
-      setEvent(updated);
-      setLocalEvent(JSON.parse(JSON.stringify(updated)));
+      // Update store with our local copy (already typed correctly)
+      setEvent(localEvent);
       toast.success('Settings saved!');
     } catch { toast.error('Save failed'); }
     finally { setSaving(false); }
@@ -434,7 +469,7 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 bg-[#0a0a0f]">
+      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 bg-[#0a0a0f]">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
@@ -472,18 +507,19 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
             {/* BRANDING */}
             {tab === 'branding' && localEvent && (
               <div className="space-y-3">
-                {/* Color */}
                 <div className="bg-white/5 rounded-xl p-4">
                   <label className="text-white/50 text-xs block mb-2">🎨 Brand Color</label>
                   <div className="flex gap-3 items-center">
                     <input type="color"
-                      value={(localEvent.branding?.primaryColor) || '#7c3aed'}
+                      value={/^#[0-9A-Fa-f]{6}$/.test(localEvent.branding?.primaryColor || '') ? localEvent.branding.primaryColor : '#7c3aed'}
                       onChange={e => updateBranding('primaryColor', e.target.value)}
                       className="w-14 h-10 rounded-xl border border-white/20 bg-transparent cursor-pointer p-1" />
-                    <input value={(localEvent.branding?.primaryColor) || '#7c3aed'}
+                    <input value={localEvent.branding?.primaryColor || '#7c3aed'}
                       onChange={e => updateBranding('primaryColor', e.target.value)}
+                      placeholder="#7c3aed"
                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-purple-500" />
                   </div>
+                  <div className="mt-2 h-6 rounded-lg w-full" style={{ background: /^#[0-9A-Fa-f]{6}$/.test(localEvent.branding?.primaryColor || '') ? localEvent.branding.primaryColor : '#7c3aed' }} />
                 </div>
 
                 {/* Text fields */}
@@ -684,28 +720,20 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
 }
 
 // ── Gear icon trigger — exported to IdleScreen ────────────────────────────
-export function OperatorPanelTrigger({
-  initialPhase = 'idle',
-  onClosePanel,
-}: {
-  initialPhase?: 'idle' | 'pin' | 'panel';
-  onClosePanel?: () => void;
-} = {}) {
+export function OperatorPanelTrigger() {
   const { event } = useBoothStore();
-  const [phase, setPhase] = useState<'idle' | 'pin' | 'panel'>(initialPhase);
+  const [phase, setPhase] = useState<'idle' | 'pin' | 'panel'>('idle');
   const correctPin = (event?.settings?.operatorPin) || '1234';
 
   return (
     <>
-      {phase === 'idle' && (
-        <button
-          onPointerDown={e => { e.stopPropagation(); setPhase('pin'); }}
-          className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all"
-          aria-label="Operator Settings"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
-      )}
+      <button
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setPhase('pin'); }}
+        className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all"
+        aria-label="Operator Settings"
+      >
+        <Settings className="w-5 h-5" />
+      </button>
 
       <AnimatePresence>
         {phase === 'pin' && (
@@ -715,10 +743,7 @@ export function OperatorPanelTrigger({
           </motion.div>
         )}
         {phase === 'panel' && (
-          <OperatorPanel key="panel" onClose={() => {
-            setPhase('idle');
-            onClosePanel?.();
-          }} />
+          <OperatorPanel key="panel" onClose={() => setPhase('idle')} />
         )}
       </AnimatePresence>
     </>
