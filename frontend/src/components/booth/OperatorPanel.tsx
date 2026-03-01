@@ -1,523 +1,715 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  X, Save, Loader2, Camera, Printer, Wifi, Cloud,
-  RefreshCw, Activity, Download, Trash2, ExternalLink,
-  CheckCircle, XCircle, AlertCircle
-} from 'lucide-react';
+import { X, Settings } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
-import {
-  updateEvent, getEventPhotos, deletePhoto,
-  downloadPhotosZip, getEventQR, pingBackend
-} from '@/lib/api';
+import { getEventPhotos, getEventStats, deletePhoto, downloadPhotosZip, updateEvent, pingBackend } from '@/lib/api';
 import toast from 'react-hot-toast';
 
-type OTab = 'diagnostics' | 'overview' | 'branding' | 'settings' | 'photos';
+type Tab = 'overview' | 'branding' | 'settings' | 'photos' | 'diagnostics';
 
-const OTABS: { id: OTab; label: string; emoji: string }[] = [
-  { id: 'diagnostics', label: 'Diagnostics', emoji: '🔧' },
-  { id: 'overview',    label: 'Overview',    emoji: '📋' },
-  { id: 'branding',   label: 'Branding',    emoji: '🎨' },
-  { id: 'settings',   label: 'Settings',    emoji: '⚙️' },
-  { id: 'photos',     label: 'Photos',      emoji: '📸' },
-];
-
-type DiagStatus = 'checking' | 'ok' | 'warn' | 'error';
-
-interface Photo {
-  id: string; url: string; thumb_url?: string; mode: string; created_at: string;
+interface Photo { id: string; url: string; thumb_url?: string; mode: string; created_at: string; }
+interface Stats {
+  totalPhotos: number; totalGIFs: number; totalBoomerangs: number; totalStrips: number;
+  totalAIGenerated: number; totalShares: number; totalPrints: number; totalSessions: number;
 }
 
-interface Props {
-  onClose: () => void;
+// ── File upload helper (uses Supabase Storage public URL) ─────────────────
+async function uploadToSupabase(file: File, path: string): Promise<string> {
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase not configured');
+  const bucket = 'photobooth-media';
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${SUPABASE_ANON}`, 'x-upsert': 'true', 'Content-Type': file.type },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${await res.text()}`);
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
-function StatusDot({ s }: { s: DiagStatus }) {
-  const c = { checking: 'bg-white/40 animate-pulse', ok: 'bg-green-400', warn: 'bg-yellow-400', error: 'bg-red-400' };
-  return <span className={`inline-block w-2 h-2 rounded-full ${c[s]}`} />;
+// ── Compact upload field for operator panel ────────────────────────────────
+function OperatorUpload({ label, accept, currentUrl, onUploaded, storagePath }: {
+  label: string; accept: string; currentUrl: string;
+  onUploaded: (url: string) => void; storagePath: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const url = await uploadToSupabase(file, `${storagePath}_${Date.now()}.${ext}`);
+      onUploaded(url);
+      toast.success(`${label} uploaded!`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally { setUploading(false); if (ref.current) ref.current.value = ''; }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <input ref={ref} type="file" accept={accept} onChange={handleFile} className="hidden" />
+      <button onClick={() => ref.current?.click()} disabled={uploading}
+        className="text-xs px-2.5 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 disabled:opacity-40 font-medium transition-all">
+        {uploading ? '⏳...' : '📤 Upload'}
+      </button>
+      {currentUrl && (
+        <button onClick={() => onUploaded('')} className="text-xs px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-400">
+          ✕
+        </button>
+      )}
+    </div>
+  );
 }
 
-export function OperatorPanel({ onClose }: Props) {
-  const { event, setEvent: setStoreEvent } = useBoothStore();
-  const [tab, setTab] = useState<OTab>('diagnostics');
-  const [localEvent, setLocalEvent] = useState<Record<string, any> | null>(event ? JSON.parse(JSON.stringify(event)) : null);
-  const [saving, setSaving] = useState(false);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [photosLoading, setPhotosLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [zipping, setZipping] = useState(false);
-  const [qrData, setQrData] = useState<any>(null);
+// ── PIN Entry — FIXED: panel stays open while typing, no close per digit ──
+function PinEntry({ correctPin, onSuccess, onCancel }: {
+  correctPin: string; onSuccess: () => void; onCancel: () => void;
+}) {
+  const [pin, setPin] = useState('');
+  const [shake, setShake] = useState(false);
+  const [error, setError] = useState('');
 
-  // Diagnostics state
-  const [latency, setLatency] = useState<number | null>(null);
-  const [netStatus, setNetStatus] = useState<DiagStatus>('checking');
-  const [camStatus, setCamStatus] = useState<DiagStatus>('checking');
-  const [testCapturing, setTestCapturing] = useState(false);
-  const [testPrinting, setTestPrinting] = useState(false);
+  function pressDigit(d: string) {
+    if (pin.length >= 8) return;
+    const next = pin + d;
+    setPin(next);
+    setError('');
+  }
 
-  // Run diagnostics on mount
+  function pressBack() {
+    setPin(p => p.slice(0, -1));
+    setError('');
+  }
+
+  // Only check when user presses the confirm button OR pin reaches correct length
+  function checkPin(p: string) {
+    if (p === correctPin) {
+      onSuccess();
+    } else {
+      setShake(true);
+      setError('Wrong PIN, try again');
+      setTimeout(() => { setPin(''); setShake(false); setError(''); }, 800);
+    }
+  }
+
+  function pressConfirm() {
+    if (pin.length === 0) return;
+    checkPin(pin);
+  }
+
+  // Auto-check only if pin length exactly matches and is >= 4 digits
   useEffect(() => {
-    runDiag();
+    if (pin.length === correctPin.length && pin.length >= 4) {
+      const t = setTimeout(() => checkPin(pin), 200);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin, correctPin]);
+
+  const maxLen = Math.max(correctPin.length, 4);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-8 bg-[#0a0a0f]">
+      <div className="w-16 h-16 rounded-2xl bg-purple-600/20 flex items-center justify-center mb-6">
+        <Settings className="w-8 h-8 text-purple-400" />
+      </div>
+      <h2 className="text-white text-2xl font-bold mb-1">Operator Access</h2>
+      <p className="text-white/40 text-sm mb-8">Enter operator PIN to continue</p>
+
+      {/* PIN dots */}
+      <motion.div
+        animate={shake ? { x: [-12, 12, -10, 10, -6, 6, 0] } : {}}
+        transition={{ duration: 0.5 }}
+        className="flex gap-4 mb-3"
+      >
+        {Array.from({ length: maxLen }).map((_, i) => (
+          <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
+            i < pin.length ? 'bg-purple-500 border-purple-400 scale-110' : 'bg-transparent border-white/30'
+          }`} />
+        ))}
+      </motion.div>
+      {error && <p className="text-red-400 text-xs mb-4">{error}</p>}
+      {!error && <div className="mb-4 h-4" />}
+
+      {/* Number pad */}
+      <div className="grid grid-cols-3 gap-3 w-64 mb-4">
+        {['1','2','3','4','5','6','7','8','9'].map(key => (
+          <button key={key} onClick={() => pressDigit(key)}
+            className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold transition-all active:scale-95">
+            {key}
+          </button>
+        ))}
+        <div /> {/* empty */}
+        <button onClick={() => pressDigit('0')}
+          className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold transition-all active:scale-95">
+          0
+        </button>
+        <button onClick={pressBack}
+          className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 text-white/60 text-xl transition-all active:scale-95">
+          ⌫
+        </button>
+      </div>
+
+      {/* Confirm button for variable-length PINs */}
+      {pin.length > 0 && pin.length !== correctPin.length && (
+        <button onClick={pressConfirm}
+          className="w-64 py-4 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all mb-3">
+          Unlock →
+        </button>
+      )}
+
+      <button onClick={onCancel} className="text-white/30 hover:text-white/60 text-sm transition-colors mt-2">
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+// ── Diagnostics (compact for operator panel) ──────────────────────────────
+function DiagnosticsPanel() {
+  const [online, setOnline] = useState(navigator.onLine);
+  const [backendOk, setBackendOk] = useState<boolean | null>(null);
+  const [latency, setLatency] = useState<number | null>(null);
+  const [cameraOk, setCameraOk] = useState<boolean | null>(null);
+  const [cameraLabel, setCameraLabel] = useState('Not tested');
+  const [testFrame, setTestFrame] = useState<string | null>(null);
+  const [testingCamera, setTestingCamera] = useState(false);
+  const [testingPrint, setTestingPrint] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const dn = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', dn);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', dn); };
   }, []);
 
-  async function runDiag() {
-    setNetStatus('checking');
-    setCamStatus('checking');
+  const runPing = useCallback(async () => {
+    const r = await pingBackend();
+    setBackendOk(r.ok);
+    setLatency(r.latencyMs);
+  }, []);
+  useEffect(() => { runPing(); }, [runPing]);
 
-    // Network + backend
-    if (navigator.onLine) {
-      try {
-        const ms = await pingBackend();
-        setLatency(ms);
-        setNetStatus(ms < 500 ? 'ok' : ms < 1000 ? 'warn' : 'error');
-      } catch {
-        setNetStatus('error');
-      }
-    } else {
-      setNetStatus('error');
-    }
-
-    // Camera
+  async function testCamera() {
+    setTestingCamera(true); setCameraOk(null); setTestFrame(null);
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cams = devices.filter((d) => d.kind === 'videoinput');
-      setCamStatus(cams.length > 0 ? 'ok' : 'error');
-    } catch {
-      setCamStatus('warn');
-    }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      await new Promise(r => setTimeout(r, 1500));
+      const canvas = document.createElement('canvas');
+      canvas.width = 280; canvas.height = 200;
+      const ctx = canvas.getContext('2d');
+      if (ctx && videoRef.current) ctx.drawImage(videoRef.current, 0, 0, 280, 200);
+      setTestFrame(canvas.toDataURL('image/jpeg', 0.8));
+      stream.getTracks().forEach(t => t.stop());
+      setCameraOk(true);
+      setCameraLabel(stream.getVideoTracks()[0]?.label || 'Camera OK');
+    } catch (e: unknown) {
+      setCameraOk(false);
+      setCameraLabel(e instanceof Error ? e.message : 'Camera denied');
+    } finally { setTestingCamera(false); }
   }
 
-  // Load photos when photos tab opens
+  function testPrint() {
+    setTestingPrint(true);
+    const w = window.open('', '_blank', 'width=400,height=500');
+    if (w) {
+      w.document.write(`<html><head><title>Test Print</title>
+        <style>body{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial}
+        .box{border:3px dashed #7c3aed;border-radius:16px;padding:40px;text-align:center}h1{color:#7c3aed}</style></head>
+        <body><div class="box"><h1>📷 SnapBooth AI</h1><p>Test Print OK</p><p style="font-size:12px;color:#999">${new Date().toLocaleString()}</p></div>
+        <script>setTimeout(function(){window.print();window.close()},500)</script></body></html>`);
+      w.document.close();
+    }
+    setTimeout(() => setTestingPrint(false), 2000);
+  }
+
+  const Row = ({ label, ok, value }: { label: string; ok: boolean | null; value: string }) => (
+    <div className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
+      <p className="text-white/70 text-sm">{label}</p>
+      <div className="flex items-center gap-2">
+        <span className="text-white/40 text-xs">{value}</span>
+        <div className={`w-2 h-2 rounded-full ${ok === null ? 'bg-white/20 animate-pulse' : ok ? 'bg-green-400' : 'bg-red-400'}`} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white/5 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-white font-semibold text-sm">🔌 System</h4>
+          <button onClick={runPing} className="text-xs px-2 py-1 rounded-lg bg-white/10 text-white/50">↻</button>
+        </div>
+        <Row label="Network" ok={online} value={online ? 'Online' : 'Offline'} />
+        <Row label="Backend" ok={backendOk} value={backendOk === null ? 'Checking...' : backendOk ? `${latency}ms` : 'Unreachable'} />
+      </div>
+
+      <div className="bg-white/5 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-white font-semibold text-sm">📷 Camera</h4>
+          <button onClick={testCamera} disabled={testingCamera}
+            className="text-xs px-2.5 py-1.5 rounded-lg bg-purple-600/30 text-purple-300 disabled:opacity-40">
+            {testingCamera ? '...' : 'Verify Shutter'}
+          </button>
+        </div>
+        <Row label="Status" ok={cameraOk} value={cameraLabel} />
+        <video ref={videoRef} className="hidden" muted playsInline />
+        {testFrame && (
+          <div className="mt-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={testFrame} alt="test" className="rounded-xl w-full border border-white/10" />
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white/5 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-white font-semibold text-sm">🖨️ Printer</h4>
+          <button onClick={testPrint} disabled={testingPrint}
+            className="text-xs px-2.5 py-1.5 rounded-lg bg-blue-600/30 text-blue-300 disabled:opacity-40">
+            {testingPrint ? 'Sending...' : 'Fire Test Print'}
+          </button>
+        </div>
+        <p className="text-white/30 text-xs mb-3">Sends test page to AirPrint printer</p>
+        <div className="text-center py-4 text-white/20 text-xs border border-white/5 rounded-xl">No active print jobs</div>
+      </div>
+
+      <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4">
+        <h4 className="text-red-400 font-semibold text-sm mb-2">⚡ System Reset</h4>
+        <p className="text-white/30 text-xs mb-3">Reloads booth if camera or printer freezes</p>
+        <button onClick={() => window.location.reload()}
+          className="w-full py-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold text-sm border border-red-500/20 transition-all">
+          🔄 One-Tap Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Operator Panel ───────────────────────────────────────────────────
+function OperatorPanel({ onClose }: { onClose: () => void }) {
+  const { event: storeEvent, setEvent } = useBoothStore();
+  const [tab, setTab] = useState<Tab>('overview');
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [zipLoading, setZipLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [localEvent, setLocalEvent] = useState(storeEvent ? JSON.parse(JSON.stringify(storeEvent)) : null);
+
+  const eventId = storeEvent?.id || '';
+
   useEffect(() => {
-    if (tab === 'photos' && event?.id) {
-      setPhotosLoading(true);
-      getEventPhotos(event.id)
-        .then((d) => setPhotos(d.photos || []))
-        .catch(() => toast.error('Failed to load photos'))
-        .finally(() => setPhotosLoading(false));
-    }
-  }, [tab, event?.id]);
-
-  // Load QR on overview tab
-  useEffect(() => {
-    if (tab === 'overview' && !qrData && event?.id) {
-      getEventQR(event.id).then(setQrData).catch(() => {});
-    }
-  }, [tab, qrData, event?.id]);
-
-  function updateBranding(key: string, value: unknown) {
-    if (!localEvent) return;
-    setLocalEvent({ ...localEvent, branding: { ...localEvent.branding, [key]: value } });
-  }
-
-  function updateSettings(key: string, value: unknown) {
-    if (!localEvent) return;
-    setLocalEvent({ ...localEvent, settings: { ...localEvent.settings, [key]: value } });
-  }
+    if (!eventId) { setLoading(false); return; }
+    Promise.all([
+      getEventPhotos(eventId).then(d => setPhotos(d.photos || [])),
+      getEventStats(eventId).then(s => setStats(s)),
+    ]).finally(() => setLoading(false));
+  }, [eventId]);
 
   async function handleSave() {
-    if (!localEvent) return;
+    if (!localEvent || !eventId) return;
     setSaving(true);
     try {
-      const updated = await updateEvent(localEvent.id, {
+      const updated = await updateEvent(eventId, {
         name: localEvent.name,
-        venue: localEvent.venue,
-        date: localEvent.date,
         branding: localEvent.branding,
         settings: localEvent.settings,
       });
-      setStoreEvent(updated);
-      toast.success('✅ Settings saved!');
-    } catch {
-      toast.error('Save failed');
-    } finally {
-      setSaving(false);
-    }
+      setEvent(updated);
+      setLocalEvent(JSON.parse(JSON.stringify(updated)));
+      toast.success('Settings saved!');
+    } catch { toast.error('Save failed'); }
+    finally { setSaving(false); }
+  }
+
+  function updateBranding(key: string, val: unknown) {
+    if (!localEvent) return;
+    setLocalEvent({ ...localEvent, branding: { ...localEvent.branding, [key]: val } });
+  }
+  function updateSettings(key: string, val: unknown) {
+    if (!localEvent) return;
+    setLocalEvent({ ...localEvent, settings: { ...localEvent.settings, [key]: val } });
   }
 
   async function handleDeletePhoto(photoId: string) {
     if (!confirm('Permanently delete this photo?')) return;
     setDeletingId(photoId);
     try {
-      await deletePhoto(photoId);
-      setPhotos((p) => p.filter((x) => x.id !== photoId));
+      const { deletePhoto: del } = await import('@/lib/api');
+      await del(photoId);
+      setPhotos(p => p.filter(x => x.id !== photoId));
       toast.success('Deleted');
-    } catch {
-      toast.error('Delete failed');
-    } finally {
-      setDeletingId(null);
-    }
+    } catch { toast.error('Delete failed'); }
+    finally { setDeletingId(null); }
   }
 
-  async function handleTestCapture() {
-    setTestCapturing(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach((t) => t.stop());
-      setCamStatus('ok');
-      toast.success('✅ Camera verified!');
-    } catch (err: unknown) {
-      setCamStatus('error');
-      toast.error(`Camera error: ${err instanceof Error ? err.message : 'Unknown'}`);
-    } finally {
-      setTestCapturing(false);
-    }
+  async function handleZip() {
+    if (!storeEvent) return;
+    setZipLoading(true);
+    try { await downloadPhotosZip(eventId, storeEvent.name); toast.success('Download started!'); }
+    catch { toast.error('ZIP failed'); }
+    finally { setZipLoading(false); }
   }
 
-  async function handleTestPrint() {
-    setTestPrinting(true);
-    try {
-      const w = window.open('', '_blank', 'width=400,height=500');
-      if (!w) throw new Error('Popup blocked');
-      w.document.write(`<html><head><title>Test Print</title>
-        <style>body{display:flex;flex-direction:column;align-items:center;justify-content:center;
-        height:100vh;font-family:sans-serif;} .box{border:3px solid #7c3aed;border-radius:16px;
-        padding:32px;text-align:center;}</style></head>
-        <body><div class="box"><div style="font-size:48px">📸</div>
-        <h2 style="color:#7c3aed;margin:12px 0">SnapBooth AI</h2>
-        <p style="color:#666">Test Print — ${new Date().toLocaleString()}</p></div>
-        <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),2000)}<\/script>
-        </body></html>`);
-      w.document.close();
-      toast.success('🖨️ Test print sent!');
-    } catch {
-      toast.error('Could not open print window');
-    } finally {
-      setTestPrinting(false);
-    }
-  }
+  const primaryColor = localEvent?.branding?.primaryColor || '#7c3aed';
 
-  if (!localEvent) return null;
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'overview', label: '📋 Overview' },
+    { key: 'branding', label: '🎨 Branding' },
+    { key: 'settings', label: '⚙️ Settings' },
+    { key: 'photos', label: `📸 Photos${photos.length ? ` (${photos.length})` : ''}` },
+    { key: 'diagnostics', label: '🔧 Diagnostics' },
+  ];
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/95 backdrop-blur flex flex-col"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#0a0a0f]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#0d0d18] flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center text-sm">⚙️</div>
+          <div className="w-8 h-8 rounded-xl bg-purple-600/30 flex items-center justify-center">
+            <Settings className="w-4 h-4 text-purple-400" />
+          </div>
           <div>
-            <h2 className="text-white font-bold">Operator Panel</h2>
-            <p className="text-white/40 text-xs">{localEvent.name}</p>
+            <h2 className="text-white font-bold text-base leading-tight">Operator Panel</h2>
+            <p className="text-white/40 text-xs">{storeEvent?.name || 'No event loaded'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save
+          <button onClick={handleSave} disabled={saving}
+            className="text-xs px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
           </button>
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            <X className="w-5 h-5 text-white" />
+          <button onClick={onClose}
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center">
+            <X className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-black/40 px-4 py-2 overflow-x-auto border-b border-white/10">
-        {OTABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-all ${
-              tab === t.id ? 'bg-purple-600 text-white font-semibold' : 'text-white/50 hover:text-white'
-            }`}
-          >
-            {t.emoji} {t.label}
+      {/* Stats strip */}
+      {stats && (
+        <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
+          {[
+            { label: 'Photos', v: stats.totalPhotos, e: '📸' },
+            { label: 'GIFs', v: stats.totalGIFs, e: '🎬' },
+            { label: 'Strips', v: stats.totalStrips, e: '🎞️' },
+            { label: 'Boomerangs', v: stats.totalBoomerangs, e: '🔄' },
+            { label: 'AI Used', v: stats.totalAIGenerated, e: '🤖' },
+            { label: 'Shares', v: stats.totalShares, e: '📤' },
+            { label: 'Prints', v: stats.totalPrints, e: '🖨️' },
+            { label: 'Sessions', v: stats.totalSessions, e: '👥' },
+          ].map(s => (
+            <div key={s.label} className="flex-shrink-0 bg-white/5 rounded-xl px-3 py-2 text-center min-w-[68px]">
+              <div className="text-sm">{s.e}</div>
+              <div className="text-white font-bold text-lg leading-tight">{s.v ?? 0}</div>
+              <div className="text-white/30 text-[10px]">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div className="flex gap-1 px-4 py-2 overflow-x-auto bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${tab === t.key ? 'bg-purple-600 text-white' : 'text-white/40 hover:text-white hover:bg-white/10'}`}>
+            {t.label}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-        {/* ── DIAGNOSTICS ─────────────────────────────────────────────── */}
-        {tab === 'diagnostics' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {/* Network */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Wifi className={`w-4 h-4 ${netStatus === 'ok' ? 'text-green-400' : 'text-red-400'}`} />
-                  <span className="text-white/60 text-sm">Network</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusDot s={netStatus} />
-                  <span className="text-white font-semibold capitalize">{netStatus === 'checking' ? '...' : netStatus}</span>
-                </div>
-                {latency !== null && <p className="text-white/40 text-xs mt-1">{latency}ms</p>}
-              </div>
-
-              {/* Camera */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Camera className={`w-4 h-4 ${camStatus === 'ok' ? 'text-green-400' : 'text-red-400'}`} />
-                  <span className="text-white/60 text-sm">Camera</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusDot s={camStatus} />
-                  <span className="text-white font-semibold capitalize">{camStatus === 'checking' ? '...' : camStatus}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Cloud sync */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Cloud className="w-4 h-4 text-cyan-400" />
-                <span className="text-white font-semibold">Cloud Sync</span>
-                <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${netStatus === 'ok' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                  {netStatus === 'ok' ? 'Connected' : 'Degraded'}
-                </span>
-              </div>
-              <p className="text-white/40 text-xs">Supabase Storage · Real-time upload on capture · 0 pending</p>
-            </div>
-
-            {/* Action buttons */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={handleTestCapture}
-                disabled={testCapturing}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-purple-600/20 border border-purple-500/30 text-purple-300 text-sm font-semibold hover:bg-purple-600/30 transition-colors disabled:opacity-50"
-              >
-                {testCapturing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-                Verify Shutter
-              </button>
-              <button
-                onClick={handleTestPrint}
-                disabled={testPrinting}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm font-semibold hover:bg-blue-600/30 transition-colors disabled:opacity-50"
-              >
-                {testPrinting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                Fire Test Print
-              </button>
-            </div>
-
-            <button
-              onClick={runDiag}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors text-sm"
-            >
-              <RefreshCw className="w-4 h-4" /> Re-run Diagnostics
-            </button>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 bg-[#0a0a0f]">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        )}
-
-        {/* ── OVERVIEW ────────────────────────────────────────────────── */}
-        {tab === 'overview' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-              <h3 className="font-semibold">Event Details</h3>
-              {[
-                { label: 'Event Name', key: 'name' },
-                { label: 'Venue', key: 'venue' },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label className="text-white/50 text-xs block mb-1">{f.label}</label>
-                  <input
-                    value={localEvent[f.key] || ''}
-                    onChange={(e) => setLocalEvent({ ...localEvent, [f.key]: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500"
-                  />
+        ) : (
+          <>
+            {/* OVERVIEW */}
+            {tab === 'overview' && (
+              <div className="space-y-4">
+                <div className="bg-white/5 rounded-2xl p-4">
+                  <h4 className="text-white font-semibold text-sm mb-3">Event Details</h4>
+                  <label className="text-white/40 text-xs block mb-1">Name</label>
+                  <input value={localEvent?.name || ''}
+                    onChange={e => setLocalEvent({ ...localEvent, name: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
                 </div>
-              ))}
-            </div>
-
-            {/* QR codes */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <h3 className="font-semibold mb-3">QR Codes</h3>
-              {!qrData ? (
-                <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  {[
-                    { label: 'Booth', qr: qrData.boothQR },
-                    { label: 'Gallery', qr: qrData.galleryQR },
-                  ].map((item) => (
-                    <div key={item.label}>
-                      <div className="bg-white rounded-xl p-2 inline-block mb-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={item.qr} alt={item.label} className="w-24 h-24" />
-                      </div>
-                      <p className="text-white/60 text-xs">{item.label}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── BRANDING ────────────────────────────────────────────────── */}
-        {tab === 'branding' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
-              <h3 className="font-semibold">🎨 Branding</h3>
-
-              {/* Color */}
-              <div>
-                <label className="text-white/50 text-xs block mb-1">Brand Color</label>
-                <div className="flex gap-3">
-                  <input type="color" value={localEvent.branding?.primaryColor || '#7c3aed'}
-                    onChange={(e) => updateBranding('primaryColor', e.target.value)}
-                    className="w-12 h-12 rounded-xl border border-white/20 bg-transparent cursor-pointer"
-                  />
-                  <input value={localEvent.branding?.primaryColor || '#7c3aed'}
-                    onChange={(e) => updateBranding('primaryColor', e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-
-              {[
-                { key: 'eventName', label: 'Event Header Name', placeholder: 'Shown on idle screen' },
-                { key: 'footerText', label: 'Footer Text (on photos)', placeholder: "Sarah & John's Wedding" },
-                { key: 'overlayText', label: 'Overlay Text (top of photo)', placeholder: '#hashtag' },
-                { key: 'logoUrl', label: 'Logo URL', placeholder: 'https://... PNG' },
-                { key: 'idleMediaUrl', label: 'Booth Loop (Idle Media URL)', placeholder: 'https://... MP4 or image' },
-                { key: 'frameUrl', label: 'Photo Frame Overlay URL', placeholder: 'https://... transparent PNG' },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label className="text-white/50 text-xs block mb-1">{f.label}</label>
-                  <input
-                    value={localEvent.branding?.[f.key] || ''}
-                    onChange={(e) => updateBranding(f.key, e.target.value || null)}
-                    placeholder={f.placeholder}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500 placeholder-white/20"
-                  />
-                </div>
-              ))}
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={localEvent.branding?.showDate ?? true}
-                  onChange={(e) => updateBranding('showDate', e.target.checked)}
-                  className="w-4 h-4 accent-purple-500"
-                />
-                <span className="text-white/70 text-sm">Show date on photos</span>
-              </label>
-            </div>
-          </div>
-        )}
-
-        {/* ── SETTINGS ────────────────────────────────────────────────── */}
-        {tab === 'settings' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <h3 className="font-semibold mb-4">⚙️ Features</h3>
-              <div className="space-y-1">
-                {[
-                  { key: 'allowAI', label: '🤖 AI Generation' },
-                  { key: 'allowGIF', label: '🎬 GIF Mode' },
-                  { key: 'allowBoomerang', label: '🔄 Boomerang' },
-                  { key: 'allowPrint', label: '🖨️ Print' },
-                  { key: 'allowRetakes', label: '🔁 Retakes' },
-                ].map((item) => (
-                  <label key={item.key} className="flex items-center justify-between py-3 border-b border-white/5 cursor-pointer">
-                    <span className="text-white/80 text-sm">{item.label}</span>
-                    <input type="checkbox"
-                      checked={localEvent.settings?.[item.key] ?? true}
-                      onChange={(e) => updateSettings(item.key, e.target.checked)}
-                      className="w-5 h-5 accent-purple-500"
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
-              <h3 className="font-semibold">⏱ Timing & Security</h3>
-              {[
-                { label: 'Countdown (seconds)', key: 'countdownSeconds', options: [1, 2, 3, 5, 10] },
-                { label: 'Session Timeout (seconds)', key: 'sessionTimeout', options: [30, 60, 90, 120, 180] },
-                { label: 'Print Copies', key: 'printCopies', options: [1, 2, 3, 4] },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label className="text-white/50 text-xs block mb-1">{f.label}</label>
-                  <select
-                    value={localEvent.settings?.[f.key] || f.options[0]}
-                    onChange={(e) => updateSettings(f.key, Number(e.target.value))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {f.options.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-              ))}
-              <div>
-                <label className="text-white/50 text-xs block mb-1">Operator PIN</label>
-                <input
-                  type="password"
-                  value={localEvent.settings?.operatorPin || '1234'}
-                  onChange={(e) => updateSettings('operatorPin', e.target.value)}
-                  maxLength={8}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── PHOTOS ──────────────────────────────────────────────────── */}
-        {tab === 'photos' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-white font-semibold">{photos.length} Photos
-                <span className="ml-2 text-xs text-green-400 font-normal"><Activity className="w-3 h-3 inline" /> Live</span>
-              </span>
-              <button
-                onClick={() => { setZipping(true); downloadPhotosZip(event!.id, event!.name); setTimeout(() => setZipping(false), 2000); }}
-                disabled={zipping || photos.length === 0}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
-              >
-                {zipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                ZIP All
-              </button>
-            </div>
-
-            {photosLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-white/40" /></div>
-            ) : photos.length === 0 ? (
-              <div className="text-center py-12 text-white/30">
-                <div className="text-4xl mb-3">📸</div>
-                <p>No photos yet</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {photos.map((photo) => (
-                  <div key={photo.id} className="relative group rounded-xl overflow-hidden aspect-square bg-white/5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.thumb_url || photo.url} alt="" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1">
-                      <a href={photo.url} target="_blank" rel="noreferrer"
-                        className="w-full text-center bg-white/20 rounded py-1 text-white text-xs">Open</a>
-                      <button
-                        onClick={() => handleDeletePhoto(photo.id)}
-                        disabled={deletingId === photo.id}
-                        className="w-full bg-red-500/50 rounded py-1 text-white text-xs disabled:opacity-50 flex items-center justify-center gap-1"
-                      >
-                        {deletingId === photo.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                        Wipe
-                      </button>
-                    </div>
-                    <div className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5 text-xs text-white/60">{photo.mode}</div>
+                <div className="bg-white/5 rounded-2xl p-4">
+                  <h4 className="text-white font-semibold text-sm mb-3">Booth URL</h4>
+                  <div className="bg-black/40 rounded-xl p-3 mb-3">
+                    <code className="text-purple-300 text-xs break-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/booth?event=${storeEvent?.slug}` : ''}
+                    </code>
                   </div>
-                ))}
+                  <button onClick={() => {
+                    const url = `${window.location.origin}/booth?event=${storeEvent?.slug}`;
+                    navigator.clipboard.writeText(url);
+                    toast.success('Copied!');
+                  }} className="w-full py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 text-sm font-medium">
+                    📋 Copy URL
+                  </button>
+                </div>
               </div>
             )}
-          </div>
-        )}
 
+            {/* BRANDING */}
+            {tab === 'branding' && localEvent && (
+              <div className="space-y-3">
+                {/* Color */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <label className="text-white/50 text-xs block mb-2">🎨 Brand Color</label>
+                  <div className="flex gap-3 items-center">
+                    <input type="color"
+                      value={(localEvent.branding?.primaryColor) || '#7c3aed'}
+                      onChange={e => updateBranding('primaryColor', e.target.value)}
+                      className="w-14 h-10 rounded-xl border border-white/20 bg-transparent cursor-pointer p-1" />
+                    <input value={(localEvent.branding?.primaryColor) || '#7c3aed'}
+                      onChange={e => updateBranding('primaryColor', e.target.value)}
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-purple-500" />
+                  </div>
+                </div>
+
+                {/* Text fields */}
+                {[
+                  { key: 'eventName', label: '🏷️ Event Name on Idle Screen', ph: 'Wedding name...' },
+                  { key: 'footerText', label: '📝 Footer Text on Photos', ph: "Sarah & John's Wedding · June 2025" },
+                  { key: 'overlayText', label: '🔤 Overlay / Hashtag', ph: '#YourHashtag2025' },
+                ].map(f => (
+                  <div key={f.key} className="bg-white/5 rounded-xl p-4">
+                    <label className="text-white/50 text-xs block mb-1.5">{f.label}</label>
+                    <input value={(localEvent.branding?.[f.key]) || ''}
+                      onChange={e => updateBranding(f.key, e.target.value)}
+                      placeholder={f.ph}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  </div>
+                ))}
+
+                {/* Logo */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <label className="text-white/50 text-xs block mb-1">🖼️ Logo</label>
+                  <OperatorUpload label="Logo" accept="image/*"
+                    currentUrl={(localEvent.branding?.logoUrl) || ''}
+                    onUploaded={url => updateBranding('logoUrl', url)}
+                    storagePath={`branding/${eventId}/logo`} />
+                  {localEvent.branding?.logoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={localEvent.branding.logoUrl} alt="logo" className="mt-2 h-10 w-auto rounded-lg border border-white/10 object-contain bg-white/5 p-1" />
+                  )}
+                </div>
+
+                {/* Idle media */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <label className="text-white/50 text-xs block mb-1">🎬 Booth Loop — Idle Screen Media</label>
+                  <p className="text-white/30 text-[11px] mb-1.5">MP4 video or image played on loop when booth is idle</p>
+                  <OperatorUpload label="Video/Image" accept="video/mp4,video/webm,image/*"
+                    currentUrl={(localEvent.branding?.idleMediaUrl) || ''}
+                    onUploaded={url => updateBranding('idleMediaUrl', url)}
+                    storagePath={`branding/${eventId}/idle`} />
+                  <input value={(localEvent.branding?.idleMediaUrl) || ''}
+                    onChange={e => updateBranding('idleMediaUrl', e.target.value)}
+                    placeholder="Or paste URL..."
+                    className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  {localEvent.branding?.idleMediaUrl && (
+                    <div className="mt-2 rounded-xl overflow-hidden border border-white/10">
+                      {(localEvent.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
+                        ? <video src={localEvent.branding.idleMediaUrl} muted autoPlay loop playsInline className="w-full max-h-24 object-cover" />
+                        : /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={localEvent.branding.idleMediaUrl} alt="idle" className="w-full max-h-24 object-cover" />
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Frame */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <label className="text-white/50 text-xs block mb-1">🖼️ Photo Frame Overlay</label>
+                  <p className="text-white/30 text-[11px] mb-1.5">PNG with transparency, composited on every photo</p>
+                  <OperatorUpload label="Frame PNG" accept="image/png"
+                    currentUrl={(localEvent.branding?.frameUrl) || ''}
+                    onUploaded={url => updateBranding('frameUrl', url)}
+                    storagePath={`branding/${eventId}/frame`} />
+                  <input value={(localEvent.branding?.frameUrl) || ''}
+                    onChange={e => updateBranding('frameUrl', e.target.value)}
+                    placeholder="Or paste URL..."
+                    className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  {localEvent.branding?.frameUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={localEvent.branding.frameUrl} alt="frame" className="mt-2 w-full max-h-24 object-contain rounded-xl border border-white/10 bg-white/5" />
+                  )}
+                </div>
+
+                {/* Show date */}
+                <label className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3 cursor-pointer">
+                  <input type="checkbox"
+                    checked={(localEvent.branding?.showDate) ?? true}
+                    onChange={e => updateBranding('showDate', e.target.checked)}
+                    className="w-4 h-4 accent-purple-500" />
+                  <span className="text-white/70 text-sm">Show date on photos</span>
+                </label>
+
+                {/* Live preview */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <p className="text-white/40 text-xs mb-2">Photo Preview</p>
+                  <div className="rounded-xl overflow-hidden relative" style={{ background: '#111', aspectRatio: '4/3' }}>
+                    <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs">📷 photo area</div>
+                    {localEvent.branding?.overlayText && (
+                      <div className="absolute top-0 left-0 right-0 bg-black/50 px-3 py-2">
+                        <span className="text-white text-xs font-bold">{localEvent.branding.overlayText}</span>
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 py-2.5 px-3 text-center"
+                      style={{ background: `${primaryColor}ee` }}>
+                      <p className="text-white text-xs font-bold">{localEvent.branding?.footerText || localEvent.name}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SETTINGS */}
+            {tab === 'settings' && localEvent && (
+              <div className="space-y-3">
+                <div className="bg-white/5 rounded-2xl p-4">
+                  <h4 className="text-white font-semibold text-sm mb-3">Features</h4>
+                  {[
+                    { key: 'allowAI', label: '🤖 AI Generation' },
+                    { key: 'allowGIF', label: '🎬 GIF Mode' },
+                    { key: 'allowBoomerang', label: '🔄 Boomerang' },
+                    { key: 'allowPrint', label: '🖨️ Print' },
+                    { key: 'allowRetakes', label: '🔁 Retakes' },
+                  ].map(item => (
+                    <label key={item.key} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 cursor-pointer">
+                      <span className="text-white/80 text-sm">{item.label}</span>
+                      <input type="checkbox"
+                        checked={(localEvent.settings?.[item.key]) ?? true}
+                        onChange={e => updateSettings(item.key, e.target.checked)}
+                        className="w-5 h-5 accent-purple-500" />
+                    </label>
+                  ))}
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-4 space-y-3">
+                  <h4 className="text-white font-semibold text-sm">Timing & Security</h4>
+                  {[
+                    { key: 'countdownSeconds', label: 'Countdown', options: [1,2,3,5,10], suffix: 's' },
+                    { key: 'sessionTimeout', label: 'Session Timeout', options: [30,60,90,120,180], suffix: 's' },
+                    { key: 'photosPerSession', label: 'Photos per session', options: [1,2,3,4], suffix: '' },
+                    { key: 'printCopies', label: 'Print copies', options: [1,2,3,4], suffix: '' },
+                  ].map(f => (
+                    <div key={f.key}>
+                      <label className="text-white/40 text-xs block mb-1">{f.label}</label>
+                      <select value={(localEvent.settings?.[f.key]) || f.options[0]}
+                        onChange={e => updateSettings(f.key, Number(e.target.value))}
+                        className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500">
+                        {f.options.map(n => <option key={n} value={n}>{n}{f.suffix}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                  <div>
+                    <label className="text-white/40 text-xs block mb-1">Operator PIN</label>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*"
+                      value={(localEvent.settings?.operatorPin) || '1234'}
+                      onChange={e => updateSettings('operatorPin', e.target.value.replace(/\D/g, '').slice(0, 8))}
+                      className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2.5 text-white text-xl tracking-[0.4em] font-mono focus:outline-none focus:border-purple-500" />
+                    <p className="text-white/20 text-xs mt-1">4–8 digits. Used to open this panel.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PHOTOS */}
+            {tab === 'photos' && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-white/50 text-xs flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />Live
+                  </span>
+                  <button onClick={handleZip} disabled={zipLoading || photos.length === 0}
+                    className="text-xs px-3 py-2 rounded-xl bg-purple-600/20 text-purple-300 disabled:opacity-40 flex items-center gap-1.5">
+                    {zipLoading ? <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" /> : '📦'}
+                    {zipLoading ? '...' : `Download All (${photos.length})`}
+                  </button>
+                </div>
+                {photos.length === 0
+                  ? <div className="text-center py-16 text-white/20 text-sm">No photos yet</div>
+                  : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {photos.map(photo => (
+                        <div key={photo.id} className="relative group rounded-xl overflow-hidden bg-white/5 border border-white/10 aspect-square">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={photo.thumb_url || photo.url} alt="photo" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1.5">
+                            <a href={photo.url} target="_blank" rel="noreferrer"
+                              className="w-full py-1.5 rounded-lg bg-white/20 text-white text-xs text-center">View</a>
+                            <button onClick={() => handleDeletePhoto(photo.id)} disabled={deletingId === photo.id}
+                              className="w-full py-1.5 rounded-lg bg-red-500/30 text-red-300 text-xs disabled:opacity-40">
+                              {deletingId === photo.id ? '...' : '🗑️ Wipe'}
+                            </button>
+                          </div>
+                          <div className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5 text-[10px] text-white/60">
+                            {photo.mode === 'gif' ? '🎬' : photo.mode === 'boomerang' ? '🔄' : photo.mode === 'strip' ? '🎞️' : '📸'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+              </div>
+            )}
+
+            {/* DIAGNOSTICS */}
+            {tab === 'diagnostics' && <DiagnosticsPanel />}
+          </>
+        )}
       </div>
     </motion.div>
+  );
+}
+
+// ── Gear icon trigger — exported to IdleScreen ────────────────────────────
+export function OperatorPanelTrigger() {
+  const { event } = useBoothStore();
+  const [phase, setPhase] = useState<'idle' | 'pin' | 'panel'>('idle');
+  const correctPin = (event?.settings?.operatorPin) || '1234';
+
+  return (
+    <>
+      <button
+        onPointerDown={e => { e.stopPropagation(); setPhase('pin'); }}
+        className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all"
+        aria-label="Operator Settings"
+      >
+        <Settings className="w-5 h-5" />
+      </button>
+
+      <AnimatePresence>
+        {phase === 'pin' && (
+          <motion.div key="pin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50">
+            <PinEntry correctPin={correctPin} onSuccess={() => setPhase('panel')} onCancel={() => setPhase('idle')} />
+          </motion.div>
+        )}
+        {phase === 'panel' && (
+          <OperatorPanel key="panel" onClose={() => setPhase('idle')} />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
