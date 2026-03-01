@@ -514,180 +514,258 @@ export default function EventManagePage() {
 
         {/* ══ BRANDING TAB ══ */}
         {tab === 'branding' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Controls */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
-              <h3 className="font-semibold text-lg">🎨 Branding Settings</h3>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
 
-              {/* Brand Color — shows actual saved color */}
-              <div>
-                <label className="text-white/50 text-sm block mb-1.5">Brand Color</label>
-                <div className="flex gap-3 items-center">
-                  <input type="color"
-                    value={(event.branding?.primaryColor as string) || '#7c3aed'}
-                    onChange={e => updateBranding('primaryColor', e.target.value)}
-                    className="w-14 h-14 rounded-xl border border-white/20 bg-transparent cursor-pointer p-1" />
-                  <div className="flex-1">
-                    <input
-                      value={(event.branding?.primaryColor as string) || '#7c3aed'}
-                      onChange={e => updateBranding('primaryColor', e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-mono focus:outline-none focus:border-purple-500" />
-                    <p className="text-white/30 text-xs mt-1">Used on idle screen, photo overlays, and footer bar</p>
+            {/* ── Left column: Controls ── */}
+            <div className="space-y-4">
+
+              {/* Group 1: Identity */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-white/10 bg-white/3">
+                  <h3 className="text-white/80 text-sm font-semibold">Identity</h3>
+                  <p className="text-white/30 text-xs mt-0.5">Visual identity of the booth — all optional</p>
+                </div>
+                <div className="p-5 space-y-5">
+
+                  {/* Brand colour — OPTIONAL */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/60 text-sm font-medium">Brand Colour</label>
+                      <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional</span>
+                    </div>
+                    <div className="flex gap-3 items-center">
+                      <input type="color"
+                        value={/^#[0-9A-Fa-f]{6}$/.test((event.branding?.primaryColor as string) || '') ? (event.branding.primaryColor as string) : '#7c3aed'}
+                        onChange={e => updateBranding('primaryColor', e.target.value)}
+                        className="w-14 h-12 rounded-xl border border-white/20 bg-transparent cursor-pointer p-1 flex-shrink-0" />
+                      <div className="flex-1 relative">
+                        <input
+                          value={(event.branding?.primaryColor as string) || ''}
+                          onChange={e => updateBranding('primaryColor', e.target.value)}
+                          placeholder="Leave blank for default purple"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 pr-10" />
+                        {(event.branding?.primaryColor as string) && (
+                          <button onClick={() => updateBranding('primaryColor', '')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors text-sm">✕</button>
+                        )}
+                      </div>
+                    </div>
+                    {(event.branding?.primaryColor as string) && /^#[0-9A-Fa-f]{6}$/.test(event.branding.primaryColor as string) && (
+                      <div className="mt-2 h-5 rounded-lg w-full" style={{ background: event.branding.primaryColor as string }} />
+                    )}
+                    <p className="text-white/25 text-xs mt-1.5">Used on idle screen UI, QR screen, and share buttons</p>
+                  </div>
+
+                  {/* Event name on idle screen — OPTIONAL */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/60 text-sm font-medium">Event Name on Idle Screen</label>
+                      <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional</span>
+                    </div>
+                    <div className="relative">
+                      <input value={(event.branding?.eventName as string) || ''}
+                        onChange={e => updateBranding('eventName', e.target.value)}
+                        placeholder={`Leave blank to use "${event.name}"`}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 pr-10" />
+                      {(event.branding?.eventName as string) && (
+                        <button onClick={() => updateBranding('eventName', '')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors text-sm">✕</button>
+                      )}
+                    </div>
+                    <p className="text-white/25 text-xs mt-1.5">Displayed above the tap-to-start button. Defaults to event name.</p>
+                  </div>
+
+                  {/* Logo — OPTIONAL */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/60 text-sm font-medium">Logo</label>
+                      <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional — replaces name</span>
+                    </div>
+                    <UploadButton label="Logo" accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      currentUrl={(event.branding?.logoUrl as string) || ''}
+                      onUploaded={url => updateBranding('logoUrl', url)}
+                      uploading={uploadingLogo} setUploading={setUploadingLogo}
+                      storagePath={`branding/${event.id}/logo`} />
+                    {(event.branding?.logoUrl as string) && (
+                      <div className="mt-2 flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={event.branding.logoUrl as string} alt="Logo preview"
+                          className="h-12 w-auto rounded-lg border border-white/10 object-contain bg-white/5 p-1" />
+                        <button onClick={() => updateBranding('logoUrl', '')}
+                          className="text-white/30 hover:text-red-400 text-xs transition-colors">Remove</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Event Name on Idle */}
-              <div>
-                <label className="text-white/50 text-sm block mb-1.5">Event Name (shown on idle screen)</label>
-                <input value={(event.branding?.eventName as string) || event.name}
-                  onChange={e => updateBranding('eventName', e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" />
-              </div>
-
-              {/* Footer text */}
-              <div>
-                <label className="text-white/50 text-sm block mb-1.5">Footer Text (printed on every photo)</label>
-                <input value={(event.branding?.footerText as string) || ''}
-                  onChange={e => updateBranding('footerText', e.target.value)}
-                  placeholder="e.g. Sarah & John's Wedding · June 2025"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 placeholder-white/20" />
-              </div>
-
-              {/* Overlay text */}
-              <div>
-                <label className="text-white/50 text-sm block mb-1.5">Overlay / Hashtag (top of photo)</label>
-                <input value={(event.branding?.overlayText as string) || ''}
-                  onChange={e => updateBranding('overlayText', e.target.value)}
-                  placeholder="e.g. #SarahAndJohn2025"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 placeholder-white/20" />
-              </div>
-
-              {/* Show date toggle */}
-              <label className="flex items-center gap-3 cursor-pointer py-2 border-t border-white/10">
-                <input type="checkbox" checked={(event.branding?.showDate as boolean) ?? true}
-                  onChange={e => updateBranding('showDate', e.target.checked)}
-                  className="w-5 h-5 accent-purple-500" />
-                <div>
-                  <span className="text-white/80 text-sm font-medium">Show date on photos</span>
-                  <p className="text-white/30 text-xs">Displays today's date in the footer bar</p>
+              {/* Group 2: Photo Overlays */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-white/10 bg-white/3">
+                  <h3 className="text-white/80 text-sm font-semibold">Photo Overlays</h3>
+                  <p className="text-white/30 text-xs mt-0.5">Text and graphics stamped on captured photos — leave blank for clean photos</p>
                 </div>
-              </label>
+                <div className="p-5 space-y-5">
 
-              {/* Logo upload */}
-              <div className="border-t border-white/10 pt-4">
-                <label className="text-white/50 text-sm block mb-2">🖼️ Logo</label>
-                <UploadButton label="Logo" accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                  currentUrl={(event.branding?.logoUrl as string) || ''}
-                  onUploaded={url => updateBranding('logoUrl', url)}
-                  uploading={uploadingLogo} setUploading={setUploadingLogo}
-                  storagePath={`branding/${event.id}/logo`} />
-                {(event.branding?.logoUrl as string) && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={event.branding.logoUrl as string} alt="Logo preview"
-                    className="mt-2 h-12 w-auto rounded-lg border border-white/10 object-contain bg-white/5 p-1" />
-                )}
-              </div>
-
-              {/* Idle loop media upload */}
-              <div className="border-t border-white/10 pt-4">
-                <label className="text-white/50 text-sm block mb-1">🎬 Booth Loop — Idle Screen Media</label>
-                <p className="text-white/30 text-xs mb-2">Video (MP4) or image shown on loop when booth is idle. Upload or paste a URL.</p>
-                <UploadButton label="Idle Video/Image" accept="video/mp4,video/webm,image/jpeg,image/png,image/gif,image/webp"
-                  currentUrl={(event.branding?.idleMediaUrl as string) || ''}
-                  onUploaded={url => updateBranding('idleMediaUrl', url)}
-                  uploading={uploadingIdle} setUploading={setUploadingIdle}
-                  storagePath={`branding/${event.id}/idle`} />
-                {/* Also allow URL paste */}
-                <input value={(event.branding?.idleMediaUrl as string) || ''}
-                  onChange={e => updateBranding('idleMediaUrl', e.target.value)}
-                  placeholder="Or paste URL directly..."
-                  className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500 placeholder-white/20" />
-                {(event.branding?.idleMediaUrl as string) && (
-                  <div className="mt-2 rounded-xl overflow-hidden border border-white/10 max-h-32">
-                    {(event.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
-                      ? <video src={event.branding.idleMediaUrl as string} muted controls className="w-full max-h-32 object-cover" />
-                      : /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={event.branding.idleMediaUrl as string} alt="Idle preview" className="w-full max-h-32 object-cover" />
-                    }
+                  {/* Footer text */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/60 text-sm font-medium">Footer Text</label>
+                      <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional</span>
+                    </div>
+                    <div className="relative">
+                      <input value={(event.branding?.footerText as string) || ''}
+                        onChange={e => updateBranding('footerText', e.target.value)}
+                        placeholder="e.g. Sarah & John's Wedding · June 2025"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 pr-10" />
+                      {(event.branding?.footerText as string) && (
+                        <button onClick={() => updateBranding('footerText', '')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors text-sm">✕</button>
+                      )}
+                    </div>
                   </div>
-                )}
+
+                  {/* Overlay / hashtag */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/60 text-sm font-medium">Top Overlay / Hashtag</label>
+                      <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional</span>
+                    </div>
+                    <div className="relative">
+                      <input value={(event.branding?.overlayText as string) || ''}
+                        onChange={e => updateBranding('overlayText', e.target.value)}
+                        placeholder="#SarahAndJohn2025"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 pr-10" />
+                      {(event.branding?.overlayText as string) && (
+                        <button onClick={() => updateBranding('overlayText', '')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors text-sm">✕</button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Show date */}
+                  <label className="flex items-center justify-between py-1 cursor-pointer group">
+                    <div>
+                      <p className="text-white/80 text-sm font-medium">Show date on photos</p>
+                      <p className="text-white/30 text-xs">Stamps today's date in the footer area</p>
+                    </div>
+                    <input type="checkbox" checked={(event.branding?.showDate as boolean) ?? false}
+                      onChange={e => updateBranding('showDate', e.target.checked)}
+                      className="w-5 h-5 accent-purple-500 cursor-pointer" />
+                  </label>
+
+                  {/* Frame overlay */}
+                  <div className="pt-3 border-t border-white/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/60 text-sm font-medium">Photo Frame (PNG Overlay)</label>
+                      <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional</span>
+                    </div>
+                    <p className="text-white/30 text-xs mb-3">PNG with transparency — composited on every photo at capture time</p>
+                    <UploadButton label="Frame PNG" accept="image/png"
+                      currentUrl={(event.branding?.frameUrl as string) || ''}
+                      onUploaded={url => updateBranding('frameUrl', url)}
+                      uploading={uploadingFrame} setUploading={setUploadingFrame}
+                      storagePath={`branding/${event.id}/frame`} />
+                    <input value={(event.branding?.frameUrl as string) || ''}
+                      onChange={e => updateBranding('frameUrl', e.target.value)}
+                      placeholder="Or paste URL directly..."
+                      className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                    {(event.branding?.frameUrl as string) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={event.branding.frameUrl as string} alt="Frame preview"
+                        className="mt-2 w-full max-h-32 object-contain rounded-xl border border-white/10 bg-white/5 p-1" />
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Frame overlay upload */}
-              <div className="border-t border-white/10 pt-4">
-                <label className="text-white/50 text-sm block mb-1">🖼️ Photo Frame Overlay</label>
-                <p className="text-white/30 text-xs mb-2">PNG with transparency — composited on every photo at capture time.</p>
-                <UploadButton label="Frame PNG" accept="image/png"
-                  currentUrl={(event.branding?.frameUrl as string) || ''}
-                  onUploaded={url => updateBranding('frameUrl', url)}
-                  uploading={uploadingFrame} setUploading={setUploadingFrame}
-                  storagePath={`branding/${event.id}/frame`} />
-                <input value={(event.branding?.frameUrl as string) || ''}
-                  onChange={e => updateBranding('frameUrl', e.target.value)}
-                  placeholder="Or paste URL directly..."
-                  className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500 placeholder-white/20" />
-                {(event.branding?.frameUrl as string) && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={event.branding.frameUrl as string} alt="Frame preview"
-                    className="mt-2 w-full max-h-32 object-contain rounded-xl border border-white/10 bg-checker" />
-                )}
+              {/* Group 3: Idle Screen */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-white/10 bg-white/3">
+                  <h3 className="text-white/80 text-sm font-semibold">Idle Screen Background</h3>
+                  <p className="text-white/30 text-xs mt-0.5">Shown when booth is waiting for a guest</p>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-white/60 text-sm font-medium">Loop Video or Image</label>
+                    <span className="text-white/25 text-xs bg-white/5 px-2 py-0.5 rounded-full">Optional</span>
+                  </div>
+                  <p className="text-white/30 text-xs mb-3">MP4 or image plays behind the tap-to-start prompt</p>
+                  <UploadButton label="Idle Video/Image" accept="video/mp4,video/webm,image/jpeg,image/png,image/gif,image/webp"
+                    currentUrl={(event.branding?.idleMediaUrl as string) || ''}
+                    onUploaded={url => updateBranding('idleMediaUrl', url)}
+                    uploading={uploadingIdle} setUploading={setUploadingIdle}
+                    storagePath={`branding/${event.id}/idle`} />
+                  <input value={(event.branding?.idleMediaUrl as string) || ''}
+                    onChange={e => updateBranding('idleMediaUrl', e.target.value)}
+                    placeholder="Or paste URL directly..."
+                    className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  {(event.branding?.idleMediaUrl as string) && (
+                    <div className="mt-3 rounded-xl overflow-hidden border border-white/10">
+                      {(event.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
+                        ? <video src={event.branding.idleMediaUrl as string} muted controls className="w-full max-h-40 object-cover" />
+                        : /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={event.branding.idleMediaUrl as string} alt="Idle preview" className="w-full max-h-40 object-cover" />
+                      }
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Live Preview */}
-            <div className="space-y-4">
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 sticky top-24">
-                <h3 className="font-semibold text-lg mb-4">Live Preview</h3>
+            {/* ── Right column: Live Preview (sticky) ── */}
+            <div className="xl:sticky xl:top-24 space-y-4">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                <h3 className="font-semibold text-base mb-1">Live Preview</h3>
+                <p className="text-white/30 text-xs mb-4">Updates as you type</p>
 
                 {/* Photo preview */}
-                <div className="rounded-xl overflow-hidden relative mb-4"
-                  style={{ background: '#222', aspectRatio: '3/4' }}>
-                  {/* Idle media bg */}
-                  {(event.branding?.idleMediaUrl as string) && (
-                    (event.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
-                      ? <video src={event.branding.idleMediaUrl as string} muted autoPlay loop playsInline className="absolute inset-0 w-full h-full object-cover opacity-40" />
-                      : /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={event.branding.idleMediaUrl as string} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
-                  )}
-
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center text-white/40">
-                      <div className="text-4xl mb-2">📷</div>
-                      <p className="text-sm">Photo area</p>
+                <div>
+                  <p className="text-white/40 text-xs mb-2 uppercase tracking-widest font-medium">Photo Output</p>
+                  <div className="rounded-2xl overflow-hidden relative bg-[#1a1a2e]" style={{ aspectRatio: '3/4' }}>
+                    {(event.branding?.idleMediaUrl as string) && (
+                      (event.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
+                        ? <video src={event.branding.idleMediaUrl as string} muted autoPlay loop playsInline className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                        : /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={event.branding.idleMediaUrl as string} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center text-white/20">
+                        <div className="text-5xl mb-2">📷</div>
+                        <p className="text-xs">Photo area</p>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Frame overlay */}
-                  {(event.branding?.frameUrl as string) && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={event.branding.frameUrl as string} alt="Frame"
-                      className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                  )}
-
-                  {/* Overlay text top */}
-                  {(event.branding?.overlayText as string) && (
-                    <div className="absolute top-0 left-0 right-0 bg-black/50 px-4 py-2.5">
-                      <span className="text-white text-sm font-bold">{event.branding.overlayText as string}</span>
-                    </div>
-                  )}
-
-                  {/* Footer bar bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 py-3 px-4 text-center"
-                    style={{ background: `${primaryColor}ee` }}>
-                    <p className="text-white text-sm font-bold">
-                      {(event.branding?.footerText as string) || event.name}
-                    </p>
-                    {(event.branding?.showDate as boolean) !== false && (
-                      <p className="text-white/70 text-xs mt-0.5">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    {(event.branding?.frameUrl as string) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={event.branding.frameUrl as string} alt="Frame" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                    )}
+                    {(event.branding?.overlayText as string) && (
+                      <div className="absolute top-0 left-0 right-0 bg-black/50 px-4 py-3">
+                        <span className="text-white text-sm font-bold">{event.branding.overlayText as string}</span>
+                      </div>
+                    )}
+                    {((event.branding?.footerText as string) || (event.branding?.showDate as boolean)) ? (
+                      <div className="absolute bottom-0 left-0 right-0 py-3 px-4 text-center"
+                        style={{ background: `${primaryColor}ee` }}>
+                        {(event.branding?.footerText as string) && (
+                          <p className="text-white text-sm font-bold">{event.branding.footerText as string}</p>
+                        )}
+                        {(event.branding?.showDate as boolean) && (
+                          <p className="text-white/70 text-xs mt-0.5">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="absolute bottom-0 left-0 right-0 py-2 px-4 text-center bg-green-500/10 border-t border-green-500/20">
+                        <p className="text-green-400/80 text-xs font-medium">✓ Clean — no overlay</p>
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {/* Idle screen preview */}
-                <div>
-                  <p className="text-white/40 text-xs mb-2">Idle Screen Preview</p>
-                  <div className="rounded-xl overflow-hidden relative" style={{ background: primaryColor, aspectRatio: '16/9' }}>
+                <div className="mt-4">
+                  <p className="text-white/40 text-xs mb-2 uppercase tracking-widest font-medium">Idle Screen</p>
+                  <div className="rounded-2xl overflow-hidden relative" style={{ aspectRatio: '16/9' }}>
                     {(event.branding?.idleMediaUrl as string) ? (
                       (event.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
                         ? <video src={event.branding.idleMediaUrl as string} muted autoPlay loop playsInline className="absolute inset-0 w-full h-full object-cover" />
@@ -696,13 +774,14 @@ export default function EventManagePage() {
                     ) : (
                       <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}88)` }} />
                     )}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                      {(event.branding?.logoUrl as string)
-                        ? /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={event.branding.logoUrl as string} alt="Logo" className="h-10 w-auto object-contain mb-2 drop-shadow-xl" />
-                        : <p className="text-base font-black drop-shadow-lg">{(event.branding?.eventName as string) || event.name}</p>
-                      }
-                      <p className="text-xs opacity-70 mt-1">TAP ANYWHERE TO START</p>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
+                      {(event.branding?.logoUrl as string) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={event.branding.logoUrl as string} alt="Logo" className="h-10 w-auto object-contain mb-2 drop-shadow-xl" />
+                      ) : (
+                        <p className="text-sm font-black drop-shadow-lg text-center">{(event.branding?.eventName as string) || event.name}</p>
+                      )}
+                      <p className="text-xs opacity-60 mt-1">TAP TO START</p>
                     </div>
                   </div>
                 </div>
