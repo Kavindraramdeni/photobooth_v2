@@ -13,364 +13,326 @@ const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl } = require('../ser
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
 
-// Multer: memory storage for direct processing
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files allowed'));
-    }
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: function(req, file, cb) {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files allowed'));
   },
 });
 
-/**
- * Helper: fetch a remote URL as a buffer
- */
-function fetchBuffer(url) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    client.get(url, (res) => {
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-      res.on('error', reject);
-    }).on('error', reject);
-  });
-}
-
-/**
- * POST /api/photos/upload
- */
-router.post('/upload', upload.single('photo'), async (req, res) => {
+// POST /api/photos/upload
+router.post('/upload', upload.single('photo'), async function(req, res) {
   try {
-    const { eventId, mode = 'single', sessionId } = req.body;
+    var eventId = req.body.eventId;
+    var sessionId = req.body.sessionId;
+    var photoMode = req.body.mode || 'single';
+
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
 
-    const { data: event } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .single();
-
+    var eventResult = await supabase.from('events').select('*').eq('id', eventId).single();
+    var event = eventResult.data;
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    const photoId = uuidv4();
-    const timestamp = Date.now();
-    const storageKey = `events/${eventId}/photos/${photoId}_${timestamp}.jpg`;
+    var photoId = uuidv4();
+    var timestamp = Date.now();
+    var storageKey = 'events/' + eventId + '/photos/' + photoId + '_' + timestamp + '.jpg';
 
-    let processedBuffer = await sharp(req.file.buffer)
+    var processedBuffer = await sharp(req.file.buffer)
       .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 95 })
       .toBuffer();
 
-    if (event.branding) {
-      processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding);
-    }
+    // Only apply branding overlay if branding has actual visible content
+    try {
+      if (event.branding && hasBrandingContent(event.branding)) {
+        processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding);
+      }
+    } catch (e) { console.error('Branding overlay failed:', e.message); }
 
-    const photoUrl = await uploadToStorage(processedBuffer, storageKey, 'image/jpeg');
+    var photoUrl = await uploadToStorage(processedBuffer, storageKey, 'image/jpeg');
 
-    const thumbBuffer = await sharp(processedBuffer)
-      .resize(400, 400, { fit: 'inside' })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    const thumbKey = `events/${eventId}/thumbs/${photoId}_thumb.jpg`;
-    const thumbUrl = await uploadToStorage(thumbBuffer, thumbKey, 'image/jpeg');
+    var thumbBuffer = await sharp(processedBuffer).resize(400, 400, { fit: 'inside' }).jpeg({ quality: 80 }).toBuffer();
+    var thumbKey = 'events/' + eventId + '/thumbs/' + photoId + '_thumb.jpg';
+    var thumbUrl = await uploadToStorage(thumbBuffer, thumbKey, 'image/jpeg');
 
-    const galleryUrl = buildGalleryUrl(event.slug, photoId);
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const whatsappUrl = buildWhatsAppUrl(photoUrl, event.name);
+    var galleryUrl = buildGalleryUrl(event.slug, photoId);
+    var qrDataUrl = await generateQRDataURL(galleryUrl);
+    var whatsappUrl = buildWhatsAppUrl(photoUrl, event.name);
 
-    const { data: photo, error: dbError } = await supabase
-      .from('photos')
-      .insert({
-        id: photoId,
-        event_id: eventId,
-        session_id: sessionId,
-        url: photoUrl,
-        thumb_url: thumbUrl,
-        gallery_url: galleryUrl,
-        storage_key: storageKey,
-        mode,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (dbError) console.error('DB insert error:', dbError);
+    var insertResult = await supabase.from('photos').insert({
+      id: photoId, event_id: eventId, session_id: sessionId,
+      url: photoUrl, thumb_url: thumbUrl, gallery_url: galleryUrl,
+      storage_key: storageKey, mode: photoMode, created_at: new Date().toISOString(),
+    });
+    if (insertResult.error) console.error('DB insert error:', insertResult.error);
 
     try {
       await supabase.from('analytics').insert({
-        event_id: eventId,
-        action: 'photo_taken',
-        metadata: { mode, photoId },
+        event_id: eventId, action: 'photo_taken', metadata: { mode: photoMode, photoId: photoId },
       });
-    } catch (e) {
-      console.warn('Analytics insert failed:', e.message);
-    }
+    } catch (e) {}
 
-    const io = req.app.get('io');
-    io.to(`event-${eventId}`).emit('photo-taken', {
-      photoId,
-      thumbUrl,
-      url: photoUrl,
-      galleryUrl,
-      mode,
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      var io = req.app.get('io');
+      if (io) io.to('event-' + eventId).emit('photo-taken', {
+        photoId: photoId, thumbUrl: thumbUrl, galleryUrl: galleryUrl,
+        mode: photoMode, timestamp: new Date().toISOString(),
+      });
+    } catch (e) {}
 
-    res.json({
-      success: true,
-      photo: {
-        id: photoId,
-        url: photoUrl,
-        thumbUrl,
-        galleryUrl,
-        qrCode: qrDataUrl,
-        whatsappUrl,
-        downloadUrl: photoUrl,
-      },
-    });
+    res.json({ success: true, photo: {
+      id: photoId, url: photoUrl, thumbUrl: thumbUrl, galleryUrl: galleryUrl,
+      qrCode: qrDataUrl, whatsappUrl: whatsappUrl, downloadUrl: photoUrl,
+    }});
   } catch (error) {
     console.error('Photo upload error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * POST /api/photos/gif
- */
-router.post('/gif', upload.array('frames', 10), async (req, res) => {
+// POST /api/photos/gif
+router.post('/gif', upload.array('frames', 10), async function(req, res) {
   try {
-    const { eventId, type = 'gif', sessionId } = req.body;
-    if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
+    var eventId = req.body.eventId;
+    var gifType = req.body.type || 'gif';
+    var sessionId = req.body.sessionId;
+    if (!req.files || !req.files.length) return res.status(400).json({ error: 'No frames provided' });
 
-    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-
-    const frames = req.files.map((f) => f.buffer);
-    let gifBuffer;
-
-    if (type === 'boomerang') {
-      gifBuffer = await createBoomerang(frames);
-    } else {
-      gifBuffer = await createGIF(frames);
-    }
-
-    const gifId = uuidv4();
-    const storageKey = `events/${eventId}/gifs/${gifId}.gif`;
-    const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
-
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, gifId);
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const whatsappUrl = buildWhatsAppUrl(gifUrl, event?.name);
+    var event = (await supabase.from('events').select('*').eq('id', eventId).single()).data;
+    var frames = req.files.map(function(f) { return f.buffer; });
+    var gifBuffer = gifType === 'boomerang' ? await createBoomerang(frames) : await createGIF(frames);
+    var gifId = uuidv4();
+    var storageKey = 'events/' + eventId + '/gifs/' + gifId + '.gif';
+    var gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
+    var galleryUrl = buildGalleryUrl(event ? event.slug : eventId, gifId);
+    var qrDataUrl = await generateQRDataURL(galleryUrl);
+    var whatsappUrl = buildWhatsAppUrl(gifUrl, event ? event.name : '');
 
     await supabase.from('photos').insert({
-      id: gifId,
-      event_id: eventId,
-      session_id: sessionId,
-      url: gifUrl,
-      gallery_url: galleryUrl,
-      storage_key: storageKey,
-      mode: type,
+      id: gifId, event_id: eventId, session_id: sessionId,
+      url: gifUrl, gallery_url: galleryUrl, storage_key: storageKey, mode: gifType,
     });
+    try { await supabase.from('analytics').insert({ event_id: eventId, action: gifType === 'boomerang' ? 'boomerang_created' : 'gif_created', metadata: {} }); } catch(e){}
 
-    await supabase.from('analytics').insert({
-      event_id: eventId,
-      action: type === 'boomerang' ? 'boomerang_created' : 'gif_created',
-      metadata: { frameCount: frames.length },
-    });
-
-    res.json({
-      success: true,
-      gif: { id: gifId, url: gifUrl, galleryUrl, qrCode: qrDataUrl, whatsappUrl, type },
-    });
-  } catch (error) {
-    console.error('GIF creation error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/photos/strip
- */
-router.post('/strip', upload.array('photos', 4), async (req, res) => {
-  try {
-    const { eventId } = req.body;
-    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-
-    const photos = req.files.map((f) => f.buffer);
-    const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
-
-    const stripId = uuidv4();
-    const storageKey = `events/${eventId}/strips/${stripId}.jpg`;
-    const stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
-
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, stripId);
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
-
-    res.json({
-      success: true,
-      strip: { id: stripId, url: stripUrl, galleryUrl, qrCode: qrDataUrl },
-    });
+    res.json({ success: true, gif: { id: gifId, url: gifUrl, galleryUrl: galleryUrl, qrCode: qrDataUrl, whatsappUrl: whatsappUrl, type: gifType }});
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/photos/event/:eventId
- * Get all photos for an event
- */
-router.get('/event/:eventId', async (req, res) => {
+// POST /api/photos/strip
+router.post('/strip', upload.array('photos', 4), async function(req, res) {
   try {
-    const { eventId } = req.params;
-    const { page = 1, limit = 100 } = req.query;
-
-    const { data: photos, error } = await supabase
-      .from('photos')
-      .select('id, url, thumb_url, gallery_url, mode, created_at, storage_key')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
-
-    if (error) throw error;
-    res.json({ photos, page: Number(page), limit: Number(limit) });
+    var eventId = req.body.eventId;
+    var event = (await supabase.from('events').select('*').eq('id', eventId).single()).data;
+    var photos = req.files.map(function(f) { return f.buffer; });
+    var stripBuffer = await createPhotoStrip(photos, event ? event.branding : {});
+    var stripId = uuidv4();
+    var storageKey = 'events/' + eventId + '/strips/' + stripId + '.jpg';
+    var stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
+    var galleryUrl = buildGalleryUrl(event ? event.slug : eventId, stripId);
+    var qrDataUrl = await generateQRDataURL(galleryUrl);
+    await supabase.from('photos').insert({
+      id: stripId, event_id: eventId, url: stripUrl,
+      gallery_url: galleryUrl, storage_key: storageKey, mode: 'strip',
+    });
+    res.json({ success: true, strip: { id: stripId, url: stripUrl, galleryUrl: galleryUrl, qrCode: qrDataUrl }});
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/photos/event/:eventId/zip
- * Download all event photos as a ZIP archive
- */
-router.get('/event/:eventId/zip', async (req, res) => {
+// GET /api/photos/event/:eventId/zip
+router.get('/event/:eventId/zip', async function(req, res) {
   try {
-    const { eventId } = req.params;
+    var eventId = req.params.eventId;
+    var photosResult = await supabase
+      .from('photos').select('id, url, mode, created_at')
+      .eq('event_id', eventId).order('created_at', { ascending: false });
+    var photos = photosResult.data || [];
+    if (!photos.length) return res.status(404).json({ error: 'No photos found' });
 
-    const { data: event } = await supabase
-      .from('events')
-      .select('name, slug')
-      .eq('id', eventId)
-      .single();
-
-    const { data: photos, error } = await supabase
-      .from('photos')
-      .select('id, url, mode, created_at')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    if (!photos || photos.length === 0) {
-      return res.status(404).json({ error: 'No photos found for this event' });
-    }
-
-    const eventName = (event?.name || 'snapbooth').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const filename = `${eventName}_photos_${Date.now()}.zip`;
+    var event = (await supabase.from('events').select('name').eq('id', eventId).single()).data;
+    var eventName = (event ? event.name : 'event').replace(/[^a-z0-9]/gi, '_');
 
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', 'attachment; filename="' + eventName + '_photos.zip"');
 
-    const archive = archiver('zip', { zlib: { level: 5 } });
-    archive.on('error', (err) => { throw err; });
+    var archive = archiver('zip', { zlib: { level: 5 } });
     archive.pipe(res);
+    archive.on('error', function(err) { console.error('Archive error:', err); });
 
-    // Stream each photo into the ZIP
-    for (let i = 0; i < photos.length; i++) {
-      const photo = photos[i];
+    var skipped = 0;
+    for (var i = 0; i < photos.length; i++) {
+      var photo = photos[i];
       try {
-        const buffer = await fetchBuffer(photo.url);
-        const ext = photo.mode === 'gif' || photo.mode === 'boomerang' ? 'gif' : 'jpg';
-        const photoName = `${String(i + 1).padStart(3, '0')}_${photo.mode}_${photo.id.slice(0, 8)}.${ext}`;
-        archive.append(buffer, { name: photoName });
-      } catch (err) {
-        console.warn(`Skipping photo ${photo.id}:`, err.message);
+        var buf = await fetchBuffer(photo.url);
+        var ext = (photo.mode === 'gif' || photo.mode === 'boomerang') ? 'gif' : 'jpg';
+        archive.append(buf, { name: photo.mode + '_' + (i + 1) + '_' + photo.id.slice(0, 8) + '.' + ext });
+      } catch (e) {
+        skipped++;
+        console.error('[ZIP] Skipping photo ' + photo.id + ': ' + e.message);
       }
+    }
+
+    if (skipped > 0) {
+      console.warn('[ZIP] Skipped ' + skipped + '/' + photos.length + ' photos due to fetch errors');
     }
 
     await archive.finalize();
   } catch (error) {
     console.error('ZIP error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: error.message });
-    }
+    if (!res.headersSent) res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * DELETE /api/photos/:photoId
- * Permanently delete a photo from DB and storage
- */
-router.delete('/:photoId', async (req, res) => {
+// GET /api/photos/event/:eventId
+router.get('/event/:eventId', async function(req, res) {
   try {
-    const { photoId } = req.params;
+    var eventId = req.params.eventId;
+    var page = Number(req.query.page) || 1;
+    var limit = Number(req.query.limit) || 50;
+    var result = await supabase
+      .from('photos').select('id, url, thumb_url, gallery_url, mode, created_at, storage_key')
+      .eq('event_id', eventId).order('created_at', { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+    if (result.error) throw result.error;
+    res.json({ photos: result.data || [], page: page, limit: limit });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    // Get photo record first to find storage key
-    const { data: photo, error: fetchErr } = await supabase
-      .from('photos')
-      .select('id, storage_key, event_id')
-      .eq('id', photoId)
-      .single();
+// DELETE /api/photos/:photoId
+router.delete('/:photoId', async function(req, res) {
+  try {
+    var photoId = req.params.photoId;
+    var photoResult = await supabase.from('photos').select('id, storage_key, event_id').eq('id', photoId).single();
+    var photo = photoResult.data;
+    if (!photo) return res.status(404).json({ error: 'Photo not found' });
 
-    if (fetchErr || !photo) {
-      return res.status(404).json({ error: 'Photo not found' });
-    }
-
-    // Delete from Supabase Storage
     if (photo.storage_key) {
+      try { await deleteFromStorage(photo.storage_key); } catch(e){}
       try {
-        await deleteFromStorage(photo.storage_key);
-        // Also try to delete thumbnail
-        const thumbKey = photo.storage_key
-          .replace('/photos/', '/thumbs/')
-          .replace(/(_[0-9]+\.jpg)$/, '_thumb.jpg');
-        await deleteFromStorage(thumbKey).catch(() => {}); // ignore if missing
-      } catch (storageErr) {
-        console.warn('Storage delete failed (continuing):', storageErr.message);
-      }
+        var thumbKey = photo.storage_key.replace('/photos/', '/thumbs/').replace(/\.jpg$/, '_thumb.jpg');
+        await deleteFromStorage(thumbKey);
+      } catch(e){}
     }
 
-    // Delete from database
-    const { error: dbErr } = await supabase
-      .from('photos')
-      .delete()
-      .eq('id', photoId);
+    await supabase.from('photos').delete().eq('id', photoId);
 
-    if (dbErr) throw dbErr;
+    try {
+      var io = req.app.get('io');
+      if (io && photo.event_id) io.to('event-' + photo.event_id).emit('photo-deleted', { photoId: photoId });
+    } catch(e){}
 
-    // Emit deletion event to admin dashboard
-    const io = req.app.get('io');
-    if (photo.event_id) {
-      io.to(`event-${photo.event_id}`).emit('photo-deleted', { photoId });
-    }
-
-    res.json({ success: true, photoId });
+    res.json({ success: true });
   } catch (error) {
-    console.error('Delete photo error:', error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// GET /api/photos/:photoId — MUST BE LAST
+router.get('/:photoId', async function(req, res) {
+  try {
+    var result = await supabase.from('photos').select('*, events(name, branding)').eq('id', req.params.photoId).single();
+    if (result.error || !result.data) return res.status(404).json({ error: 'Photo not found' });
+    res.json({ photo: result.data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 /**
- * GET /api/photos/:photoId
- * Get a single photo
+ * Returns true only when branding has visible content to stamp on photos.
+ * footerText and overlayText must be non-empty strings.
+ * showDate must be explicitly true.
+ * This makes branding opt-in — clean photos by default.
  */
-router.get('/:photoId', async (req, res) => {
-  try {
-    const { data: photo, error } = await supabase
-      .from('photos')
-      .select('*, events(name, branding)')
-      .eq('id', req.params.photoId)
-      .single();
+function hasBrandingContent(branding) {
+  if (!branding) return false;
+  var hasFooter = !!(branding.footerText && branding.footerText.trim());
+  var hasOverlay = !!(branding.overlayText && branding.overlayText.trim());
+  var hasDate = branding.showDate === true;
+  return hasFooter || hasOverlay || hasDate;
+}
 
-    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
-    res.json({ photo });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+/**
+ * Fetch a remote URL into a Buffer with hardened error handling.
+ *
+ * Fixes over the original downloadBuffer:
+ *   - Rejects non-2xx HTTP responses (404 HTML would corrupt ZIP entries)
+ *   - Rejects unexpected content-types (text/html etc.)
+ *   - Follows up to 3 redirects
+ *   - 10s connection timeout via socket.setTimeout
+ *   - 30s total response-body timeout to prevent stalled downloads
+ */
+function fetchBuffer(url, options) {
+  options = options || {};
+  var maxRedirects = options.maxRedirects !== undefined ? options.maxRedirects : 3;
+  var connectTimeoutMs = options.connectTimeoutMs || 10000;
+  var responseTimeoutMs = options.responseTimeoutMs || 30000;
+
+  return new Promise(function(resolve, reject) {
+    var client = url.startsWith('https') ? https : http;
+
+    var req = client.get(url, function(resp) {
+      // Follow redirects
+      if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location && maxRedirects > 0) {
+        resp.resume();
+        return fetchBuffer(resp.headers.location, {
+          maxRedirects: maxRedirects - 1,
+          connectTimeoutMs: connectTimeoutMs,
+          responseTimeoutMs: responseTimeoutMs,
+        }).then(resolve, reject);
+      }
+
+      // Reject non-2xx — prevents 404 HTML pages being added to ZIP
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        resp.resume();
+        return reject(new Error('HTTP ' + resp.statusCode + ' for ' + url));
+      }
+
+      // Reject HTML content — storage CDNs return HTML error pages on missing keys
+      var contentType = resp.headers['content-type'] || '';
+      if (contentType.startsWith('text/') || contentType.includes('html')) {
+        resp.resume();
+        return reject(new Error('Unexpected content-type "' + contentType + '" for ' + url));
+      }
+
+      // Response-body stall timeout
+      var responseTimer = setTimeout(function() {
+        req.destroy();
+        reject(new Error('Response timeout for ' + url));
+      }, responseTimeoutMs);
+
+      var chunks = [];
+      resp.on('data', function(c) { chunks.push(c); });
+      resp.on('end', function() {
+        clearTimeout(responseTimer);
+        resolve(Buffer.concat(chunks));
+      });
+      resp.on('error', function(err) {
+        clearTimeout(responseTimer);
+        reject(err);
+      });
+    });
+
+    // Connection timeout
+    req.setTimeout(connectTimeoutMs, function() {
+      req.destroy();
+      reject(new Error('Connection timeout for ' + url));
+    });
+
+    req.on('error', reject);
+  });
+}
 
 module.exports = router;
+module.exports.fetchBuffer = fetchBuffer;
+module.exports.hasBrandingContent = hasBrandingContent;
