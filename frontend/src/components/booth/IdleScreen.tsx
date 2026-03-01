@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Zap, Film, Image, Settings, X, Delete } from 'lucide-react';
 import { useBoothStore, BoothMode } from '@/lib/store';
 import { useRef, useState, useEffect } from 'react';
-import { OperatorPanel } from './OperatorPanel';
+import { OperatorPanelTrigger } from './OperatorPanel';
 
 export function IdleScreen() {
   const { event, setScreen, setMode } = useBoothStore();
