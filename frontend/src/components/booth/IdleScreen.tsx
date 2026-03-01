@@ -83,9 +83,7 @@ export function IdleScreen() {
             ))}
           </div>
         )}
-        <div onClick={(e) => e.stopPropagation()}>
-          <OperatorPanelTrigger />
-        </div>
+        <OperatorPanelTrigger />
       </div>
     );
   }
@@ -141,9 +139,7 @@ export function IdleScreen() {
         className="absolute bottom-8 text-white/30 text-sm pointer-events-none">
         Powered by SnapBooth AI ✨
       </motion.p>
-      <div onClick={(e) => e.stopPropagation()}>
-        <OperatorPanelTrigger />
-      </div>
+      <OperatorPanelTrigger />
     </div>
   );
 }
