@@ -1,164 +1,137 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { RefreshCw, Sparkles, Share2, Printer, Download, ArrowLeft } from 'lucide-react';
+import { RefreshCw, Sparkles, Share2, Printer, Download, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
-import Image from 'next/image';
 import toast from 'react-hot-toast';
 
 export function PreviewScreen() {
   const { currentPhoto, event, mode, setScreen, resetSession } = useBoothStore();
 
-  if (!currentPhoto) {
-    setScreen('idle');
-    return null;
-  }
+  if (!currentPhoto) { setScreen('idle'); return null; }
 
   const settings = event?.settings;
+  const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const isGIF = mode === 'gif' || mode === 'boomerang';
+  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Strip' : 'Photo';
 
   async function handlePrint() {
-    if (!currentPhoto || !event) return;
+    if (!event) return;
     await trackAction(event.id, 'photo_printed', { photoId: currentPhoto.id });
     window.print();
     toast.success('Sent to printer!');
   }
 
   async function handleDownload() {
-    if (!currentPhoto) return;
-    // Fallback for browsers without Web Share support — triggers direct file download
     const a = document.createElement('a');
     a.href = currentPhoto.downloadUrl;
     a.download = `snapbooth_${Date.now()}.${isGIF ? 'gif' : 'jpg'}`;
     a.click();
-
     if (event) await trackAction(event.id, 'photo_downloaded', { photoId: currentPhoto.id });
+    toast.success('Saved!');
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#0a0a0f]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-        <button
-          onClick={() => setScreen('idle')}
-          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
-        >
+    <div className="w-full h-full flex flex-col bg-[#0a0a0f] select-none">
+
+      {/* ── Header ── */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-[#0d0d18]">
+        <button onClick={() => setScreen('idle')}
+          className="flex items-center gap-2 text-white/50 hover:text-white transition-colors btn-touch p-1">
           <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm">Back</span>
+          <span className="text-sm hidden sm:inline">Back</span>
         </button>
-        <h2 className="text-white font-semibold">Your {isGIF ? (mode === 'boomerang' ? 'Boomerang' : 'GIF') : 'Photo'}</h2>
-        <div className="w-16" />
+        <div className="text-center">
+          <h2 className="text-white font-bold text-base sm:text-lg leading-tight">Your {modeLabel}</h2>
+          {event?.name && <p className="text-white/30 text-xs mt-0.5 hidden sm:block">{event.name}</p>}
+        </div>
+        {/* spacer matches back button width */}
+        <div className="w-10 sm:w-20" />
       </div>
 
-      {/* Photo preview */}
-      <div className="flex-1 flex items-center justify-center p-6 overflow-hidden">
+      {/* ── Photo ── */}
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-6 overflow-hidden min-h-0">
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
+          initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-          className="photo-card max-h-full max-w-full"
-          style={{ maxHeight: 'calc(100vh - 280px)' }}
+          transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+          className="relative w-full h-full flex items-center justify-center"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentPhoto.url}
             alt="Your photo"
-            className="max-w-full max-h-full object-contain"
-            style={{ maxHeight: 'calc(100vh - 280px)' }}
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+            style={{ maxHeight: 'calc(100dvh - 260px)' }}
           />
+          {/* Success badge */}
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3, type: 'spring' }}
+            className="absolute top-3 right-3 flex items-center gap-1.5 bg-green-500/90 text-white text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg"
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Captured!</span>
+          </motion.div>
         </motion.div>
       </div>
 
-      {/* Action buttons */}
+      {/* ── Actions ── */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="px-6 pb-6 space-y-3"
+        transition={{ delay: 0.15 }}
+        className="flex-shrink-0 px-4 sm:px-6 pb-5 sm:pb-8 pt-2 space-y-2.5 sm:space-y-3"
       >
-        {/* Share + AI row */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Primary row: Share + AI */}
+        <div className="grid gap-2.5"
+          style={{ gridTemplateColumns: settings?.allowAI !== false && !isGIF ? '1fr 1fr' : '1fr' }}>
           {settings?.allowAI !== false && !isGIF && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setScreen('ai')}
-              className="flex items-center justify-center gap-3 py-5 rounded-2xl font-semibold
-                         text-white btn-touch glow-purple"
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
-            >
-              <Sparkles className="w-6 h-6" />
+            <motion.button whileTap={{ scale: 0.96 }} onClick={() => setScreen('ai')}
+              className="flex items-center justify-center gap-2.5 py-4 sm:py-5 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               <span>AI Magic ✨</span>
             </motion.button>
           )}
-          {/*
-           * Opens the QR code + native share sheet screen.
-           * The Web Share API (used on the ShareScreen) opens the OS-level share sheet
-           * where the user picks the destination (Messages, WhatsApp, AirDrop, etc.).
-           * It does NOT share directly to Photos — destination is always user-selected.
-           * On unsupported browsers the ShareScreen falls back to a download link.
-           */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setScreen('share')}
-            className="flex items-center justify-center gap-3 py-5 rounded-2xl font-semibold
-                       bg-blue-600 hover:bg-blue-500 text-white btn-touch col-span-1"
-            style={settings?.allowAI === false || isGIF ? { gridColumn: 'span 2' } : {}}
-          >
-            <Share2 className="w-6 h-6" />
+          <motion.button whileTap={{ scale: 0.96 }} onClick={() => setScreen('share')}
+            className="flex items-center justify-center gap-2.5 py-4 sm:py-5 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch bg-blue-600 hover:bg-blue-500 transition-colors">
+            <Share2 className="w-5 h-5 sm:w-6 sm:h-6" />
             <span>Share & QR Code</span>
           </motion.button>
         </div>
 
-        {/* Print + Retake + Download row */}
-        <div className="grid grid-cols-3 gap-3">
-          {/*
-           * Download button: triggers a direct file download via <a download>.
-           * Acts as the primary save-to-device fallback when Web Share is unavailable.
-           */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleDownload}
-            className="flex flex-col items-center gap-2 py-4 rounded-2xl
-                       bg-white/10 border border-white/20 text-white btn-touch"
-          >
+        {/* Secondary row: Download / Print / Retake */}
+        <div className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${[true, settings?.allowPrint !== false, settings?.allowRetakes !== false].filter(Boolean).length}, 1fr)` }}>
+          <motion.button whileTap={{ scale: 0.94 }} onClick={handleDownload}
+            className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
             <Download className="w-5 h-5" />
-            <span className="text-xs">Download</span>
+            <span className="text-xs font-medium">Save</span>
           </motion.button>
-
           {settings?.allowPrint !== false && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handlePrint}
-              className="flex flex-col items-center gap-2 py-4 rounded-2xl
-                         bg-white/10 border border-white/20 text-white btn-touch"
-            >
+            <motion.button whileTap={{ scale: 0.94 }} onClick={handlePrint}
+              className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
               <Printer className="w-5 h-5" />
-              <span className="text-xs">Print</span>
+              <span className="text-xs font-medium">Print</span>
             </motion.button>
           )}
-
           {settings?.allowRetakes !== false && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setScreen('countdown')}
-              className="flex flex-col items-center gap-2 py-4 rounded-2xl
-                         bg-white/10 border border-white/20 text-white btn-touch"
-            >
+            <motion.button whileTap={{ scale: 0.94 }} onClick={() => setScreen('countdown')}
+              className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
               <RefreshCw className="w-5 h-5" />
-              <span className="text-xs">Retake</span>
+              <span className="text-xs font-medium">Retake</span>
             </motion.button>
           )}
         </div>
 
-        {/* Done button */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={resetSession}
-          className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white/60
-                     hover:text-white hover:bg-white/10 transition-all btn-touch text-sm"
-        >
-          Done — Take another →
+        {/* Done */}
+        <motion.button whileTap={{ scale: 0.98 }} onClick={resetSession}
+          className="w-full py-4 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch transition-all"
+          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}bb)` }}>
+          ✅ Done — Take Another
         </motion.button>
       </motion.div>
     </div>
