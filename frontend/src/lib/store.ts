@@ -20,6 +20,8 @@ export interface Event {
   id: string;
   name: string;
   slug: string;
+  date?: string;
+  venue?: string;
   branding: {
     primaryColor: string;
     secondaryColor: string;
@@ -29,6 +31,8 @@ export interface Event {
     showDate: boolean;
     template: string;
     logoUrl: string | null;
+    idleMediaUrl?: string | null;
+    frameUrl?: string | null;
   };
   settings: {
     countdownSeconds: number;
@@ -46,12 +50,11 @@ export interface Event {
 }
 
 interface BoothStore {
-  // Current state
   screen: BoothScreen;
   mode: BoothMode;
   event: Event | null;
   currentPhoto: Photo | null;
-  capturedFrames: string[]; // base64 for multi-shot
+  capturedFrames: string[];
   isCapturing: boolean;
   isProcessing: boolean;
   aiGenerating: boolean;
@@ -59,7 +62,6 @@ interface BoothStore {
   sessionId: string;
   flashActive: boolean;
 
-  // Actions
   setScreen: (screen: BoothScreen) => void;
   setMode: (mode: BoothMode) => void;
   setEvent: (event: Event) => void;
