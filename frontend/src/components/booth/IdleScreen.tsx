@@ -239,7 +239,7 @@ export function IdleScreen() {
 
         <AnimatePresence>
           {showPinModal && <PinModal />}
-          {showPanel && <OperatorPanelTrigger />}
+          {showPanel && <OperatorPanelTrigger initialPhase="panel" onClosePanel={() => setShowPanel(false)} />}
         </AnimatePresence>
       </>
     );
@@ -314,7 +314,7 @@ export function IdleScreen() {
 
       <AnimatePresence>
         {showPinModal && <PinModal />}
-        {showPanel && <OperatorPanelTrigger />}
+        {showPanel && <OperatorPanelTrigger initialPhase="panel" onClosePanel={() => setShowPanel(false)} />}
       </AnimatePresence>
     </>
   );
