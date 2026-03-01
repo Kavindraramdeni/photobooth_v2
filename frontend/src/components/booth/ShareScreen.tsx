@@ -100,8 +100,8 @@ export function ShareScreen() {
             {/* QR code */}
             <motion.div
               whileHover={{ scale: 1.03 }}
-              className="bg-white p-3 sm:p-4 rounded-2xl shadow-2xl ring-4"
-              style={{ ringColor: `${primaryColor}44` }}
+              className="bg-white p-3 sm:p-4 rounded-2xl shadow-2xl"
+              style={{ outline: `4px solid ${primaryColor}44` }}
             >
               <QRCodeSVG value={galleryUrl} size={180} level="H" fgColor={primaryColor} bgColor="#ffffff" />
             </motion.div>
