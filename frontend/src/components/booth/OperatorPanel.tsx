@@ -68,7 +68,9 @@ function OperatorUpload({ label, accept, currentUrl, onUploaded, storagePath }: 
   );
 }
 
-// ── PIN Entry — FIXED: panel stays open while typing, no close per digit ──
+// ── PIN Entry ─────────────────────────────────────────────────────────────
+// KEY FIX: auto-check uses `next` (local var) not `pin` (stale state closure).
+// This prevents the wrong-PIN false-positive when user types all digits fast.
 function PinEntry({ correctPin, onSuccess, onCancel }: {
   correctPin: string; onSuccess: () => void; onCancel: () => void;
 }) {
@@ -76,42 +78,38 @@ function PinEntry({ correctPin, onSuccess, onCancel }: {
   const [shake, setShake] = useState(false);
   const [error, setError] = useState('');
 
-  function pressDigit(d: string) {
-    if (pin.length >= 8) return;
-    const next = pin + d;
-    setPin(next);
-    setError('');
-  }
-
-  function pressBack() {
-    setPin(p => p.slice(0, -1));
-    setError('');
-  }
-
-  // Only check when user presses the confirm button OR pin reaches correct length
-  function checkPin(p: string) {
+  function doCheck(p: string) {
     if (p === correctPin) {
       onSuccess();
     } else {
       setShake(true);
-      setError('Wrong PIN, try again');
+      setError('Wrong PIN — try again');
       setTimeout(() => { setPin(''); setShake(false); setError(''); }, 800);
     }
   }
 
-  function pressConfirm() {
-    if (pin.length === 0) return;
-    checkPin(pin);
+  function pressDigit(d: string) {
+    if (shake) return; // ignore taps during error shake
+    if (pin.length >= 8) return;
+    const next = pin + d;
+    setPin(next);
+    setError('');
+    // Auto-submit: use `next` directly — avoids stale closure on `pin`
+    if (next.length === correctPin.length && next.length >= 4) {
+      setTimeout(() => doCheck(next), 120);
+    }
   }
 
-  // Auto-check only if pin length exactly matches and is >= 4 digits
-  useEffect(() => {
-    if (pin.length === correctPin.length && pin.length >= 4) {
-      const t = setTimeout(() => checkPin(pin), 200);
-      return () => clearTimeout(t);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, correctPin]);
+  function pressBack() {
+    if (shake) return;
+    setPin(p => p.slice(0, -1));
+    setError('');
+  }
+
+  function pressConfirm() {
+    if (pin.length === 0 || shake) return;
+    doCheck(pin);
+  }
 
   const maxLen = Math.max(correctPin.length, 4);
 
@@ -126,12 +124,14 @@ function PinEntry({ correctPin, onSuccess, onCancel }: {
       {/* PIN dots */}
       <motion.div
         animate={shake ? { x: [-12, 12, -10, 10, -6, 6, 0] } : {}}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
         className="flex gap-4 mb-3"
       >
         {Array.from({ length: maxLen }).map((_, i) => (
           <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
-            i < pin.length ? 'bg-purple-500 border-purple-400 scale-110' : 'bg-transparent border-white/30'
+            i < pin.length
+              ? shake ? 'bg-red-500 border-red-400' : 'bg-purple-500 border-purple-400 scale-110'
+              : 'bg-transparent border-white/30'
           }`} />
         ))}
       </motion.div>
@@ -141,31 +141,36 @@ function PinEntry({ correctPin, onSuccess, onCancel }: {
       {/* Number pad */}
       <div className="grid grid-cols-3 gap-3 w-64 mb-4">
         {['1','2','3','4','5','6','7','8','9'].map(key => (
-          <button key={key} onClick={() => pressDigit(key)}
-            className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold transition-all active:scale-95">
+          <button key={key}
+            onPointerDown={e => { e.stopPropagation(); pressDigit(key); }}
+            className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 text-white text-xl font-semibold transition-all select-none">
             {key}
           </button>
         ))}
-        <div /> {/* empty */}
-        <button onClick={() => pressDigit('0')}
-          className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xl font-semibold transition-all active:scale-95">
+        <div />
+        <button
+          onPointerDown={e => { e.stopPropagation(); pressDigit('0'); }}
+          className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 text-white text-xl font-semibold transition-all select-none">
           0
         </button>
-        <button onClick={pressBack}
-          className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 text-white/60 text-xl transition-all active:scale-95">
+        <button
+          onPointerDown={e => { e.stopPropagation(); pressBack(); }}
+          className="h-16 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-95 text-white/60 text-xl transition-all select-none">
           ⌫
         </button>
       </div>
 
-      {/* Confirm button for variable-length PINs */}
-      {pin.length > 0 && pin.length !== correctPin.length && (
-        <button onClick={pressConfirm}
-          className="w-64 py-4 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all mb-3">
+      {/* Unlock button shown when PIN is shorter than expected length */}
+      {pin.length > 0 && pin.length < correctPin.length && (
+        <button onPointerDown={e => { e.stopPropagation(); pressConfirm(); }}
+          className="w-64 py-4 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all mb-3 select-none">
           Unlock →
         </button>
       )}
 
-      <button onClick={onCancel} className="text-white/30 hover:text-white/60 text-sm transition-colors mt-2">
+      <button
+        onPointerDown={e => { e.stopPropagation(); onCancel(); }}
+        className="text-white/30 hover:text-white/60 text-sm transition-colors mt-2 select-none">
         Cancel
       </button>
     </div>
@@ -720,30 +725,53 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
 }
 
 // ── Gear icon trigger — exported to IdleScreen ────────────────────────────
-export function OperatorPanelTrigger() {
+// onOpenChange: called with true when PIN/panel opens, false when closed.
+// IdleScreen uses this to block booth start while operator UI is visible.
+export function OperatorPanelTrigger({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
   const { event } = useBoothStore();
   const [phase, setPhase] = useState<'idle' | 'pin' | 'panel'>('idle');
   const correctPin = (event?.settings?.operatorPin) || '1234';
 
+  function openPin(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    setPhase('pin');
+    onOpenChange?.(true);
+  }
+
+  function closeAll() {
+    setPhase('idle');
+    onOpenChange?.(false);
+  }
+
   return (
     <>
-      <button
-        onClick={e => { e.preventDefault(); e.stopPropagation(); setPhase('pin'); }}
-        className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all"
-        aria-label="Operator Settings"
-      >
-        <Settings className="w-5 h-5" />
-      </button>
+      {/* Gear button — only visible when idle */}
+      {phase === 'idle' && (
+        <button
+          onPointerDown={openPin}
+          className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all select-none"
+          aria-label="Operator Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      )}
 
       <AnimatePresence>
         {phase === 'pin' && (
           <motion.div key="pin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50">
-            <PinEntry correctPin={correctPin} onSuccess={() => setPhase('panel')} onCancel={() => setPhase('idle')} />
+            className="fixed inset-0 z-50"
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <PinEntry
+              correctPin={correctPin}
+              onSuccess={() => { setPhase('panel'); }}
+              onCancel={closeAll}
+            />
           </motion.div>
         )}
         {phase === 'panel' && (
-          <OperatorPanel key="panel" onClose={() => setPhase('idle')} />
+          <OperatorPanel key="panel" onClose={closeAll} />
         )}
       </AnimatePresence>
     </>
