@@ -1,9 +1,9 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Zap, Film, Image } from 'lucide-react';
 import { useBoothStore, BoothMode } from '@/lib/store';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { OperatorPanelTrigger } from './OperatorPanel';
 
 export function IdleScreen() {
@@ -11,6 +11,9 @@ export function IdleScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mediaError, setMediaError] = useState(false);
   const [tapPrompt, setTapPrompt] = useState(true);
+
+  // Lift operator state up so handleStart can be blocked while panel is open
+  const [operatorOpen, setOperatorOpen] = useState(false);
 
   const branding = event?.branding;
   const settings = event?.settings;
@@ -38,6 +41,8 @@ export function IdleScreen() {
   ].filter((m) => m.enabled);
 
   function handleStart(mode: BoothMode) {
+    // Never start booth if operator panel/PIN is open
+    if (operatorOpen) return;
     setMode(mode);
     setScreen('countdown');
   }
@@ -67,7 +72,8 @@ export function IdleScreen() {
         <motion.div className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-12 z-10 pointer-events-none"
           animate={{ opacity: tapPrompt ? 1 : 0.4 }} transition={{ duration: 0.6 }}>
           <motion.div animate={{ scale: tapPrompt ? 1.05 : 0.97 }} transition={{ duration: 0.6 }} className="flex flex-col items-center gap-4">
-            <div className="w-24 h-24 rounded-full flex items-center justify-center shadow-2xl" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}>
+            <div className="w-24 h-24 rounded-full flex items-center justify-center shadow-2xl"
+              style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}>
               <Camera className="w-10 h-10 text-white" />
             </div>
             <p className="text-white text-3xl font-black tracking-wide drop-shadow-lg">TAP ANYWHERE TO START</p>
@@ -83,7 +89,7 @@ export function IdleScreen() {
             ))}
           </div>
         )}
-        <OperatorPanelTrigger />
+        <OperatorPanelTrigger onOpenChange={setOperatorOpen} />
       </div>
     );
   }
@@ -93,14 +99,16 @@ export function IdleScreen() {
       className="w-full h-full flex flex-col items-center justify-center p-8 relative overflow-hidden cursor-pointer select-none"
       onClick={() => handleStart('single')}
     >
-      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, ${primaryColor}88 0%, transparent 70%)` }} />
+      <div className="absolute inset-0 opacity-10 pointer-events-none"
+        style={{ background: `radial-gradient(ellipse at center, ${primaryColor}88 0%, transparent 70%)` }} />
       {[...Array(6)].map((_, i) => (
         <motion.div key={i} className="absolute w-2 h-2 rounded-full pointer-events-none"
           style={{ background: primaryColor, left: `${15 + i * 14}%`, top: `${20 + (i % 3) * 25}%` }}
           animate={{ y: [-10, 10, -10], opacity: [0.2, 0.6, 0.2] }}
           transition={{ duration: 3 + i * 0.5, repeat: Infinity, delay: i * 0.4 }} />
       ))}
-      <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12 z-10 pointer-events-none">
+      <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }}
+        className="text-center mb-12 z-10 pointer-events-none">
         {branding?.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={branding.logoUrl} alt={eventName} className="h-24 w-auto mx-auto mb-4 object-contain" />
@@ -139,7 +147,7 @@ export function IdleScreen() {
         className="absolute bottom-8 text-white/30 text-sm pointer-events-none">
         Powered by SnapBooth AI ✨
       </motion.p>
-      <OperatorPanelTrigger />
+      <OperatorPanelTrigger onOpenChange={setOperatorOpen} />
     </div>
   );
 }
