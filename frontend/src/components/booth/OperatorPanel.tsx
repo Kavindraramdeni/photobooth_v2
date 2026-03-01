@@ -684,20 +684,28 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
 }
 
 // ── Gear icon trigger — exported to IdleScreen ────────────────────────────
-export function OperatorPanelTrigger() {
+export function OperatorPanelTrigger({
+  initialPhase = 'idle',
+  onClosePanel,
+}: {
+  initialPhase?: 'idle' | 'pin' | 'panel';
+  onClosePanel?: () => void;
+} = {}) {
   const { event } = useBoothStore();
-  const [phase, setPhase] = useState<'idle' | 'pin' | 'panel'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'pin' | 'panel'>(initialPhase);
   const correctPin = (event?.settings?.operatorPin) || '1234';
 
   return (
     <>
-      <button
-        onPointerDown={e => { e.stopPropagation(); setPhase('pin'); }}
-        className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all"
-        aria-label="Operator Settings"
-      >
-        <Settings className="w-5 h-5" />
-      </button>
+      {phase === 'idle' && (
+        <button
+          onPointerDown={e => { e.stopPropagation(); setPhase('pin'); }}
+          className="absolute bottom-5 right-5 z-30 w-11 h-11 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-black/60 transition-all"
+          aria-label="Operator Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      )}
 
       <AnimatePresence>
         {phase === 'pin' && (
@@ -707,7 +715,10 @@ export function OperatorPanelTrigger() {
           </motion.div>
         )}
         {phase === 'panel' && (
-          <OperatorPanel key="panel" onClose={() => setPhase('idle')} />
+          <OperatorPanel key="panel" onClose={() => {
+            setPhase('idle');
+            onClosePanel?.();
+          }} />
         )}
       </AnimatePresence>
     </>
