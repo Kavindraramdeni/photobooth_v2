@@ -19,14 +19,25 @@ interface Stats {
 async function uploadToSupabase(file: File, path: string): Promise<string> {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase not configured');
+  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase not configured — check env vars');
   const bucket = 'photobooth-media';
+
+  // Use PUT with upsert — more reliable than POST for branding assets
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SUPABASE_ANON}`, 'x-upsert': 'true', 'Content-Type': file.type },
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON}`,
+      'x-upsert': 'true',
+      'Content-Type': file.type,
+      'Cache-Control': '3600',
+    },
     body: file,
   });
-  if (!res.ok) throw new Error(`Upload failed: ${await res.text()}`);
+  if (!res.ok) {
+    let detail = '';
+    try { detail = await res.text(); } catch { detail = res.statusText; }
+    throw new Error(`Upload failed (${res.status}): ${detail}`);
+  }
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
@@ -405,76 +416,82 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
 
   const primaryColor = localEvent?.branding?.primaryColor || '#7c3aed';
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: 'overview', label: '📋 Overview' },
-    { key: 'branding', label: '🎨 Branding' },
-    { key: 'settings', label: '⚙️ Settings' },
-    { key: 'photos', label: `📸 Photos${photos.length ? ` (${photos.length})` : ''}` },
-    { key: 'diagnostics', label: '🔧 Diagnostics' },
+  // Short labels that always fit 5-across on any phone width
+  const TABS: { key: Tab; label: string; icon: string }[] = [
+    { key: 'overview',    label: 'Info',    icon: '📋' },
+    { key: 'branding',   label: 'Brand',   icon: '🎨' },
+    { key: 'settings',   label: 'Config',  icon: '⚙️' },
+    { key: 'photos',     label: photos.length ? `Pics(${photos.length})` : 'Photos', icon: '📸' },
+    { key: 'diagnostics',label: 'Diag',    icon: '🔧' },
   ];
 
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/95 backdrop-blur flex flex-col"
+      className="fixed inset-0 z-50 bg-[#0a0a0f] flex flex-col"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#0d0d18] flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-purple-600/30 flex items-center justify-center">
-            <Settings className="w-4 h-4 text-purple-400" />
+      {/* ── Header — compact, no wasted space ── */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#0d0d18] flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-purple-600/30 flex items-center justify-center flex-shrink-0">
+            <Settings className="w-3.5 h-3.5 text-purple-400" />
           </div>
-          <div>
-            <h2 className="text-white font-bold text-base leading-tight">Operator Panel</h2>
-            <p className="text-white/40 text-xs">{storeEvent?.name || 'No event loaded'}</p>
+          <div className="min-w-0">
+            <h2 className="text-white font-bold text-sm leading-tight">Operator Panel</h2>
+            <p className="text-white/40 text-[11px] truncate max-w-[160px]">{storeEvent?.name || 'No event'}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={handleSave} disabled={saving}
-            className="text-xs px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save'}
+            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 transition-colors">
+            {saving ? '…' : 'Save'}
           </button>
           <button onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center">
+            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
             <X className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>
 
-      {/* Stats strip */}
+      {/* ── Stats: 4-column grid — always fits, never scrolls ── */}
       {stats && (
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
+        <div className="grid grid-cols-4 gap-1.5 px-3 py-2 bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
           {[
-            { label: 'Photos', v: stats.totalPhotos, e: '📸' },
-            { label: 'GIFs', v: stats.totalGIFs, e: '🎬' },
-            { label: 'Strips', v: stats.totalStrips, e: '🎞️' },
-            { label: 'Boomerangs', v: stats.totalBoomerangs, e: '🔄' },
-            { label: 'AI Used', v: stats.totalAIGenerated, e: '🤖' },
-            { label: 'Shares', v: stats.totalShares, e: '📤' },
-            { label: 'Prints', v: stats.totalPrints, e: '🖨️' },
-            { label: 'Sessions', v: stats.totalSessions, e: '👥' },
+            { label: 'Photos',   v: stats.totalPhotos,      e: '📸' },
+            { label: 'Sessions', v: stats.totalSessions,    e: '👥' },
+            { label: 'Shares',   v: stats.totalShares,      e: '📤' },
+            { label: 'Prints',   v: stats.totalPrints,      e: '🖨️' },
+            { label: 'GIFs',     v: stats.totalGIFs,        e: '🎬' },
+            { label: 'Strips',   v: stats.totalStrips,      e: '🎞️' },
+            { label: 'Boom.',    v: stats.totalBoomerangs,  e: '🔄' },
+            { label: 'AI',       v: stats.totalAIGenerated, e: '🤖' },
           ].map(s => (
-            <div key={s.label} className="flex-shrink-0 bg-white/5 rounded-xl px-3 py-2 text-center min-w-[68px]">
-              <div className="text-sm">{s.e}</div>
-              <div className="text-white font-bold text-lg leading-tight">{s.v ?? 0}</div>
-              <div className="text-white/30 text-[10px]">{s.label}</div>
+            <div key={s.label} className="bg-white/5 rounded-lg py-1.5 text-center">
+              <div className="text-sm leading-none">{s.e}</div>
+              <div className="text-white font-bold text-sm leading-snug mt-0.5">{s.v ?? 0}</div>
+              <div className="text-white/30 text-[9px] leading-tight">{s.label}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="flex gap-1 px-4 py-2 overflow-x-auto bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
+      {/* ── Tabs: 5-column grid, no scroll, active indicator underline ── */}
+      <div className="grid grid-cols-5 bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${tab === t.key ? 'bg-purple-600 text-white' : 'text-white/40 hover:text-white hover:bg-white/10'}`}>
-            {t.label}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-center border-b-2 transition-all ${
+              tab === t.key
+                ? 'border-purple-500 text-white bg-purple-500/10'
+                : 'border-transparent text-white/35 hover:text-white/60 hover:bg-white/5'
+            }`}>
+            <span className="text-base leading-none">{t.icon}</span>
+            <span className="text-[9px] font-medium leading-tight tracking-wide">{t.label}</span>
           </button>
         ))}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 bg-[#0a0a0f]">
+      {/* ── Content — pb-4 not pb-24 ── */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 pb-4 bg-[#0a0a0f]">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
