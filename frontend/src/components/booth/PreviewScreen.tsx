@@ -63,7 +63,7 @@ function printPhotoOnly(photoUrl: string, eventName: string) {
   function doPrint(){window.focus();window.print();}
   if(img.complete){setTimeout(doPrint,300);}
   else{img.onload=function(){setTimeout(doPrint,300);};}
-<\/script></body></html>`);
+${'</'}script></body></html>`);
   doc.close();
   setTimeout(() => { const el = document.getElementById('__snapbooth_print_frame'); if (el) el.remove(); }, 30000);
 }
