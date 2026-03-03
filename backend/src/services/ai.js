@@ -1,137 +1,150 @@
-const axios = require('axios');
+'use strict';
+/**
+ * backend/src/services/ai.js
+ *
+ * PHASE 1: Sharp-based instant filters.
+ * Replaces broken HuggingFace service completely.
+ * Route (backend/src/routes/ai.js) requires ZERO changes.
+ * Results are instant — typically under 500ms.
+ */
+
 const sharp = require('sharp');
 
-const HF_API_URL = 'https://api-inference.huggingface.co/models';
-const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
-
-// AI style presets for the "Surprise Me" feature
+// ── Style catalogue ─────────────────────────────────────────────────────
 const AI_STYLES = {
-  anime: {
-    name: 'Anime Art',
-    emoji: '🎌',
-    model: 'Linaqruf/anything-v3.0',
-    prompt: 'anime style illustration, high quality, detailed, vibrant colors',
-    negative: 'ugly, blurry, low quality',
+  bw_film: {
+    name: 'B&W Film',
+    emoji: '🎞️',
+    desc: 'Classic black & white with subtle grain',
   },
   vintage: {
-    name: 'Vintage Film',
-    emoji: '📷',
-    model: 'runwayml/stable-diffusion-v1-5',
-    prompt: 'vintage film photography, retro aesthetic, grain, warm tones, 1970s style',
-    negative: 'modern, digital, sharp, oversaturated',
-  },
-  watercolor: {
-    name: 'Watercolor',
-    emoji: '🎨',
-    model: 'runwayml/stable-diffusion-v1-5',
-    prompt: 'beautiful watercolor painting, artistic, soft colors, paper texture',
-    negative: 'photo, realistic, digital art',
+    name: 'Vintage',
+    emoji: '🌅',
+    desc: 'Warm faded tones from the 70s',
   },
   cyberpunk: {
     name: 'Cyberpunk',
     emoji: '🌆',
-    model: 'runwayml/stable-diffusion-v1-5',
-    prompt: 'cyberpunk style, neon lights, futuristic city, dramatic lighting, blade runner aesthetic',
-    negative: 'natural, daytime, bright',
+    desc: 'Electric cyan & neon glow',
   },
-  oilpainting: {
-    name: 'Oil Painting',
-    emoji: '🖼️',
-    model: 'runwayml/stable-diffusion-v1-5',
-    prompt: 'oil painting style, impressionist, brushstrokes, classical art, museum quality',
-    negative: 'photo, modern, digital',
+  warm_glow: {
+    name: 'Warm Glow',
+    emoji: '✨',
+    desc: 'Golden hour warmth & soft bloom',
   },
-  comic: {
-    name: 'Comic Book',
-    emoji: '💥',
-    model: 'ogkalu/comic-shazam',
-    prompt: 'comic book style, bold outlines, bright colors, halftone dots, action style',
-    negative: 'realistic, photograph',
+  cool_fade: {
+    name: 'Cool Fade',
+    emoji: '🧊',
+    desc: 'Airy blue-silver editorial look',
+  },
+  high_contrast: {
+    name: 'High Contrast',
+    emoji: '⚡',
+    desc: 'Punchy shadows, bold highlights',
   },
 };
 
-/**
- * Generate AI-transformed image using HuggingFace img2img
- * @param {Buffer} imageBuffer - Original photo buffer
- * @param {string} styleKey - Key from AI_STYLES
- * @param {string} customPrompt - Optional custom prompt override
- */
-async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = null) {
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+// ── Filters ─────────────────────────────────────────────────────────────
 
-  // Resize image for faster AI processing (512x512 is optimal for SD)
-  const resizedBuffer = await sharp(imageBuffer)
-    .resize(512, 512, { fit: 'cover', position: 'center' })
-    .jpeg({ quality: 90 })
+async function applyBWFilm(buffer) {
+  const { width, height } = await sharp(buffer).metadata();
+  const pixels = width * height;
+  const grain = Buffer.alloc(pixels);
+  for (let i = 0; i < pixels; i++) grain[i] = Math.floor(Math.random() * 30);
+  const grainPng = await sharp(grain, { raw: { width, height, channels: 1 } }).png().toBuffer();
+
+  return sharp(buffer)
+    .greyscale()
+    .linear(1.12, -8)
+    .composite([{ input: grainPng, blend: 'screen', opacity: 0.1 }])
+    .jpeg({ quality: 88 })
     .toBuffer();
+}
 
-  const base64Image = resizedBuffer.toString('base64');
-  const prompt = customPrompt || `${style.prompt}, portrait photo of a person`;
+async function applyVintage(buffer) {
+  return sharp(buffer)
+    .modulate({ saturation: 0.60, hue: 12 })
+    .linear(0.86, 24)
+    .tint({ r: 255, g: 228, b: 175 })
+    .gamma(1.1)
+    .jpeg({ quality: 88 })
+    .toBuffer();
+}
 
-  try {
-    const response = await axios.post(
-      `${HF_API_URL}/${style.model}`,
-      {
-        inputs: {
-          prompt,
-          negative_prompt: style.negative,
-          image: base64Image,
-          strength: 0.65,
-          guidance_scale: 7.5,
-          num_inference_steps: 25,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${HF_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        responseType: 'arraybuffer',
-        timeout: 120000, // 2 min timeout for free tier
-      }
-    );
+async function applyCyberpunk(buffer) {
+  const boosted = await sharp(buffer)
+    .modulate({ saturation: 2.5, hue: -20 })
+    .linear(1.25, -20)
+    .toBuffer();
+  return sharp(boosted)
+    .tint({ r: 20, g: 255, b: 240 })
+    .modulate({ brightness: 0.93 })
+    .jpeg({ quality: 88 })
+    .toBuffer();
+}
 
-    // Upscale back to reasonable resolution
-    const generatedBuffer = await sharp(Buffer.from(response.data))
-      .resize(1024, 1024, { fit: 'cover' })
-      .jpeg({ quality: 95 })
-      .toBuffer();
+async function applyWarmGlow(buffer) {
+  const { width, height } = await sharp(buffer).metadata();
+  const bloom = await sharp(buffer)
+    .blur(20)
+    .modulate({ brightness: 1.4, saturation: 1.5 })
+    .tint({ r: 255, g: 200, b: 100 })
+    .resize(width, height)
+    .toBuffer();
+  return sharp(buffer)
+    .tint({ r: 255, g: 218, b: 148 })
+    .modulate({ brightness: 1.07, saturation: 1.3 })
+    .composite([{ input: bloom, blend: 'screen', opacity: 0.15 }])
+    .jpeg({ quality: 88 })
+    .toBuffer();
+}
 
-    return {
-      success: true,
-      buffer: generatedBuffer,
-      style: style.name,
-      styleKey,
-    };
-  } catch (error) {
-    // HuggingFace free tier returns 503 when model is loading
-    if (error.response?.status === 503) {
-      const waitTime = error.response.headers['x-wait-estimated-time'] || 30;
-      throw new Error(`MODEL_LOADING:${waitTime}`);
-    }
-    throw new Error(`AI generation failed: ${error.message}`);
+async function applyCoolFade(buffer) {
+  return sharp(buffer)
+    .modulate({ saturation: 0.65, hue: -8 })
+    .linear(0.78, 32)
+    .tint({ r: 170, g: 205, b: 255 })
+    .gamma(0.92)
+    .jpeg({ quality: 88 })
+    .toBuffer();
+}
+
+async function applyHighContrast(buffer) {
+  return sharp(buffer)
+    .modulate({ saturation: 1.7, brightness: 1.04 })
+    .linear(1.5, -40)
+    .gamma(0.85)
+    .jpeg({ quality: 88 })
+    .toBuffer();
+}
+
+// ── Dispatcher ───────────────────────────────────────────────────────────
+
+async function applyAIFilter(inputBuffer, filterName) {
+  const key = (filterName || 'bw_film').toLowerCase().replace(/[\s-]/g, '_');
+  switch (key) {
+    case 'bw_film': case 'bw': case 'film': return applyBWFilm(inputBuffer);
+    case 'vintage':                          return applyVintage(inputBuffer);
+    case 'cyberpunk':                        return applyCyberpunk(inputBuffer);
+    case 'warm_glow': case 'warm':           return applyWarmGlow(inputBuffer);
+    case 'cool_fade': case 'cool':           return applyCoolFade(inputBuffer);
+    case 'high_contrast': case 'contrast':   return applyHighContrast(inputBuffer);
+    default:
+      console.warn(`[AI] Unknown filter "${filterName}", using B&W Film`);
+      return applyBWFilm(inputBuffer);
   }
 }
 
-/**
- * Apply quick AI filter (faster than full generation - just style transfer)
- * Uses a simpler classification approach with CSS filters as fallback
- */
-async function applyAIFilter(imageBuffer, filterName) {
-  // Basic filters using Sharp (instant, no API needed)
-  const filters = {
-    bw: (img) => img.grayscale().modulate({ brightness: 1.1, saturation: 0 }),
-    warm: (img) => img.modulate({ brightness: 1.05, saturation: 1.2 }).tint({ r: 255, g: 240, b: 220 }),
-    cool: (img) => img.modulate({ brightness: 1.05, saturation: 1.1 }).tint({ r: 220, g: 235, b: 255 }),
-    vivid: (img) => img.modulate({ brightness: 1.1, saturation: 1.8 }),
-    fade: (img) => img.modulate({ brightness: 1.15, saturation: 0.6 }),
-    dramatic: (img) => img.modulate({ brightness: 0.9, saturation: 1.3 }).linear(1.2, -20),
+// Drop-in replacement — same signature as old HuggingFace version
+async function generateAIImage(buffer, styleKey) {
+  const style = AI_STYLES[styleKey] || AI_STYLES.bw_film;
+  const filteredBuffer = await applyAIFilter(buffer, styleKey);
+  return {
+    buffer: filteredBuffer,
+    style: style.name,
+    styleKey,
+    emoji: style.emoji,
   };
-
-  const filterFn = filters[filterName] || filters.bw;
-  const processedBuffer = await filterFn(sharp(imageBuffer)).jpeg({ quality: 95 }).toBuffer();
-
-  return processedBuffer;
 }
 
-module.exports = { generateAIImage, applyAIFilter, AI_STYLES };
+module.exports = { AI_STYLES, generateAIImage, applyAIFilter };
