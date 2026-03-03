@@ -33,39 +33,50 @@ async function iosCompatibleDownload(url: string, filename: string) {
 // window.print() would print the entire booth UI.
 // Instead: inject a hidden iframe with just the photo + minimal CSS, print that.
 function printPhotoOnly(photoUrl: string, eventName: string) {
-  const existing = document.getElementById('__snapbooth_print_frame');
+  const existing = document.getElementById('__sb_print');
   if (existing) existing.remove();
 
   const iframe = document.createElement('iframe');
-  iframe.id = '__snapbooth_print_frame';
-  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none;';
+  iframe.id = '__sb_print';
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-9999px';
+  iframe.style.top = '-9999px';
+  iframe.style.width = '1px';
+  iframe.style.height = '1px';
+  iframe.style.border = 'none';
   document.body.appendChild(iframe);
 
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) { window.print(); return; }
+  const win = iframe.contentWindow;
+  const doc = iframe.contentDocument || win?.document;
+  if (!doc || !win) { window.open(photoUrl, '_blank'); return; }
 
   doc.open();
-  doc.write(`<!DOCTYPE html><html><head><title>${eventName}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{width:100%;height:100%;background:#fff}
-  @page{margin:0.5cm;size:auto}
-  .wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:10px;font-family:Arial,sans-serif}
-  img{max-width:100%;max-height:85vh;object-fit:contain;border-radius:8px}
-  .footer{margin-top:10px;font-size:11px;color:#888;text-align:center}
-</style></head>
-<body><div class="wrap">
-  <img src="${photoUrl}" alt="photo"/>
-  <div class="footer">${eventName} &middot; ${new Date().toLocaleDateString()}</div>
-</div>
-<script>
-  var img=document.querySelector('img');
-  function doPrint(){window.focus();window.print();}
-  if(img.complete){setTimeout(doPrint,300);}
-  else{img.onload=function(){setTimeout(doPrint,300);};}
-${'</'}script></body></html>`);
   doc.close();
-  setTimeout(() => { const el = document.getElementById('__snapbooth_print_frame'); if (el) el.remove(); }, 30000);
+
+  const style = doc.createElement('style');
+  style.textContent = '* { margin:0; padding:0; box-sizing:border-box; } html,body { width:100%; height:100%; background:#fff; } @page { margin:0.5cm; } .wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:10px; font-family:Arial,sans-serif; } img { max-width:100%; max-height:85vh; object-fit:contain; border-radius:8px; } .footer { margin-top:10px; font-size:11px; color:#888; text-align:center; }';
+  doc.head.appendChild(style);
+
+  const wrap = doc.createElement('div');
+  wrap.className = 'wrap';
+
+  const img = doc.createElement('img');
+  img.src = photoUrl;
+  img.alt = 'photo';
+  wrap.appendChild(img);
+
+  const footer = doc.createElement('div');
+  footer.className = 'footer';
+  footer.textContent = eventName + ' · ' + new Date().toLocaleDateString();
+  wrap.appendChild(footer);
+
+  doc.body.appendChild(wrap);
+
+  function doPrint() { win!.focus(); win!.print(); }
+  if (img.complete) { setTimeout(doPrint, 300); }
+  else { img.onload = () => setTimeout(doPrint, 300); }
+
+  setTimeout(() => { document.getElementById('__sb_print')?.remove(); }, 30000);
 }
 
 export function PreviewScreen() {
