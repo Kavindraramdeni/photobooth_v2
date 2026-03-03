@@ -416,13 +416,12 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
 
   const primaryColor = localEvent?.branding?.primaryColor || '#7c3aed';
 
-  // Short labels that always fit 5-across on any phone width
-  const TABS: { key: Tab; label: string; icon: string }[] = [
-    { key: 'overview',    label: 'Info',    icon: '📋' },
-    { key: 'branding',   label: 'Brand',   icon: '🎨' },
-    { key: 'settings',   label: 'Config',  icon: '⚙️' },
-    { key: 'photos',     label: photos.length ? `Pics(${photos.length})` : 'Photos', icon: '📸' },
-    { key: 'diagnostics',label: 'Diag',    icon: '🔧' },
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'overview',    label: '📋 Overview' },
+    { key: 'branding',   label: '🎨 Branding' },
+    { key: 'settings',   label: '⚙️ Settings' },
+    { key: 'photos',     label: `📸 Photos${photos.length ? ` (${photos.length})` : ''}` },
+    { key: 'diagnostics',label: '🔧 Diagnostics' },
   ];
 
   return (
@@ -430,68 +429,71 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-[#0a0a0f] flex flex-col"
     >
-      {/* ── Header — compact, no wasted space ── */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#0d0d18] flex-shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-purple-600/30 flex items-center justify-center flex-shrink-0">
             <Settings className="w-3.5 h-3.5 text-purple-400" />
           </div>
           <div className="min-w-0">
             <h2 className="text-white font-bold text-sm leading-tight">Operator Panel</h2>
-            <p className="text-white/40 text-[11px] truncate max-w-[160px]">{storeEvent?.name || 'No event'}</p>
+            <p className="text-white/40 text-[11px] truncate max-w-[180px]">{storeEvent?.name || 'No event'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 transition-colors">
-            {saving ? '…' : 'Save'}
+            className="text-sm bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-xl font-semibold disabled:opacity-50 transition-colors text-white">
+            {saving ? 'Saving...' : 'Save'}
           </button>
           <button onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
             <X className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>
 
-      {/* ── Stats: 4-column grid — always fits, never scrolls ── */}
+      {/* ── Stats — same style as admin page (border, rounded-xl, p-2.5) ── */}
       {stats && (
-        <div className="grid grid-cols-4 gap-1.5 px-3 py-2 bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
-          {[
-            { label: 'Photos',   v: stats.totalPhotos,      e: '📸' },
-            { label: 'Sessions', v: stats.totalSessions,    e: '👥' },
-            { label: 'Shares',   v: stats.totalShares,      e: '📤' },
-            { label: 'Prints',   v: stats.totalPrints,      e: '🖨️' },
-            { label: 'GIFs',     v: stats.totalGIFs,        e: '🎬' },
-            { label: 'Strips',   v: stats.totalStrips,      e: '🎞️' },
-            { label: 'Boom.',    v: stats.totalBoomerangs,  e: '🔄' },
-            { label: 'AI',       v: stats.totalAIGenerated, e: '🤖' },
-          ].map(s => (
-            <div key={s.label} className="bg-white/5 rounded-lg py-1.5 text-center">
-              <div className="text-sm leading-none">{s.e}</div>
-              <div className="text-white font-bold text-sm leading-snug mt-0.5">{s.v ?? 0}</div>
-              <div className="text-white/30 text-[9px] leading-tight">{s.label}</div>
-            </div>
-          ))}
+        <div className="px-4 pt-3 pb-2 bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Photos',   value: stats.totalPhotos,      emoji: '📸' },
+              { label: 'GIFs',     value: stats.totalGIFs,        emoji: '🎬' },
+              { label: 'Strips',   value: stats.totalStrips,      emoji: '🎞️' },
+              { label: 'Boom.',    value: stats.totalBoomerangs,  emoji: '🔄' },
+              { label: 'AI Used',  value: stats.totalAIGenerated, emoji: '🤖' },
+              { label: 'Shares',   value: stats.totalShares,      emoji: '📤' },
+              { label: 'Prints',   value: stats.totalPrints,      emoji: '🖨️' },
+              { label: 'Sessions', value: stats.totalSessions,    emoji: '👥' },
+            ].map(s => (
+              <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-2 text-center">
+                <div className="text-base mb-0.5">{s.emoji}</div>
+                <div className="text-white font-bold text-base leading-tight">{s.value ?? 0}</div>
+                <div className="text-white/40 text-[10px] leading-tight mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* ── Tabs: 5-column grid, no scroll, active indicator underline ── */}
-      <div className="grid grid-cols-5 bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-center border-b-2 transition-all ${
-              tab === t.key
-                ? 'border-purple-500 text-white bg-purple-500/10'
-                : 'border-transparent text-white/35 hover:text-white/60 hover:bg-white/5'
-            }`}>
-            <span className="text-base leading-none">{t.icon}</span>
-            <span className="text-[9px] font-medium leading-tight tracking-wide">{t.label}</span>
-          </button>
-        ))}
+      {/* ── Tabs — same pill style as admin page ── */}
+      <div className="px-4 py-2.5 bg-[#0d0d18] border-b border-white/10 flex-shrink-0">
+        <div className="flex gap-1 bg-white/5 rounded-xl p-1 overflow-x-auto">
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap text-center ${
+                tab === t.key
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'text-white/50 hover:text-white'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Content — pb-4 not pb-24 ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 pb-4 bg-[#0a0a0f]">
+      {/* ── Content ── */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 pb-4 bg-[#0a0a0f]">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
@@ -589,7 +591,7 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
                       <OperatorUpload label="Logo" accept="image/*"
                         currentUrl={(localEvent.branding?.logoUrl) || ''}
                         onUploaded={url => updateBranding('logoUrl', url)}
-                        storagePath={`branding/${eventId}/logo`} />
+                        storagePath={`branding-${eventId}-logo`} />
                       {localEvent.branding?.logoUrl && (
                         <div className="mt-2 flex items-center gap-2">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -670,7 +672,7 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
                       <OperatorUpload label="Frame PNG" accept="image/png"
                         currentUrl={(localEvent.branding?.frameUrl) || ''}
                         onUploaded={url => updateBranding('frameUrl', url)}
-                        storagePath={`branding/${eventId}/frame`} />
+                        storagePath={`branding-${eventId}-frame`} />
                       <input value={(localEvent.branding?.frameUrl) || ''}
                         onChange={e => updateBranding('frameUrl', e.target.value)}
                         placeholder="Or paste URL..."
@@ -725,7 +727,7 @@ function OperatorPanel({ onClose }: { onClose: () => void }) {
                     <OperatorUpload label="Video/Image" accept="video/mp4,video/webm,image/*"
                       currentUrl={(localEvent.branding?.idleMediaUrl) || ''}
                       onUploaded={url => updateBranding('idleMediaUrl', url)}
-                      storagePath={`branding/${eventId}/idle`} />
+                      storagePath={`branding-${eventId}-idle`} />
                     <input value={(localEvent.branding?.idleMediaUrl) || ''}
                       onChange={e => updateBranding('idleMediaUrl', e.target.value)}
                       placeholder="Or paste URL..."
