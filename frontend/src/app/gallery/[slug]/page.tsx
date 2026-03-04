@@ -121,8 +121,8 @@ export default function GalleryPhotoPage() {
         <div className="text-5xl mb-4">📷</div>
         <h1 className="text-white font-bold text-xl mb-2">Photo not found</h1>
         <p className="text-white/40 text-sm mb-6">{error || 'This photo link may have expired or been removed.'}</p>
-        <a href="/" className="inline-block px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm">
-          Back to home
+        <a href="/gallery" className="inline-block px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm">
+          ← Back to Gallery
         </a>
       </div>
     </div>
@@ -156,19 +156,20 @@ export default function GalleryPhotoPage() {
         {/* Photo card */}
         <div className="w-full max-w-lg">
           <div
-            className="relative rounded-2xl overflow-hidden shadow-2xl mb-6"
+            className="relative rounded-2xl overflow-hidden shadow-2xl mb-6 bg-black"
             style={{ boxShadow: `0 0 60px ${primaryColor}33` }}
           >
             {isGIF ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo.url} alt="Your photo" className="w-full object-contain bg-black" />
+              <img src={photo.url} alt="Your photo"
+                className="w-full object-contain" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={photo.url}
                 alt="Your photo"
-                className="w-full object-contain bg-black"
-                style={{ maxHeight: '70vh' }}
+                className="w-full object-contain"
+                style={{ maxHeight: '65vh' }}
               />
             )}
 
