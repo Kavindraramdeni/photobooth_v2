@@ -1,390 +1,408 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { QRCodeSVG } from 'qrcode.react';
-import { ArrowLeft, Share2, Mail, Eye, Instagram } from 'lucide-react';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { RefreshCw, Sparkles, Share2, Printer, Download, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
+import { usePinchZoom } from '@/lib/usePinchZoom';
+import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
 import toast from 'react-hot-toast';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-// ── Native share with actual image file ──────────────────────────────────────
-// On iOS 15+ / Android: navigator.canShare({ files }) lets us share the real
-// image binary — guests can AirDrop, WhatsApp, Instagram Stories directly.
-// Falls back to URL share, then wa.me.
-async function nativeSharePhoto(
-  photoUrl: string,
-  filename: string,
-  pageUrl: string,
-  title: string,
-) {
+// ── iOS-safe download ─────────────────────────────────────────────────────
+// Plain <a download> silently fails on iOS Safari — opens new tab instead.
+// Fetching as blob + objectURL works on Android & desktop.
+// On iOS it still opens in Safari viewer — user long-presses → Save to Photos.
+async function iosCompatibleDownload(url: string, filename: string) {
   try {
-    const res = await fetch(photoUrl, { mode: 'cors' });
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error('fetch failed');
     const blob = await res.blob();
-    const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
-
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title, url: pageUrl });
-      return 'file';
-    }
-  } catch { /* file share not supported or cancelled */ }
-
-  // Fallback: share URL
-  if (navigator.share) {
-    try {
-      await navigator.share({ title, url: pageUrl });
-      return 'url';
-    } catch { /* cancelled */ }
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 8000);
+  } catch {
+    // Fallback: open in new tab — user can long-press → Save on iOS
+    window.open(url, '_blank');
   }
-  return 'none';
 }
 
-// ── WhatsApp ──────────────────────────────────────────────────────────────────
-function openWhatsApp(photoUrl: string, eventName: string) {
-  const text = encodeURIComponent('📸 ' + eventName + ' — tap to view & save your photo: ' + photoUrl);
-  window.open('https://wa.me/?text=' + text, '_blank');
+// ── Photo-only print via hidden iframe (DOM API — no template literals) ──────
+// Uses DOM createElement instead of doc.write() to avoid TSX parser issues.
+// Includes proper @page DPI hints for 4x6 photo prints.
+function printPhotoOnly(photoUrl: string, eventName: string) {
+  const existing = document.getElementById('__snapbooth_print_frame');
+  if (existing) existing.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = '__snapbooth_print_frame';
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+
+  const win = iframe.contentWindow;
+  const doc = iframe.contentDocument || win?.document;
+  if (!doc || !win) { window.open(photoUrl, '_blank'); return; }
+
+  doc.open();
+  doc.close();
+
+  // Build print stylesheet via DOM — safe in TSX, no template literal HTML
+  const style = doc.createElement('style');
+  const css = [
+    '* { margin:0; padding:0; box-sizing:border-box; }',
+    'html,body { width:100%; height:100%; background:#fff; }',
+    // 4x6 portrait with 300dpi hint — most photo printers
+    '@page { margin:0.3cm; size:4in 6in portrait; }',
+    '@media print {',
+    '  .wrap { page-break-inside:avoid; }',
+    '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; }',
+    '}',
+    '.wrap { display:flex; flex-direction:column; align-items:center;',
+    '        justify-content:center; min-height:100vh; padding:8px; gap:6px; }',
+    'img { width:100%; max-height:90vh; object-fit:contain; display:block; }',
+    '.footer { font-size:9pt; color:#555; text-align:center; }',
+    '.event-name { font-size:10pt; font-weight:bold; color:#333; }',
+  ].join(' ');
+  style.textContent = css;
+  doc.head.appendChild(style);
+
+  // Build body
+  const wrap = doc.createElement('div');
+  wrap.className = 'wrap';
+
+  const img = doc.createElement('img');
+  img.src = photoUrl;
+  img.alt = 'photo';
+  wrap.appendChild(img);
+
+  const eventNameEl = doc.createElement('p');
+  eventNameEl.className = 'event-name';
+  eventNameEl.textContent = eventName;
+  wrap.appendChild(eventNameEl);
+
+  const footer = doc.createElement('p');
+  footer.className = 'footer';
+  footer.textContent = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+  wrap.appendChild(footer);
+
+  doc.body.appendChild(wrap);
+
+  function doPrint() { win!.focus(); win!.print(); }
+  if (img.complete) { setTimeout(doPrint, 300); }
+  else { img.onload = () => setTimeout(doPrint, 300); }
+
+  setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
 }
 
-// ── Email ─────────────────────────────────────────────────────────────────────
-function openEmail(photoUrl: string, eventName: string) {
-  const subject = encodeURIComponent(eventName + ' — your photo 📸');
-  const body = encodeURIComponent(photoUrl);
-  window.open('mailto:?subject=' + subject + '&body=' + body, '_blank');
-}
+export function PreviewScreen() {
+  const { currentPhoto, event, mode, setScreen, resetSession } = useBoothStore();
+  const { scale, translateX, translateY, zoomHandlers, resetZoom, isZoomed } = usePinchZoom();
+  const [showLeadModal, setShowLeadModal] = useState(false);
 
-export function ShareScreen() {
-  const { currentPhoto, event, setScreen, resetSession } = useBoothStore();
+  if (!currentPhoto) { setScreen('idle'); return null; }
 
-  if (!currentPhoto) { setScreen('preview'); return null; }
-
+  const settings = event?.settings;
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
+  const isGIF = mode === 'gif' || mode === 'boomerang';
+  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Strip' : 'Photo';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
 
-  // Use short URL if available, otherwise gallery URL
-  const photoUrl = currentPhoto.galleryUrl || currentPhoto.url;
-
-  // Meaningful filename: EventName-YYYY-MM-DD.jpg
-  const date = new Date().toISOString().split('T')[0];
-  const filename = `${eventName.replace(/\s+/g, '-')}-${date}.jpg`;
-
-  async function handleWhatsApp() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: currentPhoto.id });
-    openWhatsApp(photoUrl, eventName);
-  }
-
-  async function handleEmail() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'email', photoId: currentPhoto.id });
-    openEmail(photoUrl, eventName);
-    toast('📧 Opening email — enter your address and send!', { duration: 3000 });
-  }
-
-  async function handleNativeShare() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'native', photoId: currentPhoto.id });
-    const result = await nativeSharePhoto(
-      currentPhoto.downloadUrl || currentPhoto.url,
-      filename,
-      photoUrl,
-      `My photo from ${eventName}`,
-    );
-    if (result === 'none') {
-      // Copy link as last resort
-      await navigator.clipboard.writeText(photoUrl);
-      toast.success('Link copied!');
+  // If leadCapture is enabled, show the modal first; otherwise go straight to share
+  function handleShareClick() {
+    if (event?.settings?.leadCapture) {
+      setShowLeadModal(true);
+    } else {
+      setScreen('share');
     }
   }
 
-  // Instagram Stories: download the 9:16 server-generated version
-  async function handleInstagramStories() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'instagram_stories', photoId: currentPhoto.id });
+  async function handlePrint() {
+    if (!event) return;
     try {
-      toast('Preparing Stories image…', { duration: 2000 });
-      const res = await fetch(`${API_BASE}/api/photos/${currentPhoto.id}/stories`);
-      if (!res.ok) throw new Error('Stories generation failed');
-      const blob = await res.blob();
-      const storiesFilename = `${eventName.replace(/\s+/g, '-')}-Stories-${date}.jpg`;
-      const file = new File([blob], storiesFilename, { type: 'image/jpeg' });
+      printPhotoOnly(currentPhoto.url, eventName);
+      await trackAction(event.id, 'photo_printed', { photoId: currentPhoto.id });
+      toast.success('Sent to printer!');
+    } catch { toast.error('Print failed — try again'); }
+  }
 
-      // Try file share first (lets user go directly to Instagram Stories)
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `${eventName} — Instagram Stories` });
-        return;
-      }
-      // Fallback: download the Stories image so they can post manually
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = storiesFilename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
-      toast('Stories image saved! Open Instagram → + → Story to post it.', { duration: 5000 });
-    } catch {
-      toast.error('Could not prepare Stories image');
-    }
+  async function handleDownload() {
+    // Meaningful filename: EventName-YYYY-MM-DD.jpg  (not UUID timestamp blob)
+    const dateStr = new Date().toISOString().split('T')[0];
+    const ext = isGIF ? 'gif' : 'jpg';
+    const filename = `${eventName.replace(/\s+/g, '-')}-${dateStr}.${ext}`;
+    await iosCompatibleDownload(currentPhoto.downloadUrl || currentPhoto.url, filename);
+    if (event) await trackAction(event.id, 'photo_downloaded', { photoId: currentPhoto.id });
+    toast.success('Saved! On iPhone: long-press → Save to Photos');
   }
 
   return (
     <div className="w-full h-full flex flex-col bg-[#0a0a0f] select-none">
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#0d0d18]">
-        <button onClick={() => setScreen('preview')}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-[#0d0d18]">
+        <button onClick={() => setScreen('idle')}
           className="flex items-center gap-2 text-white/50 hover:text-white transition-colors btn-touch p-1">
           <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm">Back</span>
+          <span className="text-sm hidden sm:inline">Back</span>
         </button>
-        <h2 className="text-white font-bold text-base">Share Your Photo</h2>
-        <div className="w-14" />
+        <div className="text-center">
+          <h2 className="text-white font-bold text-base sm:text-lg leading-tight">Your {modeLabel}</h2>
+          {event?.name && <p className="text-white/30 text-xs mt-0.5 hidden sm:block">{event.name}</p>}
+        </div>
+        <div className="w-10 sm:w-20" />
       </div>
 
-      {/* ── Body ── */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-5 px-5 py-5 overflow-y-auto">
-
-        {/* QR Code — always B&W, short URL = smaller/faster QR */}
+      {/* ── Photo ── */}
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-6 overflow-hidden min-h-0">
         <motion.div
-          initial={{ opacity: 0, scale: 0.88 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-2"
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+          className="relative w-full h-full flex items-center justify-center"
         >
-          <div className="bg-white p-4 rounded-2xl shadow-2xl">
-            <QRCodeSVG
-              value={photoUrl}
-              size={180}
-              level="H"
-              fgColor="#000000"
-              bgColor="#ffffff"
+          {/* Pinch-to-zoom wrapper */}
+          <div
+            {...zoomHandlers}
+            className="w-full h-full flex items-center justify-center overflow-hidden"
+            style={{ touchAction: isZoomed ? 'none' : 'auto' }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={currentPhoto.url} alt="Your photo"
+              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+              style={{
+                maxHeight: 'calc(100dvh - 260px)',
+                transform: `scale(${scale}) translate(${translateX}px, ${translateY}px)`,
+                transformOrigin: 'center center',
+                transition: scale === 1 ? 'transform 0.3s ease' : 'none',
+              }}
+              draggable={false}
             />
           </div>
-          <p className="text-white/40 text-xs text-center">
-            📱 Scan with phone camera to get your photo
-          </p>
+
+          {/* Pinch hint */}
+          {scale === 1 && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/50 rounded-full px-3 py-1 text-white/30 text-xs pointer-events-none select-none">
+              Pinch to zoom
+            </div>
+          )}
+          {isZoomed && (
+            <button onClick={resetZoom}
+              className="absolute top-3 left-3 bg-black/60 rounded-full px-3 py-1 text-white/70 text-xs font-medium">
+              Reset
+            </button>
+          )}
+
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3, type: 'spring' }}
+            className="absolute top-3 right-3 flex items-center gap-1.5 bg-green-500/90 text-white text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Captured!</span>
+          </motion.div>
         </motion.div>
-
-        {/* 4 share buttons: WhatsApp · Email · Share · Instagram */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="w-full max-w-sm grid grid-cols-4 gap-2"
-        >
-          {/* WhatsApp */}
-          <motion.button whileTap={{ scale: 0.93 }} onClick={handleWhatsApp}
-            className="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl font-semibold text-white btn-touch text-[11px]"
-            style={{ background: '#25D366' }}>
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            WhatsApp
-          </motion.button>
-
-          {/* Email */}
-          <motion.button whileTap={{ scale: 0.93 }} onClick={handleEmail}
-            className="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl font-semibold text-white btn-touch text-[11px]"
-            style={{ background: 'linear-gradient(135deg,#EA4335,#c5221f)' }}>
-            <Mail className="w-6 h-6" />
-            Email
-          </motion.button>
-
-          {/* Share (native sheet — shares actual image file on iOS 15+/Android) */}
-          <motion.button whileTap={{ scale: 0.93 }} onClick={handleNativeShare}
-            className="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl font-semibold text-white btn-touch text-[11px] bg-white/10 border border-white/20">
-            <Share2 className="w-6 h-6" />
-            Share
-          </motion.button>
-
-          {/* Instagram Stories */}
-          <motion.button whileTap={{ scale: 0.93 }} onClick={handleInstagramStories}
-            className="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl font-semibold text-white btn-touch text-[11px]"
-            style={{ background: 'linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)' }}>
-            <Instagram className="w-6 h-6" />
-            Stories
-          </motion.button>
-        </motion.div>
-
-        {/* Preview link */}
-        <motion.button
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={() => setScreen('preview')}
-          className="flex items-center gap-2 text-white/35 hover:text-white/60 transition-colors text-sm btn-touch">
-          <Eye className="w-4 h-4" />
-          Preview photo
-        </motion.button>
       </div>
 
-      {/* Done */}
-      <div className="flex-shrink-0 px-4 pb-6 pt-3 border-t border-white/10 bg-[#0d0d18]/40">
+      {/* ── Actions ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+        className="flex-shrink-0 px-4 sm:px-6 pb-5 sm:pb-8 pt-2 space-y-2.5 sm:space-y-3"
+      >
+        {/* Primary row: AI + Share */}
+        <div className="grid gap-2.5"
+          style={{ gridTemplateColumns: settings?.allowAI !== false && !isGIF ? '1fr 1fr' : '1fr' }}>
+          {settings?.allowAI !== false && !isGIF && (
+            <motion.button whileTap={{ scale: 0.96 }} onClick={() => setScreen('ai')}
+              className="flex items-center justify-center gap-2.5 py-4 sm:py-5 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span>AI Filter ✨</span>
+            </motion.button>
+          )}
+          <motion.button whileTap={{ scale: 0.96 }} onClick={handleShareClick}
+            className="flex items-center justify-center gap-2.5 py-4 sm:py-5 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch bg-blue-600 hover:bg-blue-500 transition-colors">
+            <Share2 className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span>Share &amp; QR</span>
+          </motion.button>
+        </div>
+
+        {/* Secondary row: Save / Print / Retake */}
+        <div className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${[true, settings?.allowPrint !== false, settings?.allowRetakes !== false].filter(Boolean).length}, 1fr)` }}>
+          <motion.button whileTap={{ scale: 0.94 }} onClick={handleDownload}
+            className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
+            <Download className="w-5 h-5" />
+            <span className="text-xs font-medium">Save</span>
+          </motion.button>
+
+          {settings?.allowPrint !== false && (
+            <motion.button whileTap={{ scale: 0.94 }} onClick={handlePrint}
+              className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
+              <Printer className="w-5 h-5" />
+              <span className="text-xs font-medium">Print</span>
+            </motion.button>
+          )}
+
+          {settings?.allowRetakes !== false && (
+            <motion.button whileTap={{ scale: 0.94 }} onClick={() => setScreen('countdown')}
+              className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
+              <RefreshCw className="w-5 h-5" />
+              <span className="text-xs font-medium">Retake</span>
+            </motion.button>
+          )}
+        </div>
+
+        {/* Done */}
         <motion.button whileTap={{ scale: 0.98 }} onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-bold text-white text-base btn-touch transition-all"
-          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}aa)` }}>
-          ✅ Done — Take Another Photo
+          className="w-full py-4 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch transition-all"
+          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}bb)` }}>
+          ✅ Done — Take Another
         </motion.button>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
-// ── WhatsApp: open wa.me with number picker so guest types their own number ──
-// wa.me without a number = opens WhatsApp with "New chat" so guest picks contact.
-// This sends the photo download link — browsers cannot attach binary files via WA API.
-// The link opens the gallery page where guest can save the photo.
-function openWhatsApp(photoUrl: string, eventName: string) {
-  // Direct link — opens WhatsApp, guest picks contact, message is pre-filled
-  const text = encodeURIComponent('📸 ' + eventName + ' — tap to view & save your photo: ' + photoUrl);
-  window.open('https://wa.me/?text=' + text, '_blank');
-}
+  if (!currentPhoto) { setScreen('idle'); return null; }
 
-// ── Email: clean subject only, guest types their own address ──
-// Body contains only the photo link — no wall of text
-function openEmail(photoUrl: string, eventName: string) {
-  const subject = encodeURIComponent(eventName + ' — your photo 📸');
-  const body = encodeURIComponent(photoUrl);
-  window.open('mailto:?subject=' + subject + '&body=' + body, '_blank');
-}
-
-export function ShareScreen() {
-  const { currentPhoto, event, setScreen, resetSession } = useBoothStore();
-
-  if (!currentPhoto) { setScreen('preview'); return null; }
-
+  const settings = event?.settings;
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
-  const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
+  const isGIF = mode === 'gif' || mode === 'boomerang';
+  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Strip' : 'Photo';
 
-  // Per-photo URL — links only to this guest's photo
-  const photoUrl = currentPhoto.galleryUrl || currentPhoto.url;
-
-  async function handleWhatsApp() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: currentPhoto.id });
-    openWhatsApp(photoUrl, eventName);
+  async function handlePrint() {
+    if (!event) return;
+    await trackAction(event.id, 'photo_printed', { photoId: currentPhoto.id });
+    window.print();
+    toast.success('Sent to printer!');
   }
 
-  async function handleEmail() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'email', photoId: currentPhoto.id });
-    openEmail(photoUrl, eventName);
-    toast('📧 Opening email — enter your address and send!', { duration: 3000 });
-  }
-
-  async function handleNativeShare() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'native', photoId: currentPhoto.id });
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: eventName, text: '📸 Your photobooth photo', url: photoUrl });
-        return;
-      } catch { /* cancelled */ }
-    }
-    // Fallback: copy link
-    await navigator.clipboard.writeText(photoUrl);
-    toast.success('Link copied!');
+  async function handleDownload() {
+    const a = document.createElement('a');
+    a.href = currentPhoto.downloadUrl;
+    a.download = `snapbooth_${Date.now()}.${isGIF ? 'gif' : 'jpg'}`;
+    a.click();
+    if (event) await trackAction(event.id, 'photo_downloaded', { photoId: currentPhoto.id });
+    toast.success('Saved!');
   }
 
   return (
     <div className="w-full h-full flex flex-col bg-[#0a0a0f] select-none">
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#0d0d18]">
-        <button onClick={() => setScreen('preview')}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-[#0d0d18]">
+        <button onClick={() => setScreen('idle')}
           className="flex items-center gap-2 text-white/50 hover:text-white transition-colors btn-touch p-1">
           <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm">Back</span>
+          <span className="text-sm hidden sm:inline">Back</span>
         </button>
-        <h2 className="text-white font-bold text-base">Share Your Photo</h2>
-        <div className="w-14" />
+        <div className="text-center">
+          <h2 className="text-white font-bold text-base sm:text-lg leading-tight">Your {modeLabel}</h2>
+          {event?.name && <p className="text-white/30 text-xs mt-0.5 hidden sm:block">{event.name}</p>}
+        </div>
+        {/* spacer matches back button width */}
+        <div className="w-10 sm:w-20" />
       </div>
 
-      {/* ── Body ── */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5 py-6 overflow-y-auto">
-
-        {/* ── QR Code — always black & white, easy to scan ── */}
+      {/* ── Photo ── */}
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-6 overflow-hidden min-h-0">
         <motion.div
-          initial={{ opacity: 0, scale: 0.88 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-3"
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+          className="relative w-full h-full flex items-center justify-center"
         >
-          <div className="bg-white p-4 rounded-2xl shadow-2xl">
-            {/* fgColor always #000000 — brand colour makes QR hard to scan */}
-            <QRCodeSVG
-              value={photoUrl}
-              size={200}
-              level="H"
-              fgColor="#000000"
-              bgColor="#ffffff"
-            />
-          </div>
-          <p className="text-white/50 text-sm text-center">
-            📱 Scan with your phone camera to get your photo
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={currentPhoto.url}
+            alt="Your photo"
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+            style={{ maxHeight: 'calc(100dvh - 260px)' }}
+          />
+          {/* Success badge */}
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3, type: 'spring' }}
+            className="absolute top-3 right-3 flex items-center gap-1.5 bg-green-500/90 text-white text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg"
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Captured!</span>
+          </motion.div>
         </motion.div>
-
-        {/* ── 3 action buttons: WhatsApp · Email · Share ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="w-full max-w-sm grid grid-cols-3 gap-3"
-        >
-          {/* WhatsApp */}
-          <motion.button
-            whileTap={{ scale: 0.93 }}
-            onClick={handleWhatsApp}
-            className="flex flex-col items-center gap-2 py-4 rounded-2xl font-semibold text-white btn-touch text-xs"
-            style={{ background: '#25D366' }}
-          >
-            {/* WhatsApp SVG icon */}
-            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            WhatsApp
-          </motion.button>
-
-          {/* Email */}
-          <motion.button
-            whileTap={{ scale: 0.93 }}
-            onClick={handleEmail}
-            className="flex flex-col items-center gap-2 py-4 rounded-2xl font-semibold text-white btn-touch text-xs"
-            style={{ background: 'linear-gradient(135deg,#EA4335,#c5221f)' }}
-          >
-            <Mail className="w-7 h-7" />
-            Email
-          </motion.button>
-
-          {/* Share (native sheet / copy link) */}
-          <motion.button
-            whileTap={{ scale: 0.93 }}
-            onClick={handleNativeShare}
-            className="flex flex-col items-center gap-2 py-4 rounded-2xl font-semibold text-white btn-touch text-xs bg-white/10 border border-white/20"
-          >
-            <Share2 className="w-7 h-7" />
-            Share
-          </motion.button>
-        </motion.div>
-
-        {/* ── Preview button — see photo again ── */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={() => setScreen('preview')}
-          className="flex items-center gap-2 text-white/40 hover:text-white/70 transition-colors text-sm btn-touch"
-        >
-          <Eye className="w-4 h-4" />
-          Preview photo
-        </motion.button>
       </div>
 
-      {/* ── Done ── */}
-      <div className="flex-shrink-0 px-4 pb-6 pt-3 border-t border-white/10 bg-[#0d0d18]/40">
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-bold text-white text-base btn-touch transition-all"
-          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}aa)` }}
-        >
-          ✅ Done — Take Another Photo
+      {/* ── Actions ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="flex-shrink-0 px-4 sm:px-6 pb-5 sm:pb-8 pt-2 space-y-2.5 sm:space-y-3"
+      >
+        {/* Primary row: Share + AI */}
+        <div className="grid gap-2.5"
+          style={{ gridTemplateColumns: settings?.allowAI !== false && !isGIF ? '1fr 1fr' : '1fr' }}>
+          {settings?.allowAI !== false && !isGIF && (
+            <motion.button whileTap={{ scale: 0.96 }} onClick={() => setScreen('ai')}
+              className="flex items-center justify-center gap-2.5 py-4 sm:py-5 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span>AI Magic ✨</span>
+            </motion.button>
+          )}
+          <motion.button whileTap={{ scale: 0.96 }} onClick={handleShareClick}
+            className="flex items-center justify-center gap-2.5 py-4 sm:py-5 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch bg-blue-600 hover:bg-blue-500 transition-colors">
+            <Share2 className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span>Share & QR Code</span>
+          </motion.button>
+        </div>
+
+        {/* Secondary row: Download / Print / Retake */}
+        <div className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${[true, settings?.allowPrint !== false, settings?.allowRetakes !== false].filter(Boolean).length}, 1fr)` }}>
+          <motion.button whileTap={{ scale: 0.94 }} onClick={handleDownload}
+            className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
+            <Download className="w-5 h-5" />
+            <span className="text-xs font-medium">Save</span>
+          </motion.button>
+          {settings?.allowPrint !== false && (
+            <motion.button whileTap={{ scale: 0.94 }} onClick={handlePrint}
+              className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
+              <Printer className="w-5 h-5" />
+              <span className="text-xs font-medium">Print</span>
+            </motion.button>
+          )}
+          {settings?.allowRetakes !== false && (
+            <motion.button whileTap={{ scale: 0.94 }} onClick={() => setScreen('countdown')}
+              className="flex flex-col items-center gap-1.5 py-3.5 sm:py-4 rounded-2xl bg-white/8 border border-white/15 text-white btn-touch hover:bg-white/12 transition-colors">
+              <RefreshCw className="w-5 h-5" />
+              <span className="text-xs font-medium">Retake</span>
+            </motion.button>
+          )}
+        </div>
+
+        {/* Done */}
+        <motion.button whileTap={{ scale: 0.98 }} onClick={resetSession}
+          className="w-full py-4 rounded-2xl font-bold text-white text-sm sm:text-base btn-touch transition-all"
+          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}bb)` }}>
+          ✅ Done — Take Another
         </motion.button>
-      </div>
+      </motion.div>
+
+      {/* Lead capture modal — shown before share if leadCapture enabled */}
+      <AnimatePresence>
+        {showLeadModal && (
+          <LeadCaptureModal
+            onContinue={() => { setShowLeadModal(false); setScreen('share'); }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
