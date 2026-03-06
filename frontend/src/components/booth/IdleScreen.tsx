@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Camera, Zap, Film, Image } from 'lucide-react';
+import { Camera, Zap, Film, Image as ImageIcon } from 'lucide-react';
 import { useBoothStore, BoothMode } from '@/lib/store';
 
 export function IdleScreen() {
@@ -12,7 +12,7 @@ export function IdleScreen() {
   const primaryColor = branding?.primaryColor || '#7c3aed';
   const eventName = branding?.eventName || 'SnapBooth AI';
 
-  const modes: { mode: BoothMode; label: string; icon: React.ReactNode; enabled: boolean }[] = [
+  const modeOptions: { mode: BoothMode; label: string; icon: React.ReactNode; enabled: boolean }[] = [  
     {
       mode: 'single',
       label: 'Photo',
@@ -22,7 +22,7 @@ export function IdleScreen() {
     {
       mode: 'strip',
       label: '4-Strip',
-      icon: <Image className="w-7 h-7" />,
+      icon: <ImageIcon className="w-7 h-7" />,
       enabled: true,
     },
     {
@@ -37,8 +37,10 @@ export function IdleScreen() {
       icon: <Zap className="w-7 h-7" />,
       enabled: settings?.allowBoomerang !== false,
     },
-  ].filter((m) => m.enabled);
+  ];
 
+  const modes = modeOptions.filter((m) => m.enabled);
+  
   function handleStart(mode: BoothMode) {
     setMode(mode);
     setScreen('countdown');
