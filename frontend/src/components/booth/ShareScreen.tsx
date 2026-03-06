@@ -57,26 +57,27 @@ export function ShareScreen() {
   const { currentPhoto, event, setScreen, resetSession } = useBoothStore();
 
   if (!currentPhoto) { setScreen('preview'); return null; }
-
+  const photo = currentPhoto;
+  
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
 
   // Per-photo URL — links only to this guest's photo
-  const photoUrl = currentPhoto.galleryUrl || currentPhoto.url;
-
+  const photoUrl = photo.galleryUrl || photo.url;
+  
   async function handleWhatsApp() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: currentPhoto.id });
+    if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: photo.id });
     openWhatsApp(photoUrl, eventName);
   }
 
   async function handleEmail() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'email', photoId: currentPhoto.id });
+    if (event) await trackAction(event.id, 'photo_shared', { platform: 'email', photoId: photo.id });
     openEmail(photoUrl, eventName);
     toast('📧 Opening email — enter your address and send!', { duration: 3000 });
   }
 
   async function handleNativeShare() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'native', photoId: currentPhoto.id });
+    if (event) await trackAction(event.id, 'photo_shared', { platform: 'native', photoId: photo.id });
     if (navigator.share) {
       try {
         await navigator.share({ title: eventName, text: '📸 Your photobooth photo', url: photoUrl });
