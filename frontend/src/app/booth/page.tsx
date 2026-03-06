@@ -1,4 +1,4 @@
-import { BoothpageClient } from './BoothpageClient';
+import { BoothPageClient } from './BoothPageClient';
 
 type SearchParamsInput =
   | { [key: string]: string | string[] | undefined }
@@ -13,5 +13,5 @@ export default async function BoothPage({
   const rawEvent = resolvedParams?.event;
   const eventSlug = Array.isArray(rawEvent) ? rawEvent[0] : rawEvent;
   
-  return <BoothpageClient eventSlug={eventSlug} />;
+  return <BoothPageClient eventSlug={eventSlug} />;
 }
