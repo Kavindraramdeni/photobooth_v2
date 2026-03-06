@@ -13,7 +13,7 @@ const analyticsRoutes = require('./routes/analytics');
 const shareRoutes    = require('./routes/share');
 const leadsRoutes    = require('./routes/leads');
 const billingRoutes  = require('./routes/billing');
-const { ensureBucketExists } = require('./services/storage');
+// storage.js exports: uploadToStorage, getSignedDownloadUrl, deleteFromStorage
 
 const app = express();
 const httpServer = createServer(app);
@@ -83,15 +83,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 
 async function start() {
-  try {
-    await ensureBucketExists();
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 SnapBooth Backend running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error('Failed to start:', err);
-    process.exit(1);
-  }
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 SnapBooth Backend running on port ${PORT}`);
+  });
 }
 
 start();
