@@ -12,7 +12,7 @@ const aiRoutes = require('./routes/ai');
 const analyticsRoutes = require('./routes/analytics');
 const shareRoutes = require('./routes/share');
 const leadsRoutes = require('./routes/leads');
-const { ensureBucketExists } = require('./services/storage');
+const storageService = require('./services/storage');
 
 const app = express();
 const httpServer = createServer(app);
@@ -66,7 +66,11 @@ const PORT = process.env.PORT || 3001;
 
 async function start() {
   try {
-    await ensureBucketExists();
+    if (typeof storageService.ensureBucketExists === 'function') {
+      await storageService.ensureBucketExists();
+    } else {
+      console.warn('[startup] storage.ensureBucketExists is unavailable; skipping bucket initialization.');
+    }
     httpServer.listen(PORT, () => {
       console.log(`🚀 SnapBooth Backend running on port ${PORT}`);
     });
