@@ -6,7 +6,7 @@ import { useBoothStore } from '@/lib/store';
 import { haptic, sound, speak, flash, unlockAudio } from '@/lib/booth-sensory';
 
 export function CountdownScreen() {
-  const { event, setScreen, capturePhoto } = useBoothStore();
+   const { event, setScreen } = useBoothStore();
   const seconds = (event?.settings?.countdownSeconds as number) || 3;
 
   const [count, setCount] = useState(seconds);
@@ -50,17 +50,10 @@ export function CountdownScreen() {
         flash(200);
 
         // Small delay so flash is visible before photo is actually taken
-        setTimeout(async () => {
+        setTimeout(() => {
           setCapturing(true);
-          try {
-            await capturePhoto();
-            sound('success');
-            setScreen('preview');
-          } catch {
-            sound('error');
-            haptic('error');
-            setScreen('camera');
-          }
+          sound('success');
+          setScreen('capture');
         }, 120);
       }
     }, 1000);
