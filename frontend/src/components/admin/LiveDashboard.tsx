@@ -1,22 +1,8 @@
 'use client';
 
-/**
- * LiveDashboard
- * Real-time event stats during the event using Socket.IO.
- * Shows: photos this hour, total today, share rate, mode breakdown,
- *        live feed of the last 6 photos as they're taken.
- *
- * The backend already emits 'photo-taken' events via socket.io.
- * This component connects, joins the event room, and listens.
- *
- * Usage:
- *   <LiveDashboard eventId={event.id} />
- */
-
 import { useEffect, useRef, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-const WS_URL   = API_BASE.replace(/^http/, 'ws');
 
 interface LivePhoto {
   photoId: string;
@@ -30,11 +16,10 @@ interface LiveStats {
   totalToday:    number;
   thisHour:      number;
   sharesTotal:   number;
-  shareRate:     number;  // %
+  shareRate:     number;
   lastPhotoAt:   string | null;
 }
 
-// Mode label helper
 function modeLabel(mode: string) {
   return mode === 'gif'       ? '🎬'
        : mode === 'boomerang' ? '🔄'
@@ -65,7 +50,6 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
   const [socketError, setSocketError] = useState('');
   const socketRef = useRef<WebSocket | null>(null);
 
-  // ── Load initial stats via HTTP ──────────────────────────────────────────
   useEffect(() => {
     fetch(`${API_BASE}/api/analytics/event/${eventId}?range=today`)
       .then(r => r.json())
@@ -83,18 +67,17 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
       .catch(() => {});
   }, [eventId]);
 
-  // ── Socket.IO connection (native WebSocket compatible handshake) ─────────
-  // Socket.IO uses its own protocol — we use the polling fallback for simplicity,
-  // which works via fetch. For real-time we use socket.io-client if available,
-  // otherwise fall back to polling the analytics endpoint every 15s.
   useEffect(() => {
     let pollInterval: ReturnType<typeof setInterval>;
 
-    // Try to load socket.io-client dynamically (it may be installed in the frontend)
     const trySocket = async () => {
       try {
-        // Dynamic import — only works if socket.io-client is in package.json
-        const { io } = await import('socket.io-client' as string) as unknown as { io: (url: string, opts: object) => { on: (event: string, cb: (...args: unknown[]) => void) => void; disconnect: () => void } };
+        const { io } = await import('socket.io-client' as string) as unknown as {
+          io: (url: string, opts: object) => {
+            on: (event: string, cb: (...args: unknown[]) => void) => void;
+            disconnect: () => void;
+          }
+        };
         const socket = io(API_BASE, {
           transports: ['websocket', 'polling'],
           reconnectionAttempts: 5,
@@ -112,7 +95,8 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
           setConnected(false);
         });
 
-        socket.on('photo-taken', (data: LivePhoto) => {
+        socket.on('photo-taken', (...args: unknown[]) => {
+          const data = args[0] as LivePhoto;
           setLivePhotos(prev => [data, ...prev].slice(0, 12));
           setStats(prev => {
             const total = prev.totalToday + 1;
@@ -138,7 +122,6 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
 
         return () => socket.disconnect();
       } catch {
-        // socket.io-client not installed — use polling
         setSocketError('Live mode unavailable (install socket.io-client for real-time)');
         pollInterval = setInterval(async () => {
           try {
@@ -168,8 +151,6 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
 
   return (
     <div className="space-y-5">
-
-      {/* Connection status */}
       <div className="flex items-center gap-2">
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${connected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`} />
         <span className="text-white/50 text-sm">
@@ -182,7 +163,6 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
         )}
       </div>
 
-      {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatBubble label="Photos Today"  value={stats.totalToday}  pulse={connected} />
         <StatBubble label="This Hour"     value={stats.thisHour} />
@@ -191,7 +171,6 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
           sub={stats.totalToday > 0 ? `${stats.sharesTotal} of ${stats.totalToday}` : 'no photos yet'} />
       </div>
 
-      {/* Live photo feed */}
       {livePhotos.length > 0 && (
         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
