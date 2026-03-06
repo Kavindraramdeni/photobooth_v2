@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBoothStore } from '@/lib/store';
 import { getEvent } from '@/lib/api';
+import { Camera, Sparkles } from 'lucide-react';
 
 export default function BoothPage() {
   const searchParams = useSearchParams();
