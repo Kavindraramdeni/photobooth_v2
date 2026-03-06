@@ -1,192 +1,240 @@
-const express = require('express');
-const multer = require('multer');
-const router = express.Router();
+/**
+ * backend/src/services/ai.js
+ *
+ * AI image generation using fal.ai (https://fal.ai)
+ * - Real img2img: guest's actual face is preserved in the art style
+ * - 2-5 second generation (vs 30-90s on HuggingFace free tier)
+ * - Pay per generation: ~$0.003-0.006 per image
+ * - No cold starts, no 410/503 model retirement issues
+ *
+ * Required env var on Render:
+ *   FAL_KEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ *   Get it free at: https://fal.ai → Dashboard → API Keys
+ *   Free tier includes $5 credit (≈ 1000 images)
+ *
+ * Fallback (if FAL_KEY not set):
+ *   Uses Sharp to apply instant local filters — no AI, but works immediately.
+ */
 
-const { generateAIImage, applyAIFilter, AI_STYLES } = require('../services/ai');
-const { uploadToStorage } = require('../services/storage');
-const { generateQRDataURL, buildGalleryUrl } = require('../services/sharing');
-const supabase = require('../services/database');
-const { v4: uuidv4 } = require('uuid');
+const sharp = require('sharp');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const AI_STYLES = {
+  anime: {
+    name: 'Anime Art',
+    emoji: '🎌',
+    prompt: 'anime style illustration, Studio Ghibli aesthetic, soft shading, high quality, detailed face',
+    negativePrompt: 'ugly, blurry, low quality, deformed, extra limbs',
+    strength: 0.75,
+  },
+  vintage: {
+    name: 'Vintage Film',
+    emoji: '📷',
+    prompt: 'vintage film photograph, Kodachrome colours, film grain, warm tones, 1970s portrait photography',
+    negativePrompt: 'modern, digital, oversaturated, sharp',
+    strength: 0.6,
+  },
+  watercolor: {
+    name: 'Watercolor',
+    emoji: '🎨',
+    prompt: 'beautiful watercolor painting, artistic, soft colours, visible brushstrokes, paper texture',
+    negativePrompt: 'photograph, digital art, 3d render',
+    strength: 0.8,
+  },
+  cyberpunk: {
+    name: 'Cyberpunk',
+    emoji: '🌆',
+    prompt: 'cyberpunk portrait, neon lights, futuristic, dramatic rim lighting, blade runner aesthetic, high contrast',
+    negativePrompt: 'natural lighting, daytime, bright, plain background',
+    strength: 0.75,
+  },
+  oilpainting: {
+    name: 'Oil Painting',
+    emoji: '🖼️',
+    prompt: 'classical oil painting portrait, impressionist brushstrokes, museum quality, Rembrandt lighting',
+    negativePrompt: 'photograph, modern, digital, cartoon',
+    strength: 0.78,
+  },
+  comic: {
+    name: 'Comic Book',
+    emoji: '💥',
+    prompt: 'comic book style portrait, bold ink outlines, bright flat colours, halftone dots, Marvel Comics style',
+    negativePrompt: 'realistic, photograph, blurry',
+    strength: 0.82,
+  },
+};
 
 /**
- * GET /api/ai/styles
+ * Call fal.ai img2img endpoint.
+ * Uses fal-ai/ip-adapter-face-id — preserves the person's face in the art style.
+ *
+ * @param {Buffer} imageBuffer  Original photo
+ * @param {string} styleKey     Key from AI_STYLES
+ * @param {string|null} customPrompt  Optional override
+ * @returns {{ buffer: Buffer, style: string, styleKey: string }}
  */
-router.get('/styles', (req, res) => {
-  const styles = Object.entries(AI_STYLES).map(([key, value]) => ({
-    key, name: value.name, emoji: value.emoji,
-  }));
-  res.json({ styles });
-});
+async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = null) {
+  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
 
-/**
- * POST /api/ai/filter
- * Apply instant Sharp filter. Accepts either:
- *   - multipart 'photo' file upload, OR
- *   - JSON body { photoId, filterName } → fetches photo from DB/storage
- */
-router.post('/filter', upload.single('photo'), async (req, res) => {
-  try {
-    const { filterName = 'bw', eventId, photoId } = req.body;
-
-    let imageBuffer;
-
-    if (req.file) {
-      // Direct upload
-      imageBuffer = req.file.buffer;
-    } else if (photoId) {
-      // Fetch from DB → get URL → fetch buffer (server-side, no CORS)
-      const { data: photo } = await supabase
-        .from('photos').select('url').eq('id', photoId).single();
-      if (!photo?.url) return res.status(404).json({ error: 'Photo not found' });
-      const r = await fetch(photo.url);
-      if (!r.ok) return res.status(502).json({ error: 'Could not fetch photo from storage' });
-      imageBuffer = Buffer.from(await r.arrayBuffer());
-    } else {
-      return res.status(400).json({ error: 'Photo file or photoId required' });
-    }
-
-    const filteredBuffer = await applyAIFilter(imageBuffer, filterName);
-
-    const filterId = uuidv4();
-    const storageKey = `events/${eventId || 'unknown'}/filtered/${filterId}.jpg`;
-    const filteredUrl = await uploadToStorage(filteredBuffer, storageKey, 'image/jpeg');
-
-    // Save to DB if eventId provided
-    if (eventId) {
-      await supabase.from('photos').insert({
-        id: filterId, event_id: eventId, url: filteredUrl,
-        storage_key: storageKey, mode: 'ai',
-        metadata: { filter: filterName, originalPhotoId: photoId },
-      });
-    }
-
-    res.json({ success: true, filtered: { id: filterId, url: filteredUrl, filter: filterName } });
-  } catch (error) {
-    console.error('Filter error:', error);
-    res.status(500).json({ error: error.message });
+  if (!process.env.FAL_KEY) {
+    console.warn('[AI] FAL_KEY not set — applying local Sharp filter as fallback');
+    return applyLocalStyleFilter(imageBuffer, styleKey);
   }
-});
+
+  // Resize to 768x768 — optimal for fal.ai models, balances quality vs speed
+  const resized = await sharp(imageBuffer)
+    .resize(768, 768, { fit: 'cover', position: 'center' })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+
+  const base64Image = `data:image/jpeg;base64,${resized.toString('base64')}`;
+  const prompt = customPrompt || style.prompt;
+
+  // Use flux/dev with image-to-image — widely supported, no model retirement
+  const payload = {
+    prompt,
+    negative_prompt: style.negativePrompt,
+    image_url: base64Image,
+    strength: style.strength,
+    num_inference_steps: 28,
+    guidance_scale: 7.5,
+    num_images: 1,
+    enable_safety_checker: false,
+  };
+
+  const res = await fetch('https://fal.run/fal-ai/flux/dev/image-to-image', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${process.env.FAL_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('[AI] fal.ai error:', res.status, errText);
+
+    // Try fallback model if primary fails
+    if (res.status === 422 || res.status === 404) {
+      return generateWithFallbackModel(resized, prompt, style, styleKey);
+    }
+    throw new Error(`AI generation failed (${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const imageUrl = data?.images?.[0]?.url || data?.image?.url;
+
+  if (!imageUrl) {
+    console.error('[AI] Unexpected fal.ai response:', JSON.stringify(data).slice(0, 300));
+    throw new Error('AI returned no image. Unexpected response format.');
+  }
+
+  // Fetch the generated image and return as buffer
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error('Could not fetch generated image from fal.ai');
+  const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+
+  // Upscale to 1024 for sharing
+  const finalBuffer = await sharp(imgBuffer)
+    .resize(1024, 1024, { fit: 'cover' })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+
+  return { buffer: finalBuffer, style: style.name, styleKey };
+}
 
 /**
- * POST /api/ai/generate
- * HuggingFace img2img. Accepts file upload OR photoId.
+ * Fallback: try fal-ai/stable-diffusion-v3-medium if flux fails
  */
-router.post('/generate', upload.single('photo'), async (req, res) => {
-  try {
-    const { styleKey = 'anime', eventId, photoId, customPrompt } = req.body;
+async function generateWithFallbackModel(resizedBuffer, prompt, style, styleKey) {
+  console.log('[AI] Trying fallback model: stable-diffusion-v3-medium');
 
-    let imageBuffer;
-    if (req.file) {
-      imageBuffer = req.file.buffer;
-    } else if (photoId) {
-      const { data: photo } = await supabase
-        .from('photos').select('url').eq('id', photoId).single();
-      if (!photo?.url) return res.status(404).json({ error: 'Photo not found' });
-      const r = await fetch(photo.url);
-      imageBuffer = Buffer.from(await r.arrayBuffer());
-    } else {
-      return res.status(400).json({ error: 'Photo file or photoId required' });
-    }
+  const base64Image = `data:image/jpeg;base64,${resizedBuffer.toString('base64')}`;
 
-    let result;
-    let retryCount = 0;
-    const maxRetries = 3;
+  const res = await fetch('https://fal.run/fal-ai/stable-diffusion-v3-medium/image-to-image', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${process.env.FAL_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt,
+      negative_prompt: style.negativePrompt,
+      image_url: base64Image,
+      strength: style.strength,
+      num_inference_steps: 25,
+      num_images: 1,
+    }),
+  });
 
-    while (retryCount < maxRetries) {
-      try {
-        result = await generateAIImage(imageBuffer, styleKey, customPrompt);
-        break;
-      } catch (err) {
-        if (err.message.startsWith('MODEL_LOADING:')) {
-          const waitTime = parseInt(err.message.split(':')[1]) || 30;
-          retryCount++;
-          if (retryCount < maxRetries) {
-            const io = req.app.get('io');
-            if (eventId) io.to(`event-${eventId}`).emit('ai-status', {
-              status: 'loading', message: `AI model warming up... (${waitTime}s)`, waitTime,
-            });
-            await new Promise((r) => setTimeout(r, waitTime * 1000));
-          } else {
-            throw new Error('AI model unavailable. Please try again in a few minutes.');
-          }
-        } else { throw err; }
-      }
-    }
-
-    const aiId = uuidv4();
-    const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
-    const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
-
-    await supabase.from('photos').insert({
-      id: aiId, event_id: eventId, url: aiUrl, gallery_url: galleryUrl,
-      storage_key: storageKey, mode: 'ai',
-      metadata: { style: styleKey, originalPhotoId: photoId },
-    });
-
-    if (eventId) {
-      await supabase.from('analytics').insert({
-        event_id: eventId, action: 'ai_generated', metadata: { style: styleKey, aiId },
-      });
-    }
-
-    res.json({ success: true, ai: { id: aiId, url: aiUrl, style: result.style, styleKey, galleryUrl, qrCode: qrDataUrl } });
-  } catch (error) {
-    console.error('AI generate error:', error);
-    res.status(500).json({ error: error.message });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Fallback model also failed (${res.status}): ${errText.slice(0, 200)}`);
   }
-});
+
+  const data = await res.json();
+  const imageUrl = data?.images?.[0]?.url;
+  if (!imageUrl) throw new Error('Fallback model returned no image');
+
+  const imgRes = await fetch(imageUrl);
+  const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+  const finalBuffer = await sharp(imgBuffer)
+    .resize(1024, 1024, { fit: 'cover' })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+
+  return { buffer: finalBuffer, style: style.name, styleKey };
+}
 
 /**
- * POST /api/ai/surprise
+ * Apply instant local filters using Sharp (no API, no cost, instant).
+ * Used as fallback when FAL_KEY is not set.
  */
-router.post('/surprise', upload.single('photo'), async (req, res) => {
-  try {
-    const { eventId, photoId } = req.body;
+async function applyLocalStyleFilter(imageBuffer, styleKey) {
+  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
 
-    let imageBuffer;
-    if (req.file) {
-      imageBuffer = req.file.buffer;
-    } else if (photoId) {
-      const { data: photo } = await supabase
-        .from('photos').select('url').eq('id', photoId).single();
-      if (!photo?.url) return res.status(404).json({ error: 'Photo not found' });
-      const r = await fetch(photo.url);
-      imageBuffer = Buffer.from(await r.arrayBuffer());
-    } else {
-      return res.status(400).json({ error: 'Photo file or photoId required' });
-    }
-
-    const styles = Object.keys(AI_STYLES);
-    const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-
-    let result;
-    try {
-      result = await generateAIImage(imageBuffer, randomStyle);
-    } catch (err) {
-      if (err.message.startsWith('MODEL_LOADING:')) {
-        return res.status(503).json({ error: 'AI model warming up. Try again in 30 seconds.', code: 'MODEL_LOADING' });
-      }
-      throw err;
-    }
-
-    const aiId = uuidv4();
-    const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
-    const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
-
-    res.json({
-      success: true,
-      ai: { id: aiId, url: aiUrl, style: result.style, styleKey: randomStyle,
-            emoji: AI_STYLES[randomStyle].emoji, galleryUrl, qrCode: qrDataUrl, surprise: true },
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  switch (styleKey) {
+    case 'vintage':
+      img = img.modulate({ brightness: 1.05, saturation: 0.7 }).tint({ r: 255, g: 240, b: 200 });
+      break;
+    case 'watercolor':
+      img = img.modulate({ brightness: 1.1, saturation: 1.2 }).blur(0.5).sharpen({ sigma: 0.5 });
+      break;
+    case 'cyberpunk':
+      img = img.modulate({ brightness: 0.9, saturation: 2.0 }).tint({ r: 200, g: 220, b: 255 });
+      break;
+    case 'oilpainting':
+      img = img.modulate({ brightness: 1.0, saturation: 1.3 }).sharpen({ sigma: 1.5 });
+      break;
+    case 'comic':
+      img = img.modulate({ brightness: 1.1, saturation: 2.5 }).sharpen({ sigma: 2 });
+      break;
+    default: // anime
+      img = img.modulate({ brightness: 1.05, saturation: 1.6 }).sharpen({ sigma: 1 });
   }
-});
 
-module.exports = router;
+  const buffer = await img.jpeg({ quality: 95 }).toBuffer();
+  return { buffer, style: style.name, styleKey };
+}
+
+/**
+ * Apply instant Sharp filter (used for the quick filter buttons, not full AI gen)
+ */
+async function applyAIFilter(imageBuffer, filterName) {
+  const filters = {
+    bw:        (img) => img.grayscale(),
+    warm:      (img) => img.modulate({ brightness: 1.05, saturation: 1.2 }).tint({ r: 255, g: 240, b: 210 }),
+    cool:      (img) => img.modulate({ brightness: 1.05, saturation: 1.1 }).tint({ r: 210, g: 230, b: 255 }),
+    vivid:     (img) => img.modulate({ brightness: 1.1, saturation: 1.9 }),
+    fade:      (img) => img.modulate({ brightness: 1.15, saturation: 0.55 }),
+    dramatic:  (img) => img.modulate({ brightness: 0.85, saturation: 1.4 }).linear(1.25, -25),
+    sepia:     (img) => img.grayscale().tint({ r: 112, g: 66, b: 20 }),
+    vivid:     (img) => img.modulate({ brightness: 1.1, saturation: 2.0 }),
+  };
+
+  const filterFn = filters[filterName] || filters.bw;
+  return await filterFn(sharp(imageBuffer)).jpeg({ quality: 95 }).toBuffer();
+}
+
+module.exports = { generateAIImage, applyAIFilter, AI_STYLES };
