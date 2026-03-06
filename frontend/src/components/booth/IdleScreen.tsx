@@ -14,11 +14,11 @@ export function IdleScreen() {
   const idleMediaUrl = branding?.idleMediaUrl as string | null;
   const isVideo = idleMediaUrl?.match(/\.(mp4|webm|mov)$/i);
 
-  const modes: { mode: BoothMode; label: string; icon: React.ReactNode; enabled: boolean }[] = [
-    { mode: 'single',    label: 'Photo',     icon: <Camera className="w-7 h-7" />, enabled: true },
-    { mode: 'strip',     label: '4-Strip',   icon: <Image className="w-7 h-7" />,  enabled: true },
-    { mode: 'gif',       label: 'GIF',       icon: <Film className="w-7 h-7" />,   enabled: settings?.allowGIF !== false },
-    { mode: 'boomerang', label: 'Boomerang', icon: <Zap className="w-7 h-7" />,    enabled: settings?.allowBoomerang !== false },
+  const modes = [
+    { mode: 'single'    as BoothMode, label: 'Photo',     icon: <Camera className="w-7 h-7" />, enabled: true },
+    { mode: 'strip'     as BoothMode, label: '4-Strip',   icon: <Image className="w-7 h-7" />,  enabled: true },
+    { mode: 'gif'       as BoothMode, label: 'GIF',       icon: <Film className="w-7 h-7" />,   enabled: settings?.allowGIF !== false },
+    { mode: 'boomerang' as BoothMode, label: 'Boomerang', icon: <Zap className="w-7 h-7" />,    enabled: settings?.allowBoomerang !== false },
   ].filter((m) => m.enabled);
 
   function handleStart(mode: BoothMode) {
