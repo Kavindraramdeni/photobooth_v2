@@ -19,21 +19,18 @@ function generateSlug(name) {
  * GET /api/events
  * List all events (admin)
  */
-router.get('/:id', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { data: events, error } = await supabase
       .from('events')
-      .select('*')
-      .or(`id.eq.${req.params.id},slug.eq.${req.params.id}`)
-      .limit(1);
+      .select(`
+        id, name, slug, date, venue, status, created_at,
+        photos(count)
+      `)
+      .order('date', { ascending: false });
 
-    const event = events?.[0];
-
-    if (error || !event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    res.json({ event });
+    if (error) throw error;
+    res.json({ events });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -45,12 +42,17 @@ router.get('/:id', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('*')
-      .or(`id.eq.${req.params.id},slug.eq.${req.params.id}`)
-      .single();
+    const param = req.params.id;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param);
 
+    let query = supabase.from('events').select('*');
+    if (isUUID) {
+      query = query.eq('id', param);
+    } else {
+      query = query.eq('slug', param);
+    }
+
+    const { data: event, error } = await query.single();
     if (error || !event) return res.status(404).json({ error: 'Event not found' });
     res.json({ event });
   } catch (error) {
