@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { useBoothStore } from '@/lib/store';
-import { getEvent } from '@/lib/api';
-import { Camera, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react'; 
+import { useBoothStore } from '@/lib/store'; 
+import { getEvent } from '@/lib/api'; 
+import { BoothMain } from '@/components/booth/BoothMain';
+import { BoothGuard } from '@/components/booth/BoothGuard'; 
+import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary'; 
+import { motion } from 'framer-motion'; 
+import { Camera, Sparkles } from 'lucide-react';;
 
 export default function BoothPage() {
   const searchParams = useSearchParams();
