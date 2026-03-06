@@ -1028,6 +1028,86 @@ export default function EventManagePage() {
                   </label>
                 )}
               </div>
+
+              {/* ── Share Channels ── */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+                <h3 className="font-semibold text-lg">📤 Share Channels</h3>
+                <p className="text-white/30 text-xs">Control which sharing options appear on the guest share screen.</p>
+
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">💬 WhatsApp</p>
+                    <p className="text-white/30 text-xs">Opens wa.me with photo link — no credentials needed</p>
+                  </div>
+                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">Always on</span>
+                </div>
+
+                <div className="flex items-center justify-between py-2 border-t border-white/5">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">📲 Native Share / Copy Link</p>
+                    <p className="text-white/30 text-xs">Device share sheet (AirDrop, Instagram, etc.) or copy link fallback</p>
+                  </div>
+                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">Always on</span>
+                </div>
+
+                <label className="flex items-center justify-between py-2 border-t border-white/5 cursor-pointer">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">📧 Email Share</p>
+                    <p className="text-white/30 text-xs">Sends branded HTML email via Resend. Add RESEND_API_KEY to Render env vars.</p>
+                  </div>
+                  <input type="checkbox"
+                    checked={(event.settings?.allowEmailShare as boolean) ?? true}
+                    onChange={e => updateSettings('allowEmailShare', e.target.checked)}
+                    className="w-5 h-5 accent-purple-500" />
+                </label>
+
+                {(event.settings?.allowEmailShare as boolean) !== false && (
+                  <div className="border-t border-white/5 pt-3 space-y-3">
+                    <div>
+                      <label className="text-white/50 text-sm block mb-1.5">Email &quot;From&quot; Name</label>
+                      <input
+                        value={(event.settings?.emailFromName as string) || ''}
+                        onChange={e => updateSettings('emailFromName', e.target.value)}
+                        placeholder={event.name || 'SnapBooth AI'}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                      <p className="text-white/25 text-xs mt-1">Shown as sender name in guest inbox. Defaults to event name.</p>
+                    </div>
+                    <div>
+                      <label className="text-white/50 text-sm block mb-1.5">Reply-To Email</label>
+                      <input
+                        type="email"
+                        value={(event.settings?.emailReplyTo as string) || ''}
+                        onChange={e => updateSettings('emailReplyTo', e.target.value)}
+                        placeholder="you@yourdomain.com"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                      <p className="text-white/25 text-xs mt-1">Optional. Replies from guests go here.</p>
+                    </div>
+                  </div>
+                )}
+
+                <label className="flex items-center justify-between py-2 border-t border-white/5 cursor-pointer">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">📱 SMS Share</p>
+                    <p className="text-white/30 text-xs">Sends text message with photo link via Twilio. Requires Twilio account.</p>
+                  </div>
+                  <input type="checkbox"
+                    checked={(event.settings?.allowSMSShare as boolean) ?? false}
+                    onChange={e => updateSettings('allowSMSShare', e.target.checked)}
+                    className="w-5 h-5 accent-purple-500" />
+                </label>
+
+                {(event.settings?.allowSMSShare as boolean) && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 space-y-1">
+                    <p className="font-semibold">⚠️ Requires Twilio setup on Render:</p>
+                    <p><code className="bg-white/10 px-1 rounded">TWILIO_ACCOUNT_SID</code></p>
+                    <p><code className="bg-white/10 px-1 rounded">TWILIO_AUTH_TOKEN</code></p>
+                    <p><code className="bg-white/10 px-1 rounded">TWILIO_PHONE_NUMBER</code></p>
+                    <p className="text-amber-400/60 pt-1">Each SMS costs ~$0.0079. Sign up free at twilio.com — $15 trial credit included.</p>
+                  </div>
+                )}
+
+              </div>
+
             </div>
           </div>
         )}
