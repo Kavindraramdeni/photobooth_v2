@@ -70,8 +70,7 @@ export function BoothGuard({ children }: { children: ReactNode }) {
     if (!event) { setState('ok'); return; }
 
     async function check() {
-      const settings = event!.settings || {};
-      const primaryColor = (event!.branding?.primaryColor as string) || '#7c3aed';
+      const settings = (event!.settings || {}) as Record<string, unknown>;
       const boothStart   = settings.boothStart  as string | null;
       const boothEnd     = settings.boothEnd    as string | null;
       const photoLimit   = settings.photoLimit  as number | null;
