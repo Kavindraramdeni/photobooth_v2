@@ -105,9 +105,10 @@ export function PreviewScreen() {
   const { currentPhoto, event, mode, setScreen, resetSession } = useBoothStore();
   const { scale, translateX, translateY, zoomHandlers, resetZoom, isZoomed } = usePinchZoom();
   const [showLeadModal, setShowLeadModal] = useState(false);
-
+  
   if (!currentPhoto) { setScreen('idle'); return null; }
-
+  const photo = currentPhoto;
+  
   const settings = event?.settings;
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const isGIF = mode === 'gif' || mode === 'boomerang';
@@ -126,8 +127,8 @@ export function PreviewScreen() {
   async function handlePrint() {
     if (!event) return;
     try {
-      printPhotoOnly(currentPhoto.url, eventName);
-      await trackAction(event.id, 'photo_printed', { photoId: currentPhoto.id });
+      printPhotoOnly(photo.url, eventName);
+      await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer!');
     } catch { toast.error('Print failed — try again'); }
   }
@@ -137,9 +138,8 @@ export function PreviewScreen() {
     const dateStr = new Date().toISOString().split('T')[0];
     const ext = isGIF ? 'gif' : 'jpg';
     const filename = `${eventName.replace(/\s+/g, '-')}-${dateStr}.${ext}`;
-    await iosCompatibleDownload(currentPhoto.downloadUrl || currentPhoto.url, filename);
-    if (event) await trackAction(event.id, 'photo_downloaded', { photoId: currentPhoto.id });
-    toast.success('Saved! On iPhone: long-press → Save to Photos');
+    await iosCompatibleDownload(photo.downloadUrl || photo.url, filename);
+    if (event) await trackAction(event.id, 'photo_downloaded', { photoId: photo.id });    toast.success('Saved! On iPhone: long-press → Save to Photos');
   }
 
   return (
@@ -174,7 +174,7 @@ export function PreviewScreen() {
             style={{ touchAction: isZoomed ? 'none' : 'auto' }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={currentPhoto.url} alt="Your photo"
+            <img src={photo.url} alt="Your photo"
               className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
               style={{
                 maxHeight: 'calc(100dvh - 260px)',
