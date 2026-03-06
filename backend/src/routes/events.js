@@ -19,18 +19,21 @@ function generateSlug(name) {
  * GET /api/events
  * List all events (admin)
  */
-router.get('/', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const { data: events, error } = await supabase
       .from('events')
-      .select(`
-        id, name, slug, date, venue, status, created_at,
-        photos(count)
-      `)
-      .order('date', { ascending: false });
+      .select('*')
+      .or(`id.eq.${req.params.id},slug.eq.${req.params.id}`)
+      .limit(1);
 
-    if (error) throw error;
-    res.json({ events });
+    const event = events?.[0];
+
+    if (error || !event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    res.json({ event });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
