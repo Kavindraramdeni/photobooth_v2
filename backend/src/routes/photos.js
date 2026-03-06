@@ -135,6 +135,7 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
 router.post('/gif', upload.array('frames', 10), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
     if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
 
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -196,7 +197,11 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
 router.post('/strip', upload.array('photos', 4), async (req, res) => {
   try {
     const { eventId } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
+    if (!req.files?.length) return res.status(400).json({ error: 'No photos provided' });
+
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
+    if (!event) return res.status(404).json({ error: 'Event not found' });
 
     const photos = req.files.map((f) => f.buffer);
     const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
