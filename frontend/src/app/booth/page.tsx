@@ -1,26 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useBoothStore } from '@/lib/store';
 import { getEvent } from '@/lib/api';
-import { BoothMain } from '@/components/booth/BoothMain';
-import { BoothGuard } from '@/components/booth/BoothGuard';
-import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary';
-import { motion } from 'framer-motion';
-import { Camera, Sparkles } from 'lucide-react';
 
-// The event ID/slug comes from the URL or can be hardcoded per installation
-// In production: /booth?event=wedding-smith-2024
-export default function BoothPage({
-  searchParams,
-}: {
-  searchParams: { event?: string };
-}) {
-  const { event, setEvent, screen } = useBoothStore();
+export default function BoothPage() {
+  const searchParams = useSearchParams();
+  const eventSlug = searchParams.get('event');
+
+  const { event, setEvent } = useBoothStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const eventSlug = searchParams?.event;
 
   useEffect(() => {
     async function loadEvent() {
