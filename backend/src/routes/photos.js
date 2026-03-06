@@ -135,7 +135,6 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
 router.post('/gif', upload.array('frames', 10), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
-    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
     if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
 
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -197,11 +196,7 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
 router.post('/strip', upload.array('photos', 4), async (req, res) => {
   try {
     const { eventId } = req.body;
-    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
-    if (!req.files?.length) return res.status(400).json({ error: 'No photos provided' });
-
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-    if (!event) return res.status(404).json({ error: 'Event not found' });
 
     const photos = req.files.map((f) => f.buffer);
     const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
@@ -376,3 +371,90 @@ router.get('/:photoId/stories', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * DELETE /api/photos/:photoId
+ * Permanently delete a photo from DB and storage
+ */
+router.delete('/:photoId', async (req, res) => {
+  try {
+    const { photoId } = req.params;
+
+    // Get storage_key first so we can delete from R2
+    const { data: photo, error: fetchErr } = await supabase
+      .from('photos')
+      .select('storage_key, event_id')
+      .eq('id', photoId)
+      .single();
+
+    if (fetchErr || !photo) return res.status(404).json({ error: 'Photo not found' });
+
+    // Delete from R2 storage
+    const { deleteFromStorage } = require('../services/storage');
+    if (photo.storage_key) {
+      try { await deleteFromStorage(photo.storage_key); } catch (e) { console.warn('R2 delete failed:', e.message); }
+      // Also try thumb
+      try {
+        const thumbKey = photo.storage_key.replace('/photos/', '/thumbs/').replace(/(_\d+)\.jpg$/, '_thumb.jpg');
+        await deleteFromStorage(thumbKey);
+      } catch { /* thumb may not exist */ }
+    }
+
+    // Delete from DB
+    const { error: dbErr } = await supabase.from('photos').delete().eq('id', photoId);
+    if (dbErr) throw dbErr;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete photo error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/photos/event/:eventId/zip
+ * Download all photos for an event as a ZIP
+ */
+router.get('/event/:eventId/zip', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const archiver = require('archiver');
+
+    const { data: photos, error } = await supabase
+      .from('photos')
+      .select('id, url, mode, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!photos?.length) return res.status(404).json({ error: 'No photos found' });
+
+    const { data: event } = await supabase.from('events').select('name').eq('id', eventId).single();
+    const eventName = (event?.name || 'event').replace(/\s+/g, '_');
+    const date = new Date().toISOString().split('T')[0];
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${eventName}_photos_${date}.zip"`,
+    });
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.pipe(res);
+
+    for (const photo of photos) {
+      try {
+        const photoRes = await fetch(photo.url);
+        if (!photoRes.ok) continue;
+        const buffer = Buffer.from(await photoRes.arrayBuffer());
+        const ext = photo.mode === 'gif' || photo.mode === 'boomerang' ? 'gif' : 'jpg';
+        const filename = `${photo.mode}_${photo.id.slice(0, 8)}.${ext}`;
+        archive.append(buffer, { name: filename });
+      } catch { /* skip failed photo */ }
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    console.error('ZIP error:', error);
+    if (!res.headersSent) res.status(500).json({ error: error.message });
+  }
+});
