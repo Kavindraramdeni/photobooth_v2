@@ -30,6 +30,25 @@
  *   emailFromName    string   e.g. "Sarah & Tom's Wedding"
  *   emailReplyTo     string   optional reply-to address
  */
+/**
+ * backend/src/routes/share.js
+ *
+ * POST /api/share/email  — sends branded HTML email via Resend (resend.com)
+ * POST /api/share/sms    — sends SMS via Twilio
+ *
+ * Required env vars on Render:
+ *   RESEND_API_KEY          — get free at resend.com (100 emails/day free)
+ *   TWILIO_ACCOUNT_SID      — optional, for SMS
+ *   TWILIO_AUTH_TOKEN       — optional
+ *   TWILIO_PHONE_NUMBER     — optional (e.g. +14155552671)
+ *   FRONTEND_URL            — https://photobooth-v2-xi.vercel.app
+ *
+ * Per-event operator settings (stored in events.settings JSON):
+ *   allowEmailShare  boolean  default true
+ *   allowSMSShare    boolean  default false
+ *   emailFromName    string   e.g. "Sarah & Tom's Wedding"
+ *   emailReplyTo     string   optional reply-to address
+ */
 
 const express = require('express');
 const router  = express.Router();
@@ -98,11 +117,18 @@ router.post('/email', async (req, res) => {
     const photoPageUrl = buildPhotoPageUrl(photo.id);
 
     if (!process.env.RESEND_API_KEY) {
-      return res.status(503).json({ error: 'Email service not configured (RESEND_API_KEY missing)' });
+      return res.status(503).json({ error: 'Email service not configured. Add RESEND_API_KEY to Render environment variables. Get a free key at resend.com' });
     }
 
+    // Use verified custom domain if set, otherwise fall back to Resend's free sending domain
+    // To use your own domain: verify it at resend.com/domains then set RESEND_FROM_EMAIL env var
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    const fromAddress = process.env.RESEND_FROM_EMAIL
+      ? `${fromName} <${fromEmail}>`
+      : `SnapBooth Photos <onboarding@resend.dev>`;
+
     const emailBody = {
-      from: `${fromName} <photos@snapbooth.ai>`,
+      from: fromAddress,
       to:   [toEmail],
       subject: `Your photo from ${eventName} 📸`,
       ...(replyTo ? { reply_to: replyTo } : {}),
