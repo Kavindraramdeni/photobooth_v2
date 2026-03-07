@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/database');
-const { trackAction } = require('../services/analytics');
 
 // ─── GET /api/gallery/:slug ───────────────────────────────────────────────────
 // Returns event info + paginated photos for public gallery
@@ -13,7 +12,7 @@ router.get('/:slug', async (req, res) => {
     const { data: event, error } = await supabase
       .from('events')
       .select('id, name, slug, date, venue, branding, settings, gallery_password, gallery_expires_at')
-      .or(`id.eq.${slug},slug.eq.${slug}`)
+      .eq(slug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? 'id' : 'slug', slug)
       .eq('status', 'active')
       .single();
 
