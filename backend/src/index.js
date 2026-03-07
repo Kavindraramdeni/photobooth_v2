@@ -24,8 +24,7 @@ app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 500 }));
 
 // ── Safe route loader ─────────────────────────────────────────────────────────
-// Wraps each require() so a broken route file never crashes the whole server.
-// If a route fails to load, that path returns 503 with the error message.
+const routeStatus = {};
 function safeRoute(name, path) {
   try {
     const mod = require(path);
@@ -60,7 +59,6 @@ app.get('/', (req, res) => res.json({ name: 'SnapBooth AI Backend', status: 'ok'
 app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.0.0', timestamp: new Date().toISOString() }));
 
 // Debug endpoint — shows which routes loaded OK vs failed
-const routeStatus = {};
 app.get('/debug/routes', (req, res) => res.json(routeStatus));
 
 // Keep Render free tier awake (pings /health every 14 min)
