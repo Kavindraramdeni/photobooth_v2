@@ -52,6 +52,11 @@ export interface Event {
     photoLimit:    number | null;
     leadCapture:   boolean;
     leadRequired:  boolean;
+    // Share channel toggles
+    allowEmailShare?: boolean;
+    allowSMSShare?:   boolean;
+    emailFromName?:   string;
+    emailReplyTo?:    string;
   };
 }
 
