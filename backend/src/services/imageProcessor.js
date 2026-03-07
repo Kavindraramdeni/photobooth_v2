@@ -1,4 +1,5 @@
-const sharp = require('sharp');
+let sharp;
+try { sharp = require('sharp'); } catch(e) { console.error('[service] sharp load failed:', e.message); }
 // Note: all image compositing uses sharp + inline SVG strings, no canvas package needed
 
 /**
