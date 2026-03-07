@@ -75,10 +75,11 @@ export function ShareScreen() {
   const [sent, setSent] = useState<Set<string>>(new Set());
 
   if (!currentPhoto) { setScreen('preview'); return null; }
+  const photo = currentPhoto; // captured for use inside async functions
 
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
-  const photoUrl = currentPhoto.galleryUrl || currentPhoto.url;
+  const photoUrl = photo.galleryUrl || photo.url;
 
   // Read operator toggles from event settings
   const allowEmail = (event?.settings?.allowEmailShare as boolean) !== false; // on by default
@@ -88,12 +89,12 @@ export function ShareScreen() {
   const colCount = 2 + (allowEmail ? 1 : 0) + (allowSMS ? 1 : 0);
 
   async function handleWhatsApp() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: currentPhoto.id });
+    if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: photo.id });
     openWhatsApp(photoUrl, eventName);
   }
 
   async function handleNativeShare() {
-    if (event) await trackAction(event.id, 'photo_shared', { platform: 'native', photoId: currentPhoto.id });
+    if (event) await trackAction(event.id, 'photo_shared', { platform: 'native', photoId: photo.id });
     if (navigator.share) {
       try { await navigator.share({ title: eventName, text: '📸 Your photobooth photo', url: photoUrl }); return; }
       catch { /* cancelled */ }
@@ -108,7 +109,7 @@ export function ShareScreen() {
       const res = await fetch(`${API_BASE}/api/share/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photoId: currentPhoto.id, toEmail: email }),
+        body: JSON.stringify({ photoId: photo.id, toEmail: email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Email failed');
@@ -138,7 +139,7 @@ export function ShareScreen() {
       const res = await fetch(`${API_BASE}/api/share/sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photoId: currentPhoto.id, toPhone: phone }),
+        body: JSON.stringify({ photoId: photo.id, toPhone: phone }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'SMS failed');
