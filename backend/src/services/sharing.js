@@ -8,7 +8,8 @@
  */
 
 const QRCode = require('qrcode');
-const sharp  = require('sharp');
+let sharp;
+try { sharp = require('sharp'); } catch(e) { console.error('[sharing] sharp load failed:', e.message); }
 
 // ─── URL builders ─────────────────────────────────────────────────────────────
 
