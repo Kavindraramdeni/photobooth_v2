@@ -30,20 +30,18 @@ function safeRoute(name, path) {
   try {
     const mod = require(path);
     if (typeof mod !== 'function' && typeof mod.handle !== 'function') {
-      throw new Error(`${name} did not export a router (got ${typeof mod})`);
+      const keys = Object.keys(mod || {});
+      throw new Error(`${name} did not export a router (got ${typeof mod}, keys: [${keys.join(', ')}])`);
     }
     console.log(`✅ Loaded route: ${name}`);
+    routeStatus[name] = 'ok';
     return mod;
   } catch (err) {
-    console.error(`❌ Failed to load route ${name}: ${err.message}`);
-    // Return a fallback router that explains the error
+    const msg = err.message;
+    console.error(`❌ Failed to load route ${name}: ${msg}`);
+    routeStatus[name] = { error: msg };
     const fallback = express.Router();
-    fallback.use((req, res) => {
-      res.status(503).json({
-        error: `Route /${name} failed to initialise`,
-        detail: err.message,
-      });
-    });
+    fallback.use((req, res) => res.status(503).json({ error: `Route /${name} failed`, detail: msg }));
     return fallback;
   }
 }
@@ -60,6 +58,10 @@ app.use('/api/gallery',   safeRoute('gallery',   './routes/gallery'));
 app.get('/', (req, res) => res.json({ name: 'SnapBooth AI Backend', status: 'ok', version: '2.0.0' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.0.0', timestamp: new Date().toISOString() }));
+
+// Debug endpoint — shows which routes loaded OK vs failed
+const routeStatus = {};
+app.get('/debug/routes', (req, res) => res.json(routeStatus));
 
 // Keep Render free tier awake (pings /health every 14 min)
 if (process.env.RENDER) {
