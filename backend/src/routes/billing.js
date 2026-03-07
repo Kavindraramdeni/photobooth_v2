@@ -1,7 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../services/database');
+
+// Lazy-load stripe so missing STRIPE_SECRET_KEY doesn't crash the server at startup.
+// Routes will return 503 if key is not configured.
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY not configured');
+  }
+  return require('stripe')(process.env.STRIPE_SECRET_KEY);
+}
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
 const PLANS = {
@@ -69,6 +77,7 @@ router.post('/checkout', async (req, res) => {
     }
 
     // Build line items — pay-per-event uses one-time price
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
@@ -102,6 +111,7 @@ router.post('/checkout/event', async (req, res) => {
   try {
     const { operatorEmail, operatorName, eventName } = req.body;
 
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -146,6 +156,7 @@ router.post('/portal', async (req, res) => {
       return res.status(404).json({ error: 'No billing account found' });
     }
 
+    const stripe = getStripe();
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: operator.stripe_customer_id,
       return_url: `${process.env.FRONTEND_URL}/dashboard`,
@@ -164,6 +175,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   let event;
 
   try {
+    const stripe = getStripe();
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
