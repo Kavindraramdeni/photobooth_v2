@@ -1,4 +1,14 @@
-const ffmpeg = require('fluent-ffmpeg');
+let ffmpeg = null;
+try {
+  ffmpeg = require('fluent-ffmpeg');
+} catch {
+  console.warn('[gif] fluent-ffmpeg not available — GIF/Boomerang disabled');
+}
+
+function requireFfmpeg() {
+  if (!ffmpeg) throw new Error('GIF/Boomerang not available: ffmpeg is not installed on this server. Disable GIF and Boomerang modes in event settings.');
+  return ffmpeg;
+}
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
