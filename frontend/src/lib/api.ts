@@ -254,6 +254,17 @@ export async function getPhotoCount(eventId: string): Promise<number> {
   return res.data.count ?? 0;
 }
 
+// ─── Share ─────────────────────────────────────────────────────────────────
+
+export async function sharePhotoByEmail(photoId: string, email: string, eventId: string) {
+  const res = await api.post('/photos/share/email', { photoId, email, eventId });
+  return res.data;
+}
+
+export async function sharePhotoBySMS(photoId: string, phone: string, eventId: string) {
+  const res = await api.post('/photos/share/sms', { photoId, phone, eventId });
+  return res.data;
+}
 // ─── Webhook test ─────────────────────────────────────────────────────────
 
 export async function testWebhook(eventId: string, webhookUrl: string): Promise<{ ok: boolean; status?: number; error?: string }> {
