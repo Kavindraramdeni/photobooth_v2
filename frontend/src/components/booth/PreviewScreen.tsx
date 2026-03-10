@@ -214,8 +214,7 @@ export function PreviewScreen() {
 
       {/* Modals */}
       {showLeadModal && (
-        <LeadCaptureModal onComplete={() => { setShowLeadModal(false); setScreen('share'); }} onSkip={() => { setShowLeadModal(false); setScreen('share'); }} />
-      )}
+        <LeadCaptureModal onContinue={() => { setShowLeadModal(false); setScreen('share'); }} />      )}
       {showPrintModal && (
         <PrintLayoutModal photo={photo} eventName={eventName} primaryColor={primaryColor}
           onClose={() => setShowPrintModal(false)} />
