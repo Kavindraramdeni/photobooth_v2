@@ -39,10 +39,10 @@ export function IdleScreen() {
   }, [settings]);
 
   const modes: { mode: BoothMode; label: string; icon: React.ReactNode; enabled: boolean; desc: string }[] = [
-    { mode: 'single',    label: 'Photo',     icon: <Camera className="w-6 h-6" />, enabled: true, desc: 'Single shot' },
-    { mode: 'strip',     label: '4-Strip',   icon: <Image className="w-6 h-6" />,  enabled: true, desc: 'Film strip' },
-    { mode: 'gif',       label: 'GIF',       icon: <Film className="w-6 h-6" />,   enabled: settings?.allowGIF !== false, desc: 'Animated' },
-    { mode: 'boomerang', label: 'Boomerang', icon: <Zap className="w-6 h-6" />,    enabled: settings?.allowBoomerang !== false, desc: 'Looping' },
+    { mode: 'single'    as BoothMode, label: 'Photo',     icon: <Camera className="w-6 h-6" />, enabled: true, desc: 'Single shot' },
+    { mode: 'strip'     as BoothMode, label: '4-Strip',   icon: <Image className="w-6 h-6" />,  enabled: true, desc: 'Film strip' },
+    { mode: 'gif'       as BoothMode, label: 'GIF',       icon: <Film className="w-6 h-6" />,   enabled: settings?.allowGIF !== false, desc: 'Animated' },
+    { mode: 'boomerang' as BoothMode, label: 'Boomerang', icon: <Zap className="w-6 h-6" />,    enabled: settings?.allowBoomerang !== false, desc: 'Looping' },
   ].filter(m => m.enabled);
 
   function handleStart(mode: BoothMode) {
