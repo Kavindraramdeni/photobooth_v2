@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getEvent, updateEvent, getEventPhotos, getEventStats, deletePhoto, downloadPhotosZip, pingBackend, hidePhoto, unhidePhoto, getEventLeads, exportLeadsCSV, getEventPhotosWithHidden } from '@/lib/api';
+import { getEvent, updateEvent, getEventPhotos, getEventStats, deletePhoto, downloadPhotosZip, pingBackend, hidePhoto, unhidePhoto, getEventLeads, exportLeadsCSV, getEventPhotosWithHidden, testWebhook, exportAnalyticsCSV, getEventAnalytics } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { LiveDashboard } from '@/components/admin/LiveDashboard';
 import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
@@ -325,6 +325,8 @@ export default function EventManagePage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [moderatingId, setModeratingId] = useState<string | null>(null);
+  const [webhookTesting, setWebhookTesting] = useState(false);
+  const [webhookResult, setWebhookResult]   = useState<'ok' | 'fail' | null>(null);
 
   // Upload states
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -881,38 +883,38 @@ export default function EventManagePage() {
         {/* ══ SETTINGS TAB ══ */}
         {tab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Features */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-              <h3 className="font-semibold text-lg mb-5">Booth Features</h3>
-              <div className="space-y-1">
-                {[
-                  { key: 'allowAI', label: '🤖 AI Generation', desc: 'Let guests apply AI art styles' },
-                  { key: 'allowGIF', label: '🎬 GIF Mode', desc: 'Animated GIFs from 3 frames' },
-                  { key: 'allowBoomerang', label: '🔄 Boomerang', desc: 'Loop animation like Instagram' },
-                  { key: 'allowPrint', label: '🖨️ Print', desc: 'AirPrint directly from booth' },
-                  { key: 'allowRetakes', label: '🔁 Retakes', desc: 'Let guests retake their photo' },
-                ].map(item => (
-                  <label key={item.key} className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0 cursor-pointer group">
-                    <div>
-                      <p className="text-white/90 text-sm font-medium">{item.label}</p>
-                      <p className="text-white/30 text-xs">{item.desc}</p>
-                    </div>
-                    <div className="relative">
+
+            {/* ── LEFT COLUMN ── */}
+            <div className="space-y-4">
+
+              {/* Booth Features */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h3 className="font-semibold text-lg mb-5">Booth Features</h3>
+                <div className="space-y-1">
+                  {[
+                    { key: 'allowAI',        label: '🤖 AI Generation', desc: 'Let guests apply AI art styles' },
+                    { key: 'allowGIF',       label: '🎬 GIF Mode',       desc: 'Animated GIFs from burst frames' },
+                    { key: 'allowBoomerang', label: '🔄 Boomerang',      desc: 'Ping-pong loop animation' },
+                    { key: 'allowPrint',     label: '🖨️ Print',          desc: 'AirPrint directly from booth' },
+                    { key: 'allowRetakes',   label: '🔁 Retakes',        desc: 'Let guests retake their photo' },
+                  ].map(item => (
+                    <label key={item.key} className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0 cursor-pointer">
+                      <div>
+                        <p className="text-white/90 text-sm font-medium">{item.label}</p>
+                        <p className="text-white/30 text-xs">{item.desc}</p>
+                      </div>
                       <input type="checkbox"
                         checked={(event.settings?.[item.key] as boolean) ?? true}
                         onChange={e => updateSettings(item.key, e.target.checked)}
                         className="w-5 h-5 accent-purple-500 cursor-pointer" />
-                    </div>
-                  </label>
-                ))}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Timing & Security */}
-            <div className="space-y-4">
+              {/* Timing */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">Timing</h3>
-
+                <h3 className="font-semibold text-lg">⏱️ Timing</h3>
                 <div>
                   <label className="text-white/50 text-sm block mb-1.5">Photo Countdown</label>
                   <select value={(event.settings?.countdownSeconds as number) || 3}
@@ -921,7 +923,6 @@ export default function EventManagePage() {
                     {[1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n} second{n > 1 ? 's' : ''}</option>)}
                   </select>
                 </div>
-
                 <div>
                   <label className="text-white/50 text-sm block mb-1.5">Session Timeout</label>
                   <select value={(event.settings?.sessionTimeout as number) || 60}
@@ -929,9 +930,8 @@ export default function EventManagePage() {
                     className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
                     {[30, 60, 90, 120, 180].map(n => <option key={n} value={n}>{n} seconds</option>)}
                   </select>
-                  <p className="text-white/30 text-xs mt-1">Auto-returns to idle screen after inactivity</p>
+                  <p className="text-white/30 text-xs mt-1">Auto-returns to idle after inactivity</p>
                 </div>
-
                 <div>
                   <label className="text-white/50 text-sm block mb-1.5">Photos Per Session</label>
                   <select value={(event.settings?.photosPerSession as number) || 1}
@@ -942,6 +942,7 @@ export default function EventManagePage() {
                 </div>
               </div>
 
+              {/* Operator Security */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
                 <h3 className="font-semibold text-lg">🔐 Operator Security</h3>
                 <div>
@@ -951,9 +952,8 @@ export default function EventManagePage() {
                     onChange={e => updateSettings('operatorPin', e.target.value.replace(/\D/g, '').slice(0, 8))}
                     maxLength={8}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xl tracking-[0.4em] font-mono focus:outline-none focus:border-purple-500" />
-                  <p className="text-white/30 text-xs mt-1">4–8 digits. Used to unlock operator panel on the booth idle screen (gear icon).</p>
+                  <p className="text-white/30 text-xs mt-1">4–8 digits. Used to unlock operator panel (gear icon).</p>
                 </div>
-
                 <div>
                   <label className="text-white/50 text-sm block mb-1.5">Print Copies Per Session</label>
                   <select value={(event.settings?.printCopies as number) || 1}
@@ -964,48 +964,234 @@ export default function EventManagePage() {
                 </div>
               </div>
 
-              {/* ── Booth limits ── */}
+              {/* Booth Limits */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">⏱️ Booth Limits</h3>
-                <p className="text-white/30 text-xs">Leave blank for no limit. Times are local to the event.</p>
-
+                <h3 className="font-semibold text-lg">🚦 Booth Limits</h3>
+                <p className="text-white/30 text-xs">Leave blank for no limit.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-white/50 text-sm block mb-1.5">Booth Opens At</label>
+                    <label className="text-white/50 text-sm block mb-1.5">Opens At</label>
                     <input type="datetime-local"
                       value={(event.settings?.boothStart as string) || ''}
                       onChange={e => updateSettings('boothStart', e.target.value || null)}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 text-sm" />
-                    <p className="text-white/25 text-xs mt-1">Booth shows "opening soon" before this time</p>
                   </div>
                   <div>
-                    <label className="text-white/50 text-sm block mb-1.5">Booth Closes At</label>
+                    <label className="text-white/50 text-sm block mb-1.5">Closes At</label>
                     <input type="datetime-local"
                       value={(event.settings?.boothEnd as string) || ''}
                       onChange={e => updateSettings('boothEnd', e.target.value || null)}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 text-sm" />
-                    <p className="text-white/25 text-xs mt-1">Shows "Event has ended" after this time</p>
                   </div>
                 </div>
-
                 <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Max Photos (photo limit)</label>
+                  <label className="text-white/50 text-sm block mb-1.5">Max Photos</label>
                   <input type="number" min="0" max="10000"
                     value={(event.settings?.photoLimit as number) || ''}
                     onChange={e => updateSettings('photoLimit', e.target.value ? Number(e.target.value) : null)}
                     placeholder="Unlimited"
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 placeholder-white/20" />
-                  <p className="text-white/25 text-xs mt-1">
-                    Booth shows "Photo limit reached" gracefully. Current: {photos.length} photos taken.
-                  </p>
+                  <p className="text-white/25 text-xs mt-1">Current: {photos.length} photos taken.</p>
                 </div>
               </div>
 
-              {/* ── Lead capture ── */}
+            </div>
+
+            {/* ── RIGHT COLUMN ── */}
+            <div className="space-y-4">
+
+              {/* Gallery Privacy */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">📧 Lead Capture</h3>
+                <h3 className="font-semibold text-lg">👁️ Gallery Privacy</h3>
+
+                {/* Password toggle */}
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">Password-protect gallery</p>
+                    <p className="text-white/40 text-xs mt-0.5">Guests must enter a PIN to view photos</p>
+                  </div>
+                  <button
+                    onClick={() => updateSettings('galleryPasswordEnabled', !(event.settings?.galleryPasswordEnabled as boolean))}
+                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${(event.settings?.galleryPasswordEnabled as boolean) ? 'bg-purple-600' : 'bg-white/20'}`}>
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${(event.settings?.galleryPasswordEnabled as boolean) ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </label>
+
+                {(event.settings?.galleryPasswordEnabled as boolean) && (
+                  <input
+                    type="text"
+                    value={(event.settings?.galleryPassword as string) || ''}
+                    onChange={e => updateSettings('galleryPassword', e.target.value)}
+                    placeholder="Gallery password / PIN"
+                    className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:border-purple-500" />
+                )}
+
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Gallery Expiry</label>
+                  <select
+                    value={(event.settings?.galleryExpireDays as number) || 0}
+                    onChange={e => updateSettings('galleryExpireDays', Number(e.target.value))}
+                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
+                    <option value={0}>Never expire</option>
+                    <option value={7}>7 days after event</option>
+                    <option value={30}>30 days after event</option>
+                    <option value={90}>90 days after event</option>
+                    <option value={365}>1 year after event</option>
+                  </select>
+                </div>
+
+                <a href={`/gallery/${event.slug}`} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-purple-400 hover:text-purple-300 text-sm transition-colors">
+                  View public gallery →
+                </a>
+              </div>
+
+              {/* Webhook / Zapier */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+                <h3 className="font-semibold text-lg">🔗 Webhook / Zapier</h3>
+                <p className="text-white/40 text-xs">POST to this URL every time a photo is taken. Works with Zapier, Make, or any webhook receiver.</p>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Webhook URL</label>
+                  <input type="url"
+                    value={(event.settings?.webhookUrl as string) || ''}
+                    onChange={e => updateSettings('webhookUrl', e.target.value)}
+                    placeholder="https://hooks.zapier.com/hooks/catch/..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Secret <span className="text-white/25 font-normal">(optional)</span></label>
+                  <input type="text"
+                    value={(event.settings?.webhookSecret as string) || ''}
+                    onChange={e => updateSettings('webhookSecret', e.target.value)}
+                    placeholder="Sent as X-SnapBooth-Secret header"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    disabled={webhookTesting || !(event.settings?.webhookUrl as string)}
+                    onClick={async () => {
+                      if (!(event.settings?.webhookUrl as string)) return;
+                      setWebhookTesting(true); setWebhookResult(null);
+                      try {
+                        const r = await testWebhook(event.id, event.settings.webhookUrl as string);
+                        setWebhookResult(r.ok ? 'ok' : 'fail');
+                        toast[r.ok ? 'success' : 'error'](r.ok ? 'Webhook delivered ✅' : `Failed: ${r.error || 'HTTP error'}`);
+                      } catch { setWebhookResult('fail'); toast.error('Webhook test failed'); }
+                      finally { setWebhookTesting(false); }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm font-medium hover:bg-blue-600/30 transition-colors disabled:opacity-40">
+                    {webhookTesting
+                      ? <div className="w-4 h-4 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+                      : '🔗'}
+                    {webhookTesting ? 'Testing…' : 'Send test event'}
+                  </button>
+                  {webhookResult === 'ok'   && <span className="text-green-400 text-xs">✅ Delivered!</span>}
+                  {webhookResult === 'fail' && <span className="text-red-400 text-xs">❌ Failed — check URL</span>}
+                </div>
+                <div className="bg-black/30 rounded-xl p-3 text-[11px] text-white/30 font-mono leading-relaxed break-all">
+                  {`{ "event": "photo.taken", "photoId": "...", "photoUrl": "...", "galleryUrl": "...", "mode": "single" }`}
+                </div>
+              </div>
+
+              {/* Email Template */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+                <h3 className="font-semibold text-lg">📧 Email Template</h3>
+                <p className="text-white/40 text-xs">Customise the email guests receive when they share their photo.</p>
+
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Subject line</label>
+                  <input type="text"
+                    value={(event.branding?.emailSubject as string) || ''}
+                    onChange={e => updateBranding('emailSubject', e.target.value)}
+                    placeholder={`Your photo from ${event.name} 📸`}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                </div>
+
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Header message</label>
+                  <textarea
+                    value={(event.branding?.emailHeaderText as string) || ''}
+                    onChange={e => updateBranding('emailHeaderText', e.target.value)}
+                    rows={2}
+                    placeholder={`Thanks for stopping by ${event.name}!`}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 resize-none" />
+                </div>
+
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Footer text</label>
+                  <input type="text"
+                    value={(event.branding?.emailFooterText as string) || ''}
+                    onChange={e => updateBranding('emailFooterText', e.target.value)}
+                    placeholder="Powered by SnapBooth AI"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                </div>
+
+                {/* Live email preview */}
+                <div className="border border-white/10 rounded-xl overflow-hidden">
+                  <div className="bg-white/5 px-3 py-2 text-white/40 text-xs font-semibold uppercase tracking-widest">Email Preview</div>
+                  <div className="bg-white p-4 space-y-2">
+                    <p className="text-xs text-gray-400">Subject: <span className="text-gray-700 font-medium">{(event.branding?.emailSubject as string) || `Your photo from ${event.name} 📸`}</span></p>
+                    <div className="border-t pt-3 space-y-2">
+                      <p className="text-gray-800 text-sm">{(event.branding?.emailHeaderText as string) || `Thanks for visiting ${event.name}!`}</p>
+                      <div className="bg-gray-100 rounded-lg h-20 flex items-center justify-center text-gray-400 text-xs">[Photo here]</div>
+                      <div className="flex gap-2">
+                        <div className="px-3 py-1.5 rounded-lg text-white text-xs font-bold" style={{ background: primaryColor }}>Save Photo</div>
+                        <div className="px-3 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-bold">WhatsApp</div>
+                      </div>
+                      <p className="text-gray-400 text-xs">{(event.branding?.emailFooterText as string) || 'Powered by SnapBooth AI'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email channel settings */}
+                <div className="border-t border-white/10 pt-4 space-y-3">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-white/80 text-sm font-medium">📧 Email Share</p>
+                      <p className="text-white/30 text-xs">Requires RESEND_API_KEY on Render</p>
+                    </div>
+                    <input type="checkbox"
+                      checked={(event.settings?.allowEmailShare as boolean) ?? true}
+                      onChange={e => updateSettings('allowEmailShare', e.target.checked)}
+                      className="w-5 h-5 accent-purple-500" />
+                  </label>
+                  {(event.settings?.allowEmailShare as boolean) !== false && (
+                    <div className="space-y-3 pt-1">
+                      <div>
+                        <label className="text-white/50 text-sm block mb-1.5">From Name</label>
+                        <input value={(event.settings?.emailFromName as string) || ''}
+                          onChange={e => updateSettings('emailFromName', e.target.value)}
+                          placeholder={event.name || 'SnapBooth AI'}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                      </div>
+                      <div>
+                        <label className="text-white/50 text-sm block mb-1.5">Reply-To</label>
+                        <input type="email"
+                          value={(event.settings?.emailReplyTo as string) || ''}
+                          onChange={e => updateSettings('emailReplyTo', e.target.value)}
+                          placeholder="you@yourdomain.com"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                      </div>
+                    </div>
+                  )}
+                  <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-white/5">
+                    <div>
+                      <p className="text-white/80 text-sm font-medium">📱 SMS Share</p>
+                      <p className="text-white/30 text-xs">Requires Twilio env vars on Render</p>
+                    </div>
+                    <input type="checkbox"
+                      checked={(event.settings?.allowSMSShare as boolean) ?? false}
+                      onChange={e => updateSettings('allowSMSShare', e.target.checked)}
+                      className="w-5 h-5 accent-purple-500" />
+                  </label>
+                </div>
+              </div>
+
+              {/* Lead Capture */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+                <h3 className="font-semibold text-lg">📋 Lead Capture</h3>
                 <p className="text-white/30 text-xs">Show an email input modal between preview and share screen.</p>
-                <label className="flex items-center justify-between py-2 cursor-pointer">
+                <label className="flex items-center justify-between cursor-pointer">
                   <div>
                     <p className="text-white/80 text-sm font-medium">Enable lead capture</p>
                     <p className="text-white/30 text-xs">Guests see an email field before the share screen</p>
@@ -1016,10 +1202,10 @@ export default function EventManagePage() {
                     className="w-5 h-5 accent-purple-500" />
                 </label>
                 {(event.settings?.leadCapture as boolean) && (
-                  <label className="flex items-center justify-between py-2 cursor-pointer border-t border-white/5">
+                  <label className="flex items-center justify-between cursor-pointer border-t border-white/5 pt-3">
                     <div>
                       <p className="text-white/80 text-sm font-medium">Make email required</p>
-                      <p className="text-white/30 text-xs">Remove the "Skip" option — guests must enter email</p>
+                      <p className="text-white/30 text-xs">Removes the &quot;Skip&quot; option</p>
                     </div>
                     <input type="checkbox"
                       checked={(event.settings?.leadRequired as boolean) ?? false}
@@ -1029,83 +1215,26 @@ export default function EventManagePage() {
                 )}
               </div>
 
-              {/* ── Share Channels ── */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">📤 Share Channels</h3>
-                <p className="text-white/30 text-xs">Control which sharing options appear on the guest share screen.</p>
-
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <p className="text-white/80 text-sm font-medium">💬 WhatsApp</p>
-                    <p className="text-white/30 text-xs">Opens wa.me with photo link — no credentials needed</p>
+              {/* Data Export */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">
+                <h3 className="font-semibold text-lg">📥 Data Export</h3>
+                <button
+                  onClick={async () => {
+                    try {
+                      const data = await getEventAnalytics(event.id, 90);
+                      const rows = data.analytics || data.rows || [];
+                      if (!rows.length) { toast.error('No analytics data yet'); return; }
+                      exportAnalyticsCSV(rows, event.name);
+                      toast.success('Analytics CSV downloaded!');
+                    } catch { toast.error('Export failed'); }
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-colors text-sm">
+                  📊
+                  <div className="text-left">
+                    <p className="font-medium text-white/80">Analytics CSV</p>
+                    <p className="text-xs text-white/40">All actions: photos, prints, AI filters, shares</p>
                   </div>
-                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">Always on</span>
-                </div>
-
-                <div className="flex items-center justify-between py-2 border-t border-white/5">
-                  <div>
-                    <p className="text-white/80 text-sm font-medium">📲 Native Share / Copy Link</p>
-                    <p className="text-white/30 text-xs">Device share sheet (AirDrop, Instagram, etc.) or copy link fallback</p>
-                  </div>
-                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">Always on</span>
-                </div>
-
-                <label className="flex items-center justify-between py-2 border-t border-white/5 cursor-pointer">
-                  <div>
-                    <p className="text-white/80 text-sm font-medium">📧 Email Share</p>
-                    <p className="text-white/30 text-xs">Sends branded HTML email via Resend. Add RESEND_API_KEY to Render env vars.</p>
-                  </div>
-                  <input type="checkbox"
-                    checked={(event.settings?.allowEmailShare as boolean) ?? true}
-                    onChange={e => updateSettings('allowEmailShare', e.target.checked)}
-                    className="w-5 h-5 accent-purple-500" />
-                </label>
-
-                {(event.settings?.allowEmailShare as boolean) !== false && (
-                  <div className="border-t border-white/5 pt-3 space-y-3">
-                    <div>
-                      <label className="text-white/50 text-sm block mb-1.5">Email &quot;From&quot; Name</label>
-                      <input
-                        value={(event.settings?.emailFromName as string) || ''}
-                        onChange={e => updateSettings('emailFromName', e.target.value)}
-                        placeholder={event.name || 'SnapBooth AI'}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                      <p className="text-white/25 text-xs mt-1">Shown as sender name in guest inbox. Defaults to event name.</p>
-                    </div>
-                    <div>
-                      <label className="text-white/50 text-sm block mb-1.5">Reply-To Email</label>
-                      <input
-                        type="email"
-                        value={(event.settings?.emailReplyTo as string) || ''}
-                        onChange={e => updateSettings('emailReplyTo', e.target.value)}
-                        placeholder="you@yourdomain.com"
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                      <p className="text-white/25 text-xs mt-1">Optional. Replies from guests go here.</p>
-                    </div>
-                  </div>
-                )}
-
-                <label className="flex items-center justify-between py-2 border-t border-white/5 cursor-pointer">
-                  <div>
-                    <p className="text-white/80 text-sm font-medium">📱 SMS Share</p>
-                    <p className="text-white/30 text-xs">Sends text message with photo link via Twilio. Requires Twilio account.</p>
-                  </div>
-                  <input type="checkbox"
-                    checked={(event.settings?.allowSMSShare as boolean) ?? false}
-                    onChange={e => updateSettings('allowSMSShare', e.target.checked)}
-                    className="w-5 h-5 accent-purple-500" />
-                </label>
-
-                {(event.settings?.allowSMSShare as boolean) && (
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 space-y-1">
-                    <p className="font-semibold">⚠️ Requires Twilio setup on Render:</p>
-                    <p><code className="bg-white/10 px-1 rounded">TWILIO_ACCOUNT_SID</code></p>
-                    <p><code className="bg-white/10 px-1 rounded">TWILIO_AUTH_TOKEN</code></p>
-                    <p><code className="bg-white/10 px-1 rounded">TWILIO_PHONE_NUMBER</code></p>
-                    <p className="text-amber-400/60 pt-1">Each SMS costs ~$0.0079. Sign up free at twilio.com — $15 trial credit included.</p>
-                  </div>
-                )}
-
+                </button>
               </div>
 
             </div>
