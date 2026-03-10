@@ -246,5 +246,102 @@ router.get('/:idOrSlug/qr', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+/**
+ * backend/src/routes/events.js — additions only
+ * New endpoints:
+ *   POST /api/events/:id/gallery-auth   — verify gallery password
+ *   POST /api/events/:id/webhook-test   — fire test webhook payload
+ *
+
+/**
+ * POST /api/events/:id/gallery-auth
+ * Verify a guest's gallery password.
+ * Body: { password: string }
+ * Returns: { ok: true } or 401
+ */
+router.post('/:id/gallery-auth', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Password required' });
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('settings')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const storedPw = event.settings?.galleryPassword;
+
+    // If no password set, allow everyone
+    if (!storedPw) return res.json({ ok: true });
+
+    if (password === storedPw) {
+      return res.json({ ok: true });
+    }
+
+    return res.status(401).json({ ok: false, error: 'Incorrect password' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/webhook-test
+ * Fire a test webhook payload to the configured URL.
+ * Body: { webhookUrl?: string } — if provided overrides stored URL for the test
+ */
+router.post('/:id/webhook-test', async (req, res) => {
+  try {
+    const { data: event } = await supabase
+      .from('events')
+      .select('settings, name')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const webhookUrl    = req.body.webhookUrl || event.settings?.webhookUrl;
+    const webhookSecret = event.settings?.webhookSecret || '';
+
+    if (!webhookUrl) return res.status(400).json({ error: 'No webhook URL configured' });
+
+    const payload = {
+      event: 'photo.taken',
+      test: true,
+      photoId: uuidv4(),
+      photoUrl: 'https://example.com/test-photo.jpg',
+      galleryUrl: 'https://example.com/p/abc123',
+      mode: 'single',
+      eventName: event.name,
+      eventId: req.params.id,
+      timestamp: new Date().toISOString(),
+    };
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'SnapBooth/2.0',
+    };
+    if (webhookSecret) {
+      headers['X-SnapBooth-Secret'] = webhookSecret;
+    }
+
+    const hookRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (hookRes.ok || (hookRes.status >= 200 && hookRes.status < 300)) {
+      res.json({ ok: true, status: hookRes.status });
+    } else {
+      res.json({ ok: false, status: hookRes.status, error: `Webhook returned HTTP ${hookRes.status}` });
+    }
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
 
 module.exports = router;
