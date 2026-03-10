@@ -1,9 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { dev, isServer }) => {
-    // Vercel production builds can choke on ESM-only vendor artifacts (e.g. `import.meta`
-    // in `.mjs` files copied to `static/media`) when Terser parses them as non-modules.
-    // Force module-aware parsing for Terser in client production builds.
+    // Fix 1: Tell webpack to treat ORT .mjs files as ES modules (not CommonJS)
+    // This prevents the "import.meta cannot be used outside of module code" error
+    config.module.rules.push({
+      test: /\.mjs$/,
+      include: /node_modules\/onnxruntime-web/,
+      type: 'javascript/auto',
+    });
+
+    // Fix 2: Also tell Terser to parse them as modules in production client builds
     if (!dev && !isServer && Array.isArray(config.optimization?.minimizer)) {
       config.optimization.minimizer.forEach((plugin) => {
         if (plugin?.constructor?.name !== 'TerserPlugin') return;
@@ -19,6 +25,7 @@ const nextConfig = {
 
     return config;
   },
+
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.r2.cloudflarestorage.com' },
@@ -26,7 +33,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '*' },
     ],
   },
-  // PWA headers for offline support
+
   async headers() {
     return [
       {
