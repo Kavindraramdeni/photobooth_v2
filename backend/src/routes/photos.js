@@ -4,62 +4,49 @@ const { v4: uuidv4 } = require('uuid');
 const sharp = require('sharp');
 const router = express.Router();
 
-const { uploadToStorage } = require('../services/storage');
+const { uploadToStorage, deleteFromStorage } = require('../services/storage');
 const { applyBrandingOverlay, createPhotoStrip } = require('../services/imageProcessor');
-const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode, generateStoriesImage } = require('../services/sharing');
-const { createGIF, createBoomerang } = require('../services/gif');
+const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode } = require('../services/sharing');
+const { createGIF, createBoomerang, createSlowMotionGIF } = require('../services/gif');
 const supabase = require('../services/database');
 
-// Multer: memory storage for direct processing
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
+  limits: { fileSize: 30 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files allowed'));
-    }
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files allowed'));
   },
 });
 
-/**
- * POST /api/photos/upload
- * Upload a photo, apply branding, generate QR
- */
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://photobooth-v2-xi.vercel.app';
+
+// ─── POST /photos/upload ──────────────────────────────────────────────────────
 router.post('/upload', upload.single('photo'), async (req, res) => {
   try {
     const { eventId, mode = 'single', sessionId } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
-    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
+    if (!eventId)  return res.status(400).json({ error: 'Event ID required' });
 
-    // Get event branding from DB
-    const { data: event } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .single();
-
+    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
     const photoId = uuidv4();
     const timestamp = Date.now();
     const storageKey = `events/${eventId}/photos/${photoId}_${timestamp}.jpg`;
 
-    // Process image: resize + apply branding
     let processedBuffer = await sharp(req.file.buffer)
       .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 95 })
       .toBuffer();
 
     if (event.branding) {
-      processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding);
+      try { processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding); }
+      catch (e) { console.warn('[photos] branding overlay failed:', e.message); }
     }
 
-    // Upload to R2
     const photoUrl = await uploadToStorage(processedBuffer, storageKey, 'image/jpeg');
 
-    // Also create thumbnail
     const thumbBuffer = await sharp(processedBuffer)
       .resize(400, 400, { fit: 'inside' })
       .jpeg({ quality: 80 })
@@ -67,59 +54,34 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
     const thumbKey = `events/${eventId}/thumbs/${photoId}_thumb.jpg`;
     const thumbUrl = await uploadToStorage(thumbBuffer, thumbKey, 'image/jpeg');
 
-    // Build gallery URL and QR code
     const shortCode = await generateUniqueShortCode(supabase);
-    const galleryUrl = buildGalleryUrl(event.slug, photoId, shortCode);
+    const galleryUrl = `${FRONTEND_URL}/p/${shortCode}`;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const whatsappUrl = buildWhatsAppUrl(photoUrl, event.name);
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`📸 My photo from ${event.name}! View & download: ${galleryUrl}`)}`;
 
-    // Save to database
-    const { data: photo, error: dbError } = await supabase
-      .from('photos')
-      .insert({
-        id: photoId,
-        event_id: eventId,
-        session_id: sessionId,
-        url: photoUrl,
-        thumb_url: thumbUrl,
-        gallery_url: galleryUrl,
-        storage_key: storageKey,
-        short_code: shortCode,
-        mode,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    await supabase.from('photos').insert({
+      id: photoId, event_id: eventId, session_id: sessionId,
+      url: photoUrl, thumb_url: thumbUrl, gallery_url: galleryUrl,
+      storage_key: storageKey, short_code: shortCode, mode,
+      created_at: new Date().toISOString(),
+    });
 
-    if (dbError) console.error('DB insert error:', dbError);
-
-    // Track analytics
     await supabase.from('analytics').insert({
-      event_id: eventId,
-      action: 'photo_taken',
-      metadata: { mode, photoId },
+      event_id: eventId, action: 'photo_taken', metadata: { mode, photoId },
     });
 
-    // Emit via Socket.IO to admin dashboard
     const io = req.app.get('io');
-    io.to(`event-${eventId}`).emit('photo-taken', {
-      photoId,
-      thumbUrl,
-      galleryUrl,
-      mode,
-      timestamp: new Date().toISOString(),
-    });
+    if (io) {
+      io.to(`event-${eventId}`).emit('photo-taken', {
+        photoId, thumbUrl, galleryUrl, mode, timestamp: new Date().toISOString(),
+      });
+    }
 
     res.json({
       success: true,
       photo: {
-        id: photoId,
-        url: photoUrl,
-        thumbUrl,
-        galleryUrl,
-        qrCode: qrDataUrl,
-        whatsappUrl,
-        downloadUrl: photoUrl,
+        id: photoId, url: photoUrl, thumbUrl, galleryUrl,
+        qrCode: qrDataUrl, whatsappUrl, downloadUrl: photoUrl, mode,
       },
     });
   } catch (error) {
@@ -128,20 +90,20 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
   }
 });
 
-/**
- * POST /api/photos/gif
- * Create GIF or Boomerang from multiple frames
- */
-router.post('/gif', upload.array('frames', 10), async (req, res) => {
+// ─── POST /photos/gif ─────────────────────────────────────────────────────────
+// FIX: was silently counting wrong mode; now correctly saves mode as 'gif' or 'boomerang'
+router.post('/gif', upload.array('frames', 12), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
     if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
+    if (req.files.length < 2) return res.status(400).json({ error: 'At least 2 frames required for GIF' });
 
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
+    const frames = req.files.map(f => f.buffer);
 
-    const frames = req.files.map((f) => f.buffer);
+    console.log(`[gif] creating ${type} from ${frames.length} frames for event ${eventId}`);
+
     let gifBuffer;
-
     if (type === 'boomerang') {
       gifBuffer = await createBoomerang(frames);
     } else {
@@ -152,36 +114,44 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
     const storageKey = `events/${eventId}/gifs/${gifId}.gif`;
     const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
 
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, gifId);
+    const shortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = `${FRONTEND_URL}/p/${shortCode}`;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const whatsappUrl = buildWhatsAppUrl(gifUrl, event?.name);
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`🎬 My ${type} from ${event?.name || 'SnapBooth'}! ${galleryUrl}`)}`;
+
+    // Use first frame as thumbnail
+    const thumbBuffer = await sharp(frames[0])
+      .resize(400, 400, { fit: 'inside' })
+      .jpeg({ quality: 75 })
+      .toBuffer();
+    const thumbKey = `events/${eventId}/thumbs/${gifId}_thumb.jpg`;
+    const thumbUrl = await uploadToStorage(thumbBuffer, thumbKey, 'image/jpeg');
 
     await supabase.from('photos').insert({
-      id: gifId,
-      event_id: eventId,
-      session_id: sessionId,
-      url: gifUrl,
-      gallery_url: galleryUrl,
-      storage_key: storageKey,
-      mode: type,
+      id: gifId, event_id: eventId, session_id: sessionId,
+      url: gifUrl, thumb_url: thumbUrl, gallery_url: galleryUrl,
+      storage_key: storageKey, short_code: shortCode,
+      mode: type, // 'gif' or 'boomerang' — was missing before!
+      created_at: new Date().toISOString(),
     });
 
     await supabase.from('analytics').insert({
       event_id: eventId,
       action: type === 'boomerang' ? 'boomerang_created' : 'gif_created',
-      metadata: { frameCount: frames.length },
+      metadata: { frameCount: frames.length, gifId },
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`event-${eventId}`).emit('photo-taken', {
+        photoId: gifId, thumbUrl, galleryUrl, mode: type,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     res.json({
       success: true,
-      gif: {
-        id: gifId,
-        url: gifUrl,
-        galleryUrl,
-        qrCode: qrDataUrl,
-        whatsappUrl,
-        type,
-      },
+      gif: { id: gifId, url: gifUrl, thumbUrl, galleryUrl, qrCode: qrDataUrl, whatsappUrl, type, mode: type },
     });
   } catch (error) {
     console.error('GIF creation error:', error);
@@ -189,38 +159,74 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
   }
 });
 
-/**
- * POST /api/photos/strip
- * Create a 4-photo strip
- */
+// ─── POST /photos/burst ───────────────────────────────────────────────────────
+// Slow-motion burst: 10 frames → smooth 4fps GIF
+router.post('/burst', upload.array('frames', 12), async (req, res) => {
+  try {
+    const { eventId, sessionId } = req.body;
+    if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
+
+    const { data: event } = await supabase.from('events').select('name, slug').eq('id', eventId).single();
+    const frames = req.files.map(f => f.buffer);
+
+    const gifBuffer = await createSlowMotionGIF(frames);
+
+    const gifId = uuidv4();
+    const storageKey = `events/${eventId}/gifs/${gifId}_slomo.gif`;
+    const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
+
+    const shortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = `${FRONTEND_URL}/p/${shortCode}`;
+    const qrDataUrl = await generateQRDataURL(galleryUrl);
+
+    const thumbBuffer = await sharp(frames[0]).resize(400, 400, { fit: 'inside' }).jpeg({ quality: 75 }).toBuffer();
+    const thumbUrl = await uploadToStorage(thumbBuffer, `events/${eventId}/thumbs/${gifId}_thumb.jpg`, 'image/jpeg');
+
+    await supabase.from('photos').insert({
+      id: gifId, event_id: eventId, session_id: sessionId,
+      url: gifUrl, thumb_url: thumbUrl, gallery_url: galleryUrl,
+      storage_key: storageKey, short_code: shortCode, mode: 'gif',
+    });
+
+    res.json({ success: true, gif: { id: gifId, url: gifUrl, galleryUrl, qrCode: qrDataUrl, type: 'burst' } });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── POST /photos/strip ───────────────────────────────────────────────────────
 router.post('/strip', upload.array('photos', 4), async (req, res) => {
   try {
-    const { eventId } = req.body;
+    const { eventId, sessionId } = req.body;
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
 
-    const photos = req.files.map((f) => f.buffer);
+    const photos = req.files.map(f => f.buffer);
     const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
 
     const stripId = uuidv4();
     const storageKey = `events/${eventId}/strips/${stripId}.jpg`;
     const stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
 
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, stripId);
+    const shortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = `${FRONTEND_URL}/p/${shortCode}`;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
 
-    res.json({
-      success: true,
-      strip: { id: stripId, url: stripUrl, galleryUrl, qrCode: qrDataUrl },
+    const thumbBuffer = await sharp(stripBuffer).resize(300, null, { fit: 'inside' }).jpeg({ quality: 75 }).toBuffer();
+    const thumbUrl = await uploadToStorage(thumbBuffer, `events/${eventId}/thumbs/${stripId}_thumb.jpg`, 'image/jpeg');
+
+    await supabase.from('photos').insert({
+      id: stripId, event_id: eventId, session_id: sessionId,
+      url: stripUrl, thumb_url: thumbUrl, gallery_url: galleryUrl,
+      storage_key: storageKey, short_code: shortCode, mode: 'strip',
     });
+
+    res.json({ success: true, strip: { id: stripId, url: stripUrl, thumbUrl, galleryUrl, qrCode: qrDataUrl, mode: 'strip' } });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/photos/event/:eventId
- * Get all photos for an event (for gallery/admin)
- */
+// ─── GET /photos/event/:eventId ───────────────────────────────────────────────
 router.get('/event/:eventId', async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -233,7 +239,6 @@ router.get('/event/:eventId', async (req, res) => {
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
-    // Operators can request all photos including hidden ones
     if (include_hidden !== 'true') {
       query = query.or('is_hidden.is.null,is_hidden.eq.false');
     }
@@ -246,36 +251,11 @@ router.get('/event/:eventId', async (req, res) => {
   }
 });
 
-/**
- * GET /api/photos/:photoId
- * Get a single photo (for gallery page)
- */
-router.get('/:photoId', async (req, res) => {
-  try {
-    const { data: photo, error } = await supabase
-      .from('photos')
-      .select('*, events(name, branding)')
-      .eq('id', req.params.photoId)
-      .single();
-
-    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
-    res.json({ photo });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/photos/event/:eventId/count
- * Fast photo count for limit enforcement
- */
+// ─── GET /photos/event/:eventId/count ─────────────────────────────────────────
 router.get('/event/:eventId/count', async (req, res) => {
   try {
     const { count, error } = await supabase
-      .from('photos')
-      .select('id', { count: 'exact', head: true })
-      .eq('event_id', req.params.eventId);
-
+      .from('photos').select('id', { count: 'exact', head: true }).eq('event_id', req.params.eventId);
     if (error) throw error;
     res.json({ count: count || 0 });
   } catch (err) {
@@ -283,37 +263,7 @@ router.get('/event/:eventId/count', async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/photos/:photoId/moderate
- * Hide or unhide a photo (moderation queue)
- * Body: { is_hidden: boolean, reason?: string }
- */
-router.patch('/:photoId/moderate', async (req, res) => {
-  const { is_hidden, reason = '' } = req.body;
-  if (typeof is_hidden !== 'boolean') {
-    return res.status(400).json({ error: 'is_hidden (boolean) required' });
-  }
-  try {
-    const { error } = await supabase
-      .from('photos')
-      .update({
-        is_hidden,
-        hidden_at: is_hidden ? new Date().toISOString() : null,
-        hidden_by: is_hidden ? (reason || 'operator') : null,
-      })
-      .eq('id', req.params.photoId);
-
-    if (error) throw error;
-    res.json({ success: true, is_hidden });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
- * GET /api/photos/short/:shortCode
- * Resolve short code → photo (used by /p/[code] frontend page)
- */
+// ─── GET /photos/short/:shortCode ─────────────────────────────────────────────
 router.get('/short/:shortCode', async (req, res) => {
   try {
     const { data: photo, error } = await supabase
@@ -321,140 +271,91 @@ router.get('/short/:shortCode', async (req, res) => {
       .select('*, events(name, branding)')
       .eq('short_code', req.params.shortCode)
       .single();
-
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    // Normalise: front-end expects photo.event not photo.events
+    photo.event = photo.events;
+    delete photo.events;
     res.json({ photo });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/photos/:photoId/stories
- * Generate 9:16 Instagram Stories image with event branding.
- * Returns image/jpeg binary.
- */
-router.get('/:photoId/stories', async (req, res) => {
+// ─── GET /photos/:photoId ─────────────────────────────────────────────────────
+router.get('/:photoId', async (req, res) => {
   try {
     const { data: photo, error } = await supabase
       .from('photos')
       .select('*, events(name, branding)')
       .eq('id', req.params.photoId)
       .single();
-
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
-
-    // Fetch original photo buffer
-    const photoRes = await fetch(photo.url);
-    if (!photoRes.ok) return res.status(502).json({ error: 'Could not fetch photo' });
-    const photoBuffer = Buffer.from(await photoRes.arrayBuffer());
-
-    const branding = photo.events?.branding || {};
-    const storiesBuffer = await generateStoriesImage(photoBuffer, {
-      eventName: branding.eventName || photo.events?.name || 'SnapBooth',
-      primaryColor: branding.primaryColor || '#7c3aed',
-    });
-
-    const eventName = (branding.eventName || photo.events?.name || 'SnapBooth').replace(/\s+/g, '_');
-    const date = new Date().toISOString().split('T')[0];
-
-    res.set({
-      'Content-Type': 'image/jpeg',
-      'Content-Disposition': `attachment; filename="${eventName}_Stories_${date}.jpg"`,
-      'Cache-Control': 'public, max-age=3600',
-    });
-    res.send(storiesBuffer);
-  } catch (err) {
-    console.error('/stories error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-module.exports = router;
-
-/**
- * DELETE /api/photos/:photoId
- * Permanently delete a photo from DB and storage
- */
-router.delete('/:photoId', async (req, res) => {
-  try {
-    const { photoId } = req.params;
-
-    // Get storage_key first so we can delete from R2
-    const { data: photo, error: fetchErr } = await supabase
-      .from('photos')
-      .select('storage_key, event_id')
-      .eq('id', photoId)
-      .single();
-
-    if (fetchErr || !photo) return res.status(404).json({ error: 'Photo not found' });
-
-    // Delete from R2 storage
-    const { deleteFromStorage } = require('../services/storage');
-    if (photo.storage_key) {
-      try { await deleteFromStorage(photo.storage_key); } catch (e) { console.warn('R2 delete failed:', e.message); }
-      // Also try thumb
-      try {
-        const thumbKey = photo.storage_key.replace('/photos/', '/thumbs/').replace(/(_\d+)\.jpg$/, '_thumb.jpg');
-        await deleteFromStorage(thumbKey);
-      } catch { /* thumb may not exist */ }
-    }
-
-    // Delete from DB
-    const { error: dbErr } = await supabase.from('photos').delete().eq('id', photoId);
-    if (dbErr) throw dbErr;
-
-    res.json({ success: true });
+    photo.event = photo.events;
+    delete photo.events;
+    res.json({ photo });
   } catch (error) {
-    console.error('Delete photo error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/photos/event/:eventId/zip
- * Download all photos for an event as a ZIP
- */
+// ─── PATCH /photos/:photoId/moderate ─────────────────────────────────────────
+router.patch('/:photoId/moderate', async (req, res) => {
+  const { is_hidden, reason = '' } = req.body;
+  if (typeof is_hidden !== 'boolean') return res.status(400).json({ error: 'is_hidden (boolean) required' });
+  try {
+    const { error } = await supabase.from('photos').update({
+      is_hidden, hidden_at: is_hidden ? new Date().toISOString() : null,
+      hidden_by: is_hidden ? (reason || 'operator') : null,
+    }).eq('id', req.params.photoId);
+    if (error) throw error;
+    res.json({ success: true, is_hidden });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DELETE /photos/:photoId ──────────────────────────────────────────────────
+router.delete('/:photoId', async (req, res) => {
+  try {
+    const { data: photo } = await supabase.from('photos').select('storage_key').eq('id', req.params.photoId).single();
+    if (photo?.storage_key) {
+      try { await deleteFromStorage(photo.storage_key); } catch (e) { console.warn('R2 delete failed:', e.message); }
+    }
+    const { error } = await supabase.from('photos').delete().eq('id', req.params.photoId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── GET /photos/event/:eventId/zip ──────────────────────────────────────────
 router.get('/event/:eventId/zip', async (req, res) => {
   try {
     const { eventId } = req.params;
     const archiver = require('archiver');
-
-    const { data: photos, error } = await supabase
-      .from('photos')
-      .select('id, url, mode, created_at')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
+    const { data: photos } = await supabase.from('photos')
+      .select('id, url, mode, created_at').eq('event_id', eventId).order('created_at', { ascending: false });
     if (!photos?.length) return res.status(404).json({ error: 'No photos found' });
-
     const { data: event } = await supabase.from('events').select('name').eq('id', eventId).single();
     const eventName = (event?.name || 'event').replace(/\s+/g, '_');
     const date = new Date().toISOString().split('T')[0];
-
-    res.set({
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${eventName}_photos_${date}.zip"`,
-    });
-
+    res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${eventName}_photos_${date}.zip"` });
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.pipe(res);
-
     for (const photo of photos) {
       try {
         const photoRes = await fetch(photo.url);
         if (!photoRes.ok) continue;
         const buffer = Buffer.from(await photoRes.arrayBuffer());
         const ext = photo.mode === 'gif' || photo.mode === 'boomerang' ? 'gif' : 'jpg';
-        const filename = `${photo.mode}_${photo.id.slice(0, 8)}.${ext}`;
-        archive.append(buffer, { name: filename });
-      } catch { /* skip failed photo */ }
+        archive.append(buffer, { name: `${photo.mode}_${photo.id.slice(0, 8)}.${ext}` });
+      } catch { /* skip */ }
     }
-
     await archive.finalize();
   } catch (error) {
-    console.error('ZIP error:', error);
     if (!res.headersSent) res.status(500).json({ error: error.message });
   }
 });
+
+module.exports = router;
