@@ -24,6 +24,7 @@
     "react-webcam": "^7.2.0",
     "react-dropzone": "^14.2.3",
     "zustand": "^4.4.6",
+    "@imgly/background-removal": "^1.4.0",
     "date-fns": "^2.30.0"
   },
   "devDependencies": {
