@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, Share2, Mail, MessageSquare, Check, Printer, RefreshCw, QrCode } from 'lucide-react';
+import { Download, Share2, Mail, MessageSquare, Check, Printer, RefreshCw } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction, sharePhotoByEmail, sharePhotoBySMS } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export function ShareScreen() {
-  const { photoData, event, resetSession } = useBoothStore();
+  const { currentPhoto, event, resetSession } = useBoothStore();
   const [downloading, setDownloading] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [showEmailInput, setShowEmailInput] = useState(false);
@@ -23,9 +23,9 @@ export function ShareScreen() {
   const branding = event?.branding;
   const settings = event?.settings;
   const primaryColor = branding?.primaryColor || '#7c3aed';
-  const photoUrl  = photoData?.url || '';
-  const galleryUrl = photoData?.galleryUrl || photoData?.url || '';
-  const qrCode    = photoData?.qrCode || '';
+  const photoUrl  = currentPhoto?.url || '';
+  const galleryUrl = currentPhoto?.galleryUrl || currentPhoto?.url || '';
+  const qrCode    = currentPhoto?.qrCode || '';
   const eventName = branding?.eventName || event?.name || 'SnapBooth';
 
   const allowEmail = settings?.allowEmailShare !== false;
@@ -46,8 +46,8 @@ export function ShareScreen() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      if (event?.id && photoData?.photoId) {
-        trackAction(event.id, 'photo_downloaded', { photoId: photoData.photoId });
+      if (event?.id && currentPhoto?.id) {
+        trackAction(event.id, 'photo_downloaded', { photoId: currentPhoto.id });
       }
     } catch {
       window.open(photoUrl, '_blank');
@@ -84,8 +84,8 @@ export function ShareScreen() {
           <body><img src="${photoUrl}" onload="setTimeout(function(){window.print();window.close()},300)"/></body></html>`);
         win.document.close();
       }
-      if (event?.id && photoData?.photoId) {
-        trackAction(event.id, 'photo_printed', { photoId: photoData.photoId });
+      if (event?.id && currentPhoto?.id) {
+        trackAction(event.id, 'photo_printed', { photoId: currentPhoto.id });
       }
     } finally {
       setTimeout(() => setPrinting(false), 2000);
@@ -93,10 +93,10 @@ export function ShareScreen() {
   }
 
   async function handleSendEmail() {
-    if (!emailInput || !photoData?.photoId || !event?.id) return;
+    if (!emailInput || !currentPhoto?.id || !event?.id) return;
     setSending(true);
     try {
-      await sharePhotoByEmail(photoData.photoId, emailInput, event.id);
+      await sharePhotoByEmail(currentPhoto.id, emailInput, event.id);
       setEmailSent(true);
       setShowEmailInput(false);
       toast.success('Email sent! 📧');
@@ -108,10 +108,10 @@ export function ShareScreen() {
   }
 
   async function handleSendSMS() {
-    if (!phoneInput || !photoData?.photoId || !event?.id) return;
+    if (!phoneInput || !currentPhoto?.id || !event?.id) return;
     setSending(true);
     try {
-      await sharePhotoBySMS(photoData.photoId, phoneInput, event.id);
+      await sharePhotoBySMS(currentPhoto.id, phoneInput, event.id);
       setSMSSent(true);
       setShowSMSInput(false);
       toast.success('SMS sent! 💬');
