@@ -19,9 +19,9 @@ export function IdleScreen() {
   const settings  = event?.settings;
   const primaryColor  = (branding?.primaryColor as string) || '#7c3aed';
   const eventName = (branding?.eventName as string) || event?.name || 'SnapBooth AI';
-  const idleMediaUrl = (branding?.idleMediaUrl as string) | null;
+  const idleMediaUrl = (branding?.idleMediaUrl as string) || null;
   const isVideo   = idleMediaUrl?.match(/\.(mp4|webm|mov)$/i);
-  const logoUrl   = (branding?.logoUrl as string) | null;
+  const logoUrl   = (branding?.logoUrl as string) || null;
 
   // Check booth time limits
   useEffect(() => {
