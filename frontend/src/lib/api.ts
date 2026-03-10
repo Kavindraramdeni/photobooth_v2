@@ -80,6 +80,11 @@ export async function generateSurpriseAI(blob: Blob, eventId: string) {
   return res.data;
 }
 
+export async function applyAIFilter(photoId: string, filterName: string, eventId: string) {
+  const res = await api.post('/ai/filter', { photoId, filterName, eventId });
+  return res.data;
+}
+
 export async function getAIStyles() {
   const res = await api.get('/ai/styles');
   return res.data.styles;
@@ -115,6 +120,11 @@ export async function getEventStats(id: string) {
 export async function getEventQR(idOrSlug: string) {
   const res = await api.get(`/events/${idOrSlug}/qr`);
   return res.data;
+}
+
+export async function duplicateEvent(id: string) {
+  const res = await api.post(`/events/${id}/duplicate`);
+  return res.data.event;
 }
 
 // ─── Analytics ─────────────────────────────────────────────────────────────
@@ -178,13 +188,17 @@ export async function getEventLeads(eventId: string) {
   return res.data;
 }
 
-export function exportLeadsCSV(leads: { email?: string; name?: string; phone?: string; created_at: string }[], eventName: string) {
+export function exportLeadsCSV(
+  leads: { email?: string; name?: string; phone?: string; created_at: string; consented?: boolean }[],
+  eventName: string
+) {
   const rows = [
-    ['Name', 'Email', 'Phone', 'Captured At'],
+    ['Name', 'Email', 'Phone', 'Consent', 'Captured At'],
     ...leads.map(l => [
       l.name || '',
       l.email || '',
       l.phone || '',
+      l.consented ? 'Yes' : 'No',
       new Date(l.created_at).toLocaleString(),
     ]),
   ];
@@ -205,4 +219,23 @@ export function exportLeadsCSV(leads: { email?: string; name?: string; phone?: s
 export async function getPhotoCount(eventId: string): Promise<number> {
   const res = await api.get(`/photos/event/${eventId}/count`);
   return res.data.count ?? 0;
+}
+
+// ─── Share / email ─────────────────────────────────────────────────────────
+
+export async function sharePhotoByEmail(photoId: string, email: string, eventId: string) {
+  const res = await api.post('/share/email', { photoId, email, eventId });
+  return res.data;
+}
+
+export async function sharePhotoBySMS(photoId: string, phone: string, eventId: string) {
+  const res = await api.post('/share/sms', { photoId, phone, eventId });
+  return res.data;
+}
+
+// ─── Gallery ───────────────────────────────────────────────────────────────
+
+export async function getEventGallery(eventId: string, page = 1, pageSize = 24) {
+  const res = await api.get(`/gallery/event/${eventId}?page=${page}&pageSize=${pageSize}`);
+  return res.data;
 }
