@@ -28,6 +28,14 @@ export async function createGIF(frames: Blob[], eventId: string, type: 'gif' | '
   return res.data;
 }
 
+export async function createBurst(frames: Blob[], eventId: string) {
+  const form = new FormData();
+  frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
+  form.append('eventId', eventId);
+  const res = await api.post('/photos/burst', form);
+  return res.data;
+}
+
 export async function createStrip(photos: Blob[], eventId: string) {
   const form = new FormData();
   photos.forEach((p, i) => form.append('photos', p, `photo_${i}.jpg`));
@@ -80,11 +88,6 @@ export async function generateSurpriseAI(blob: Blob, eventId: string) {
   return res.data;
 }
 
-export async function applyAIFilter(photoId: string, filterName: string, eventId: string) {
-  const res = await api.post('/ai/filter', { photoId, filterName, eventId });
-  return res.data;
-}
-
 export async function getAIStyles() {
   const res = await api.get('/ai/styles');
   return res.data.styles;
@@ -122,9 +125,15 @@ export async function getEventQR(idOrSlug: string) {
   return res.data;
 }
 
-export async function duplicateEvent(id: string) {
-  const res = await api.post(`/events/${id}/duplicate`);
-  return res.data.event;
+// ─── Gallery ───────────────────────────────────────────────────────────────
+
+export async function verifyGalleryPassword(eventId: string, password: string): Promise<boolean> {
+  try {
+    const res = await api.post(`/events/${eventId}/gallery-auth`, { password });
+    return res.data.ok === true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Analytics ─────────────────────────────────────────────────────────────
@@ -140,6 +149,36 @@ export async function trackAction(eventId: string, action: string, metadata = {}
 export async function getDashboardStats(days = 30) {
   const res = await api.get(`/analytics/dashboard?days=${days}`);
   return res.data;
+}
+
+export async function getEventAnalytics(eventId: string, days = 30) {
+  const res = await api.get(`/analytics/event/${eventId}?days=${days}`);
+  return res.data;
+}
+
+export function exportAnalyticsCSV(
+  rows: { action: string; metadata: Record<string, unknown>; created_at: string }[],
+  eventName: string
+) {
+  const headers = ['Action', 'Mode', 'Details', 'Date'];
+  const data = rows.map(r => [
+    r.action,
+    (r.metadata?.mode as string) || '',
+    JSON.stringify(r.metadata).replace(/"/g, "'"),
+    new Date(r.created_at).toLocaleString(),
+  ]);
+  const csv = [headers, ...data]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eventName.replace(/\s+/g, '_')}_analytics.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Diagnostics ───────────────────────────────────────────────────────────
@@ -173,7 +212,7 @@ export async function getEventPhotosWithHidden(eventId: string) {
   return res.data;
 }
 
-// ─── Leads ────────────────────────────────────────────────────────────────
+// ─── Leads ─────────────────────────────────────────────────────────────────
 
 export async function submitLead(data: {
   eventId: string; photoId?: string;
@@ -189,18 +228,12 @@ export async function getEventLeads(eventId: string) {
 }
 
 export function exportLeadsCSV(
-  leads: { email?: string; name?: string; phone?: string; created_at: string; consented?: boolean }[],
+  leads: { email?: string; name?: string; phone?: string; created_at: string }[],
   eventName: string
 ) {
   const rows = [
-    ['Name', 'Email', 'Phone', 'Consent', 'Captured At'],
-    ...leads.map(l => [
-      l.name || '',
-      l.email || '',
-      l.phone || '',
-      l.consented ? 'Yes' : 'No',
-      new Date(l.created_at).toLocaleString(),
-    ]),
+    ['Name', 'Email', 'Phone', 'Captured At'],
+    ...leads.map(l => [l.name || '', l.email || '', l.phone || '', new Date(l.created_at).toLocaleString()]),
   ];
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -221,21 +254,14 @@ export async function getPhotoCount(eventId: string): Promise<number> {
   return res.data.count ?? 0;
 }
 
-// ─── Share / email ─────────────────────────────────────────────────────────
+// ─── Webhook test ─────────────────────────────────────────────────────────
 
-export async function sharePhotoByEmail(photoId: string, email: string, eventId: string) {
-  const res = await api.post('/share/email', { photoId, email, eventId });
-  return res.data;
-}
-
-export async function sharePhotoBySMS(photoId: string, phone: string, eventId: string) {
-  const res = await api.post('/share/sms', { photoId, phone, eventId });
-  return res.data;
-}
-
-// ─── Gallery ───────────────────────────────────────────────────────────────
-
-export async function getEventGallery(eventId: string, page = 1, pageSize = 24) {
-  const res = await api.get(`/gallery/event/${eventId}?page=${page}&pageSize=${pageSize}`);
-  return res.data;
+export async function testWebhook(eventId: string, webhookUrl: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const res = await api.post(`/events/${eventId}/webhook-test`, { webhookUrl });
+    return res.data;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Request failed';
+    return { ok: false, error: msg };
+  }
 }
