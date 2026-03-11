@@ -9,8 +9,8 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Only protect /admin routes
-  if (pathname.startsWith('/admin')) {
+  // Protect /admin and /dashboard routes
+  if (pathname.startsWith('/admin') || pathname.startsWith('/dashboard') || pathname.startsWith('/account')) {
     const token = request.cookies.get('sb_access_token')?.value;
 
     if (!token) {
@@ -24,5 +24,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/dashboard/:path*', '/account/:path*'],
 };
