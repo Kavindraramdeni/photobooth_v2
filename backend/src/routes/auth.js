@@ -178,4 +178,49 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/auth/update-profile
+ * Update display name
+ */
+router.patch('/update-profile', requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, {
+      user_metadata: { name: name.trim() },
+    });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/change-password
+ * Change password (requires current password verification)
+ */
+router.post('/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
+    if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+
+    // Verify current password by attempting sign-in
+    const { error: signInError } = await supabaseAnon.auth.signInWithPassword({
+      email: req.user.email,
+      password: currentPassword,
+    });
+    if (signInError) return res.status(401).json({ error: 'Current password is incorrect' });
+
+    // Update password
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, { password: newPassword });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
