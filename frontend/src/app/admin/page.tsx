@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, BarChart3, Settings, Plus, Calendar, Users, Zap, Share2, Printer, LogOut } from 'lucide-react';
-import { getDashboardStats, getEvents } from '@/lib/api';
+import { Camera, BarChart3, Settings, Plus, Calendar, Users, Zap, Share2, Printer, LogOut, Crown, AlertTriangle } from 'lucide-react';
+import { getDashboardStats, getEvents, getMyPlan } from '@/lib/api';
 import { EventList } from '@/components/admin/EventList';
 import { CreateEventModal } from '@/components/admin/CreateEventModal';
 import { AnalyticsPanel } from '@/components/admin/AnalyticsPanel';
@@ -21,16 +21,19 @@ export default function AdminPage() {
   const [events, setEvents] = useState<unknown[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [planData, setPlanData] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [statsData, eventsData] = await Promise.all([
+        const [statsData, eventsData, plan] = await Promise.all([
           getDashboardStats(),
           getEvents(),
+          getMyPlan().catch(() => null),
         ]);
         setStats(statsData);
         setEvents(eventsData);
+        setPlanData(plan);
       } catch (e) {
         console.error(e);
       } finally {
@@ -68,9 +71,11 @@ export default function AdminPage() {
           <div className="flex items-center gap-3">
             {user && (
               <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
-                <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300">
+                <Link href="/account"
+                  className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300 hover:bg-violet-600/50 transition"
+                  title="Account settings">
                   {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
-                </div>
+                </Link>
                 <span>{user.name || user.email}</span>
               </div>
             )}
@@ -94,6 +99,46 @@ export default function AdminPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* Plan usage banner */}
+        {planData && (() => {
+          const usage = planData.usage as Record<string, number>;
+          const plan = planData.plan as string;
+          const eventLimit = usage?.eventLimit;
+          const eventsUsed = usage?.eventsThisMonth || 0;
+          const nearLimit = eventLimit !== -1 && eventsUsed >= (eventLimit * 0.8);
+          const atLimit = eventLimit !== -1 && eventsUsed >= eventLimit;
+
+          if (plan === 'free' || nearLimit || atLimit) {
+            return (
+              <div className={`mb-6 flex items-center justify-between gap-4 px-5 py-3.5 rounded-xl border text-sm ${
+                atLimit
+                  ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                  : nearLimit
+                  ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
+                  : 'bg-violet-500/10 border-violet-500/30 text-violet-300'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {atLimit ? <AlertTriangle className="w-4 h-4 flex-shrink-0" /> : <Crown className="w-4 h-4 flex-shrink-0" />}
+                  <span>
+                    {atLimit
+                      ? `You've reached your ${eventLimit}-event limit for this month.`
+                      : nearLimit
+                      ? `${eventsUsed} of ${eventLimit} events used this month.`
+                      : `Free plan: ${eventsUsed} of ${eventLimit} events used.`
+                    }
+                    {!atLimit && plan === 'free' && ' Upgrade for more.'}
+                  </span>
+                </div>
+                <Link href="/pricing" className="flex-shrink-0 bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg font-medium transition">
+                  Upgrade →
+                </Link>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         {/* Stat cards */}
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
