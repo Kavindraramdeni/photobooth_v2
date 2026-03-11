@@ -74,7 +74,7 @@ export function CountdownScreen() {
           setScreen('preview');
 
         } else if (isBurst) {
-          result = await createBurst(frames, event.id);
+          result = await createBurst(frames, event.id, undefined);
           setCurrentPhoto({ ...result.gif, mode: 'gif', capturedFrames: previews });
           setScreen('preview');
         }
