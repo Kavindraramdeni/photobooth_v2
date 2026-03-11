@@ -247,3 +247,47 @@ export async function getPhotoCount(eventId: string): Promise<number> {
   const res = await api.get(`/photos/event/${eventId}/count`);
   return res.data.count ?? 0;
 }
+
+// ─── Webhook test ─────────────────────────────────────────────────────────
+
+export async function testWebhook(eventId: string, url: string) {
+  const res = await api.post(`/events/${eventId}/webhook-test`, { url });
+  return res.data;
+}
+
+// ─── Analytics export ─────────────────────────────────────────────────────
+
+export async function getEventAnalytics(eventId: string, days = 30) {
+  const res = await api.get(`/events/${eventId}/analytics?days=${days}`);
+  return res.data;
+}
+
+export function exportAnalyticsCSV(rows: Record<string, unknown>[], eventName: string) {
+  if (!rows?.length) return;
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.join(','),
+    ...rows.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')),
+  ].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eventName.replace(/\s+/g, '_')}_analytics.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Share by email / SMS ─────────────────────────────────────────────────
+
+export async function sharePhotoByEmail(photoId: string, toEmail: string) {
+  const res = await api.post('/share/email', { photoId, toEmail });
+  return res.data;
+}
+
+export async function sharePhotoBySMS(photoId: string, toPhone: string) {
+  const res = await api.post('/share/sms', { photoId, toPhone });
+  return res.data;
+}
