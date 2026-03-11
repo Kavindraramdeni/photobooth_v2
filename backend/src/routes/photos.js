@@ -54,7 +54,7 @@ const upload = multer({
  * POST /api/photos/upload
  * Upload a photo, apply branding, generate QR
  */
-router.post('/upload', requireAuth, checkPhotoLimit, upload.single('photo'), async (req, res) => {
+router.post('/upload', upload.single('photo'), async (req, res) => {
   try {
     const { eventId, mode = 'single', sessionId } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
@@ -68,6 +68,29 @@ router.post('/upload', requireAuth, checkPhotoLimit, upload.single('photo'), asy
       .single();
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    // Check photo limit using event's owner (not the guest)
+    if (event.owner_id) {
+      const { getUserPlanFeatures } = require('../middleware/planEnforcement');
+      const { features } = await getUserPlanFeatures(event.owner_id);
+      if (features.photoLimit !== -1) {
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const { data: ownerEvents } = await supabase.from('events').select('id').eq('owner_id', event.owner_id);
+        const ownerEventIds = (ownerEvents || []).map(e => e.id);
+        if (ownerEventIds.length > 0) {
+          const { count } = await supabase.from('photos')
+            .select('id', { count: 'exact', head: true })
+            .in('event_id', ownerEventIds)
+            .gte('created_at', monthStart);
+          if ((count || 0) >= features.photoLimit) {
+            return res.status(403).json({
+              error: `Monthly photo limit reached. The event owner needs to upgrade their plan.`,
+              upgradeUrl: '/pricing',
+            });
+          }
+        }
+      }
+    }
 
     const photoId = uuidv4();
     const timestamp = Date.now();
@@ -165,7 +188,7 @@ router.post('/upload', requireAuth, checkPhotoLimit, upload.single('photo'), asy
  * POST /api/photos/gif
  * Create GIF or Boomerang from multiple frames
  */
-router.post('/gif', requireAuth, requireFeature('gifBoomerang'), checkPhotoLimit, upload.array('frames', 10), async (req, res) => {
+router.post('/gif', upload.array('frames', 10), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
     if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
@@ -226,7 +249,7 @@ router.post('/gif', requireAuth, requireFeature('gifBoomerang'), checkPhotoLimit
  * POST /api/photos/strip
  * Create a 4-photo strip
  */
-router.post('/strip', requireAuth, requireFeature('stripMode'), checkPhotoLimit, upload.array('photos', 4), async (req, res) => {
+router.post('/strip', upload.array('photos', 4), async (req, res) => {
   try {
     const { eventId } = req.body;
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -491,3 +514,51 @@ router.get('/event/:eventId/zip', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * POST /api/photos/burst
+ * Accept multiple burst frames, store them individually
+ */
+router.post('/burst', upload.fields([
+  { name: 'frame_0' }, { name: 'frame_1' }, { name: 'frame_2' },
+  { name: 'frame_3' }, { name: 'frame_4' }, { name: 'frame_5' },
+  { name: 'frame_6' }, { name: 'frame_7' }, { name: 'frame_8' }, { name: 'frame_9' },
+]), async (req, res) => {
+  try {
+    const { eventId, sessionId } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
+
+    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const files = req.files || {};
+    const uploadedPhotos = [];
+
+    for (let i = 0; i < 10; i++) {
+      const fileArr = files[`frame_${i}`];
+      if (!fileArr || !fileArr[0]) continue;
+      const file = fileArr[0];
+      const photoId = require('uuid').v4();
+      const storageKey = `events/${eventId}/burst/${photoId}.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('photos')
+        .upload(storageKey, file.buffer, { contentType: 'image/jpeg', upsert: false });
+      if (uploadError) continue;
+
+      const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(storageKey);
+      const shortCode = require('nanoid').nanoid(6);
+
+      const { data: photo } = await supabase.from('photos').insert({
+        id: photoId, event_id: eventId, session_id: sessionId,
+        url: publicUrl, mode: 'burst', short_code: shortCode,
+      }).select().single();
+
+      if (photo) uploadedPhotos.push(photo);
+    }
+
+    res.json({ photos: uploadedPhotos, count: uploadedPhotos.length });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
