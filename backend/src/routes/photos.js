@@ -9,6 +9,8 @@ const { applyBrandingOverlay, createPhotoStrip } = require('../services/imagePro
 const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode, generateStoriesImage } = require('../services/sharing');
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
+const { checkPhotoLimit, requireFeature } = require('../middleware/planEnforcement');
 
 // ─── Webhook helper ───────────────────────────────────────────────────────────
 async function fireWebhook(event, payload) {
@@ -52,7 +54,7 @@ const upload = multer({
  * POST /api/photos/upload
  * Upload a photo, apply branding, generate QR
  */
-router.post('/upload', upload.single('photo'), async (req, res) => {
+router.post('/upload', requireAuth, checkPhotoLimit, upload.single('photo'), async (req, res) => {
   try {
     const { eventId, mode = 'single', sessionId } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
@@ -163,7 +165,7 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
  * POST /api/photos/gif
  * Create GIF or Boomerang from multiple frames
  */
-router.post('/gif', upload.array('frames', 10), async (req, res) => {
+router.post('/gif', requireAuth, requireFeature('gifBoomerang'), checkPhotoLimit, upload.array('frames', 10), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
     if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
@@ -224,7 +226,7 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
  * POST /api/photos/strip
  * Create a 4-photo strip
  */
-router.post('/strip', upload.array('photos', 4), async (req, res) => {
+router.post('/strip', requireAuth, requireFeature('stripMode'), checkPhotoLimit, upload.array('photos', 4), async (req, res) => {
   try {
     const { eventId } = req.body;
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
