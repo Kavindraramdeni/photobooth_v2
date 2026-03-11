@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'react-hot-toast';
+import { AuthProvider } from '@/contexts/AuthContext';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -31,14 +32,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className="bg-[#0a0a0f] text-white antialiased">
-        {children}
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            style: { background: '#1a1a2e', color: '#fff', border: '1px solid #4a4a7a' },
-            duration: 3000,
-          }}
-        />
+        <AuthProvider>
+          {children}
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              style: { background: '#1a1a2e', color: '#fff', border: '1px solid #4a4a7a' },
+              duration: 3000,
+            }}
+          />
+        </AuthProvider>
       </body>
     </html>
   );
