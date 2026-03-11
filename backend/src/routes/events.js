@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const supabase = require('../services/database');
 const requireAuth = require('../middleware/requireAuth');
+const { checkEventLimit } = require('../middleware/planEnforcement');
 
 /**
  * Generate a URL-safe slug from event name
@@ -66,7 +67,7 @@ router.get('/:id', requireAuth, async (req, res) => {
  * POST /api/events
  * Create a new event
  */
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, checkEventLimit, async (req, res) => {
   try {
     const {
       name,
