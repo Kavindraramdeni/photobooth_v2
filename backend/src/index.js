@@ -47,6 +47,7 @@ function safeRoute(name, path) {
 
 app.use('/api/photos',    safeRoute('photos',    './routes/photos'));
 app.use('/api/events',    safeRoute('events',    './routes/events'));
+app.use('/api/auth',      safeRoute('auth',      './routes/auth'));
 app.use('/api/ai',        safeRoute('ai',        './routes/ai'));
 app.use('/api/analytics', safeRoute('analytics', './routes/analytics'));
 app.use('/api/share',     safeRoute('share',     './routes/share'));
