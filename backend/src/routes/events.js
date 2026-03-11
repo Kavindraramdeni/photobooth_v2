@@ -41,9 +41,9 @@ router.get('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/events/:id
- * Get single event details (must be owner)
+ * Get single event details — PUBLIC (booth needs this without a token)
  */
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const param = req.params.id;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param);
@@ -309,3 +309,28 @@ router.post('/:id/webhook-test', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * GET /api/events/:id/qr
+ * Return QR code data for a booth event (URL + slug for the booth link)
+ */
+router.get('/:id/qr', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, slug, name')
+      .or(`id.eq.${id},slug.eq.${id}`)
+      .single();
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const boothUrl = `${frontendUrl}/booth?event=${event.slug || event.id}`;
+    const galleryUrl = `${frontendUrl}/gallery/${event.slug || event.id}`;
+
+    res.json({ boothUrl, galleryUrl, slug: event.slug, name: event.name });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
