@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 import {
-  User, Mail, Lock, CreditCard, Camera, ArrowLeft,
+  User, Mail, Lock, Camera, ArrowLeft,
   Loader2, Crown, Zap, CheckCircle, AlertTriangle, ExternalLink
 } from 'lucide-react';
 
@@ -67,7 +67,7 @@ export default function AccountPage() {
     if (!user && typeof window !== 'undefined') router.push('/login?from=/account');
   }, [user, router]);
 
-  async function saveProfile(e: React.FormEvent) {
+  async function saveProfile(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     setSavingProfile(true);
@@ -85,7 +85,7 @@ export default function AccountPage() {
     }
   }
 
-  async function savePassword(e: React.FormEvent) {
+  async function savePassword(e: FormEvent) {
     e.preventDefault();
     if (newPassword !== confirmPassword) { toast.error('Passwords do not match'); return; }
     if (newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return; }
