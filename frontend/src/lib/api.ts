@@ -232,3 +232,79 @@ export async function getPhotoCount(eventId: string): Promise<number> {
   const res = await api.get(`/photos/event/${eventId}/count`);
   return res.data.count ?? 0;
 }
+// ─── Gallery ──────────────────────────────────────────────────────────────
+
+export async function verifyGalleryPassword(eventId: string, password: string): Promise<boolean> {
+  try {
+    const res = await api.post(`/events/${eventId}/gallery-auth`, { password });
+    return res.data.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Event Analytics ──────────────────────────────────────────────────────
+
+export async function getEventAnalytics(eventId: string, days = 30) {
+  const res = await api.get(`/analytics/event/${eventId}?days=${days}`);
+  return res.data;
+}
+
+export function exportAnalyticsCSV(
+  rows: { action: string; metadata: Record<string, unknown>; created_at: string }[],
+  eventName: string
+) {
+  const headers = ['Action', 'Mode', 'Details', 'Date'];
+  const data = rows.map(r => [
+    r.action,
+    (r.metadata?.mode as string) || '',
+    JSON.stringify(r.metadata).replace(/"/g, "'"),
+    new Date(r.created_at).toLocaleString(),
+  ]);
+  const csv = [headers, ...data]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eventName.replace(/\s+/g, '_')}_analytics.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Webhook test ─────────────────────────────────────────────────────────
+
+export async function testWebhook(eventId: string, webhookUrl: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const res = await api.post(`/events/${eventId}/webhook-test`, { webhookUrl });
+    return res.data;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Request failed';
+    return { ok: false, error: msg };
+  }
+}
+
+// ─── Share ────────────────────────────────────────────────────────────────
+
+export async function sharePhotoByEmail(photoId: string, email: string, eventId: string) {
+  const res = await api.post('/photos/share/email', { photoId, email, eventId });
+  return res.data;
+}
+
+export async function sharePhotoBySMS(photoId: string, phone: string, eventId: string) {
+  const res = await api.post('/photos/share/sms', { photoId, phone, eventId });
+  return res.data;
+}
+
+// ─── Burst ────────────────────────────────────────────────────────────────
+
+export async function createBurst(frames: Blob[], eventId: string) {
+  const form = new FormData();
+  frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
+  form.append('eventId', eventId);
+  const res = await api.post('/photos/burst', form);
+  return res.data;
+}
