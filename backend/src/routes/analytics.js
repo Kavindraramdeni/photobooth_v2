@@ -11,6 +11,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
 
 // ─── POST /track ─────────────────────────────────────────────────────────────
 
@@ -34,20 +35,36 @@ router.post('/track', async (req, res) => {
 
 // ─── GET /dashboard ───────────────────────────────────────────────────────────
 
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const { days = 30 } = req.query;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    const [eventsResult, photosResult, analyticsResult] = await Promise.all([
-      supabase.from('events').select('id, name, date, status').eq('status', 'active'),
-      supabase.from('photos').select('event_id, mode, created_at').gte('created_at', since),
-      supabase.from('analytics').select('event_id, action, created_at').gte('created_at', since),
+    // Only fetch events owned by the authenticated user
+    const eventsResult = await supabase
+      .from('events')
+      .select('id, name, date, status')
+      .eq('owner_id', req.user.id)
+      .eq('status', 'active');
+
+    const events = eventsResult.data || [];
+    const eventIds = events.map(e => e.id);
+
+    if (eventIds.length === 0) {
+      return res.json({
+        summary: { totalEvents: 0, totalPhotos: 0, totalGIFs: 0, totalAI: 0, totalShares: 0, totalPrints: 0 },
+        dailyStats: [],
+        eventStats: [],
+      });
+    }
+
+    const [photosResult, analyticsResult] = await Promise.all([
+      supabase.from('photos').select('event_id, mode, created_at').in('event_id', eventIds).gte('created_at', since),
+      supabase.from('analytics').select('event_id, action, created_at').in('event_id', eventIds).gte('created_at', since),
     ]);
 
     const photos    = photosResult.data    || [];
     const analytics = analyticsResult.data || [];
-    const events    = eventsResult.data    || [];
 
     const dailyStats = {};
     photos.forEach(p => {
