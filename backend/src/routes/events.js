@@ -3,344 +3,302 @@ const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const supabase = require('../services/database');
 
-/** Generate a URL-safe slug from event name */
+/**
+ * Generate a URL-safe slug from event name
+ */
 function generateSlug(name) {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
-    .trim()
-    .slice(0, 60);
+    .slice(0, 50) + '-' + Date.now().toString(36);
 }
 
-// ─── GET /events ──────────────────────────────────────────────────────────────
+/**
+ * GET /api/events
+ * List all events (admin)
+ */
 router.get('/', async (req, res) => {
   try {
     const { data: events, error } = await supabase
       .from('events')
-      .select('*, photos(count)')
-      .order('created_at', { ascending: false });
+      .select(`
+        id, name, slug, date, venue, status, created_at,
+        photos(count)
+      `)
+      .order('date', { ascending: false });
 
     if (error) throw error;
-
-    const enriched = (events || []).map(e => ({
-      ...e,
-      photoCount: e.photos?.[0]?.count || 0,
-    }));
-
-    res.json({ events: enriched });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ events });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ─── GET /events/:idOrSlug ────────────────────────────────────────────────────
-router.get('/:idOrSlug', async (req, res) => {
+/**
+ * GET /api/events/:id
+ * Get single event details
+ */
+router.get('/:id', async (req, res) => {
   try {
-    const { idOrSlug } = req.params;
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const param = req.params.id;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param);
 
-    const query = supabase.from('events').select('*');
-    const { data: event, error } = isUUID
-      ? await query.eq('id', idOrSlug).single()
-      : await query.eq('slug', idOrSlug).single();
+    let query = supabase.from('events').select('*');
+    if (isUUID) {
+      query = query.eq('id', param);
+    } else {
+      query = query.eq('slug', param);
+    }
 
+    const { data: event, error } = await query.single();
     if (error || !event) return res.status(404).json({ error: 'Event not found' });
     res.json({ event });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ─── POST /events ─────────────────────────────────────────────────────────────
+/**
+ * POST /api/events
+ * Create a new event
+ */
 router.post('/', async (req, res) => {
   try {
     const {
-      name, date, venue, clientName, clientEmail,
-      guestCount, notes, branding = {}, settings = {},
+      name,
+      date,
+      venue,
+      clientName,
+      clientEmail,
+      branding = {},
+      settings = {},
     } = req.body;
 
-    if (!name || !date) return res.status(400).json({ error: 'name and date are required' });
+    if (!name || !date) {
+      return res.status(400).json({ error: 'Name and date are required' });
+    }
 
-    const baseSlug = generateSlug(name);
-    // Ensure slug uniqueness
-    const { data: existing } = await supabase
-      .from('events').select('slug').like('slug', `${baseSlug}%`);
-    const slug = (existing && existing.length > 0)
-      ? `${baseSlug}-${Date.now()}`
-      : baseSlug;
+    const eventId = uuidv4();
+    const slug = generateSlug(name);
+
+    // Default branding
+    const defaultBranding = {
+      eventName: name,
+      primaryColor: '#1a1a2e',
+      secondaryColor: '#ffffff',
+      footerText: name,
+      overlayText: '',
+      showDate: true,
+      template: 'classic',
+      logoUrl: null,
+      ...branding,
+    };
+
+    // Default settings
+    const defaultSettings = {
+      countdownSeconds: 3,
+      photosPerSession: 1,
+      allowRetakes: true,
+      allowAI: true,
+      allowGIF: true,
+      allowBoomerang: true,
+      allowPrint: true,
+      printCopies: 1,
+      aiStyles: ['anime', 'vintage', 'watercolor', 'cyberpunk', 'oilpainting', 'comic'],
+      sessionTimeout: 60, // seconds before reset
+      operatorPin: '1234',
+      ...settings,
+    };
 
     const { data: event, error } = await supabase
       .from('events')
       .insert({
-        id: uuidv4(),
+        id: eventId,
         name,
         slug,
         date,
         venue: venue || '',
         client_name: clientName || '',
         client_email: clientEmail || '',
-        guest_count: guestCount || null,
-        notes: notes || '',
+        branding: defaultBranding,
+        settings: defaultSettings,
         status: 'active',
-        branding: {
-          primaryColor: '#7c3aed',
-          showDate: true,
-          template: 'classic',
-          ...branding,
-        },
-        settings: {
-          countdownSeconds: 3,
-          sessionTimeout: 60,
-          allowAI: true,
-          allowGIF: true,
-          allowBoomerang: true,
-          allowPrint: true,
-          allowRetakes: true,
-          leadCapture: false,
-          operatorPin: '1234',
-          photosPerSession: 1,
-          printCopies: 1,
-          ...settings,
-        },
+        created_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (error) throw error;
-    res.status(201).json({ event });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    res.status(201).json({ success: true, event });
+  } catch (error) {
+    console.error('Event creation error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ─── PUT /events/:id ──────────────────────────────────────────────────────────
+/**
+ * PUT /api/events/:id
+ * Update event (branding, settings, etc.)
+ */
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, venue, date, branding, settings, status, notes, guestCount, clientName, clientEmail } = req.body;
-
-    const updates = {};
-    if (name !== undefined) updates.name = name;
-    if (venue !== undefined) updates.venue = venue;
-    if (date !== undefined) updates.date = date;
-    if (branding !== undefined) updates.branding = branding;
-    if (settings !== undefined) updates.settings = settings;
-    if (status !== undefined) updates.status = status;
-    if (notes !== undefined) updates.notes = notes;
-    if (guestCount !== undefined) updates.guest_count = guestCount;
-    if (clientName !== undefined) updates.client_name = clientName;
-    if (clientEmail !== undefined) updates.client_email = clientEmail;
-    updates.updated_at = new Date().toISOString();
+    const updates = req.body;
 
     const { data: event, error } = await supabase
       .from('events')
-      .update(updates)
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    res.json({ event });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ success: true, event });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ─── POST /events/:id/duplicate ───────────────────────────────────────────────
-router.post('/:id/duplicate', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { data: original, error: fetchErr } = await supabase
-      .from('events').select('*').eq('id', id).single();
-
-    if (fetchErr || !original) return res.status(404).json({ error: 'Event not found' });
-
-    const newName = `${original.name} (Copy)`;
-    const baseSlug = generateSlug(newName);
-
-    const { data: event, error } = await supabase
-      .from('events')
-      .insert({
-        id: uuidv4(),
-        name: newName,
-        slug: `${baseSlug}-${Date.now()}`,
-        date: original.date,
-        venue: original.venue,
-        client_name: original.client_name,
-        client_email: original.client_email,
-        guest_count: original.guest_count,
-        notes: original.notes,
-        status: 'inactive',  // duplicates start inactive
-        branding: original.branding,
-        settings: original.settings,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    res.status(201).json({ event });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ─── DELETE /events/:id ───────────────────────────────────────────────────────
+/**
+ * DELETE /api/events/:id
+ * Archive an event (soft delete)
+ */
 router.delete('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    // Cascade-delete photos first (if not using DB cascade)
-    await supabase.from('analytics').delete().eq('event_id', id);
-    await supabase.from('leads').delete().eq('event_id', id);
-    await supabase.from('photos').delete().eq('event_id', id);
-    const { error } = await supabase.from('events').delete().eq('id', id);
+    const { error } = await supabase
+      .from('events')
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+
     if (error) throw error;
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ─── GET /events/:id/stats ────────────────────────────────────────────────────
+/**
+ * GET /api/events/:id/stats
+ * Get analytics summary for an event
+ */
 router.get('/:id/stats', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [photosRes, analyticsRes] = await Promise.all([
+    const [photosResult, analyticsResult] = await Promise.all([
       supabase.from('photos').select('mode, created_at').eq('event_id', id),
-      supabase.from('analytics').select('action').eq('event_id', id),
+      supabase.from('analytics').select('action, created_at').eq('event_id', id),
     ]);
 
-    const photos    = photosRes.data    || [];
-    const analytics = analyticsRes.data || [];
+    const photos = photosResult.data || [];
+    const analytics = analyticsResult.data || [];
 
-    // Count unique session_ids from analytics to estimate sessions
     const stats = {
-      totalPhotos:     photos.filter(p => ['single', 'strip'].includes(p.mode)).length,
-      totalGIFs:       photos.filter(p => p.mode === 'gif').length,
-      totalBoomerangs: photos.filter(p => p.mode === 'boomerang').length,
-      totalStrips:     photos.filter(p => p.mode === 'strip').length,
-      totalAIGenerated:photos.filter(p => p.mode === 'ai').length,
-      totalShares:     analytics.filter(a => a.action === 'photo_shared').length,
-      totalPrints:     analytics.filter(a => a.action === 'photo_printed').length,
-      totalSessions:   analytics.filter(a => a.action === 'session_start').length,
+      totalPhotos: photos.filter((p) => p.mode === 'single').length,
+      totalGIFs: photos.filter((p) => p.mode === 'gif').length,
+      totalBoomerangs: photos.filter((p) => p.mode === 'boomerang').length,
+      totalStrips: photos.filter((p) => p.mode === 'strip').length,
+      totalAIGenerated: analytics.filter((a) => a.action === 'ai_generated').length,
+      totalShares: analytics.filter((a) => a.action === 'photo_shared').length,
+      totalPrints: analytics.filter((a) => a.action === 'photo_printed').length,
+      totalSessions: new Set(photos.map((p) => p.session_id)).size,
     };
 
     res.json({ stats });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ─── GET /events/:id/qr ───────────────────────────────────────────────────────
-router.get('/:idOrSlug/qr', async (req, res) => {
-  try {
-    const { idOrSlug } = req.params;
-    const { generateQRDataURL } = require('../services/sharing');
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://photobooth-v2-xi.vercel.app';
-    const boothUrl = `${FRONTEND_URL}/booth?event=${idOrSlug}`;
-    const qrDataUrl = await generateQRDataURL(boothUrl);
-    res.json({ qrDataUrl, boothUrl });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 /**
- * backend/src/routes/events.js — additions only
- * New endpoints:
- *   POST /api/events/:id/gallery-auth   — verify gallery password
- *   POST /api/events/:id/webhook-test   — fire test webhook payload
- *
-
-/**
- * POST /api/events/:id/gallery-auth
- * Verify a guest's gallery password.
- * Body: { password: string }
- * Returns: { ok: true } or 401
+ * GET /api/events/:id/analytics
+ * Return per-day breakdown for the last N days
  */
-router.post('/:id/gallery-auth', async (req, res) => {
+router.get('/:id/analytics', async (req, res) => {
   try {
-    const { password } = req.body;
-    if (!password) return res.status(400).json({ error: 'Password required' });
+    const { id } = req.params;
+    const days = parseInt(req.query.days || '30', 10);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: event } = await supabase
-      .from('events')
-      .select('settings')
-      .eq('id', req.params.id)
-      .single();
+    const [photosRes, analyticsRes] = await Promise.all([
+      supabase.from('photos').select('mode, created_at').eq('event_id', id).gte('created_at', since),
+      supabase.from('analytics').select('action, created_at').eq('event_id', id).gte('created_at', since),
+    ]);
 
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    const storedPw = event.settings?.galleryPassword;
-
-    // If no password set, allow everyone
-    if (!storedPw) return res.json({ ok: true });
-
-    if (password === storedPw) {
-      return res.json({ ok: true });
+    // Build day-by-day buckets
+    const buckets = {};
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      buckets[d] = { date: d, photos: 0, gifs: 0, boomerangs: 0, strips: 0, shares: 0, prints: 0 };
     }
 
-    return res.status(401).json({ ok: false, error: 'Incorrect password' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    (photosRes.data || []).forEach((p) => {
+      const d = p.created_at.slice(0, 10);
+      if (!buckets[d]) return;
+      if (p.mode === 'single') buckets[d].photos++;
+      else if (p.mode === 'gif') buckets[d].gifs++;
+      else if (p.mode === 'boomerang') buckets[d].boomerangs++;
+      else if (p.mode === 'strip') buckets[d].strips++;
+    });
+
+    (analyticsRes.data || []).forEach((a) => {
+      const d = a.created_at.slice(0, 10);
+      if (!buckets[d]) return;
+      if (a.action === 'photo_shared') buckets[d].shares++;
+      if (a.action === 'photo_printed') buckets[d].prints++;
+    });
+
+    res.json({ rows: Object.values(buckets) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
 /**
  * POST /api/events/:id/webhook-test
- * Fire a test webhook payload to the configured URL.
- * Body: { webhookUrl?: string } — if provided overrides stored URL for the test
+ * Send a test payload to the event's configured webhook URL
  */
 router.post('/:id/webhook-test', async (req, res) => {
   try {
-    const { data: event } = await supabase
-      .from('events')
-      .select('settings, name')
-      .eq('id', req.params.id)
-      .single();
+    const { id } = req.params;
+    const { url: overrideUrl } = req.body;
 
+    const { data: event } = await supabase.from('events').select('id, name, settings').eq('id', id).single();
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    const webhookUrl    = req.body.webhookUrl || event.settings?.webhookUrl;
-    const webhookSecret = event.settings?.webhookSecret || '';
-
+    const webhookUrl = overrideUrl || event?.settings?.webhookUrl;
     if (!webhookUrl) return res.status(400).json({ error: 'No webhook URL configured' });
 
-    const payload = {
-      event: 'photo.taken',
-      test: true,
-      photoId: uuidv4(),
-      photoUrl: 'https://example.com/test-photo.jpg',
-      galleryUrl: 'https://example.com/p/abc123',
-      mode: 'single',
-      eventName: event.name,
-      eventId: req.params.id,
+    const payload = JSON.stringify({
+      trigger: 'webhook.test',
+      event_id: event.id,
+      event_name: event.name,
+      message: 'This is a test webhook from SnapBooth AI 🎉',
       timestamp: new Date().toISOString(),
-    };
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'SnapBooth/2.0',
-    };
-    if (webhookSecret) {
-      headers['X-SnapBooth-Secret'] = webhookSecret;
-    }
-
-    const hookRes = await fetch(webhookUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
     });
 
-    if (hookRes.ok || (hookRes.status >= 200 && hookRes.status < 300)) {
-      res.json({ ok: true, status: hookRes.status });
-    } else {
-      res.json({ ok: false, status: hookRes.status, error: `Webhook returned HTTP ${hookRes.status}` });
+    const headers = { 'Content-Type': 'application/json' };
+    if (event?.settings?.webhookSecret) {
+      const crypto = require('crypto');
+      headers['X-SnapBooth-Signature'] = crypto
+        .createHmac('sha256', event.settings.webhookSecret)
+        .update(payload)
+        .digest('hex');
     }
-  } catch (err) {
-    res.json({ ok: false, error: err.message });
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: payload,
+      signal: AbortSignal.timeout(8000),
+    });
+
+    res.json({ success: response.ok, status: response.status });
+  } catch (error) {
+    res.status(200).json({ success: false, error: error.message });
   }
 });
 
