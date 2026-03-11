@@ -18,16 +18,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// If 401, clear session and redirect to login
+// If 401, clear session and redirect to login — but NOT on booth/gallery/p pages
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('sb_access_token');
-      localStorage.removeItem('sb_refresh_token');
-      localStorage.removeItem('sb_user');
-      document.cookie = 'sb_access_token=; path=/; max-age=0';
-      window.location.href = '/login';
+      const path = window.location.pathname;
+      const isPublicRoute = path.startsWith('/booth') || path.startsWith('/gallery') || path.startsWith('/p/') || path === '/';
+      if (!isPublicRoute) {
+        localStorage.removeItem('sb_access_token');
+        localStorage.removeItem('sb_refresh_token');
+        localStorage.removeItem('sb_user');
+        document.cookie = 'sb_access_token=; path=/; max-age=0';
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -289,5 +293,19 @@ export async function sharePhotoByEmail(photoId: string, toEmail: string) {
 
 export async function sharePhotoBySMS(photoId: string, toPhone: string) {
   const res = await api.post('/share/sms', { photoId, toPhone });
+  return res.data;
+}
+
+// ─── Burst mode (rapid-fire photos) ──────────────────────────────────────
+
+export async function createBurst(frames: Blob[], eventId: string, sessionId: string) {
+  const form = new FormData();
+  frames.forEach((f, i) => form.append(`frame_${i}`, f, `burst_${i}.jpg`));
+  form.append('eventId', eventId);
+  form.append('sessionId', sessionId);
+  form.append('mode', 'burst');
+  const res = await api.post('/photos/burst', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return res.data;
 }
