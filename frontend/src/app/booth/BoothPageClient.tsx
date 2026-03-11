@@ -6,6 +6,7 @@ import { getEvent } from '@/lib/api';
 import { BoothMain } from '@/components/booth/BoothMain';
 import { BoothGuard } from '@/components/booth/BoothGuard';
 import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary';
+import { BoothPIN } from '@/components/booth/BoothPIN';
 import { motion } from 'framer-motion';
 import { Camera, Sparkles } from 'lucide-react';
 
@@ -17,14 +18,11 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
   const { event, setEvent } = useBoothStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pinUnlocked, setPinUnlocked] = useState(false);
 
   useEffect(() => {
     async function loadEvent() {
-      if (!eventSlug) {
-        setLoading(false);
-        return;
-      }
-
+      if (!eventSlug) { setLoading(false); return; }
       try {
         const eventData = await getEvent(eventSlug);
         setEvent(eventData);
@@ -34,7 +32,6 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
         setLoading(false);
       }
     }
-
     loadEvent();
   }, [eventSlug, setEvent]);
 
@@ -56,16 +53,25 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
           <Camera className="w-20 h-20 text-purple-400 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-white mb-3">Oops!</h2>
           <p className="text-white/60 mb-6">{error}</p>
-          <p className="text-sm text-white/40">
-            URL format: /booth?event=your-event-slug
-          </p>
+          <p className="text-sm text-white/40">URL format: /booth?event=your-event-slug</p>
         </div>
       </div>
     );
   }
 
-  if (!event && !eventSlug) {
-    return <DemoMode />;
+  if (!event && !eventSlug) return <DemoMode />;
+
+  // Show PIN screen if event has a PIN set and not yet unlocked
+  const operatorPin = (event?.settings as Record<string, unknown>)?.operatorPin as string | undefined;
+  if (event && operatorPin && operatorPin.length > 0 && !pinUnlocked) {
+    return (
+      <BoothPIN
+        correctPin={operatorPin}
+        eventName={event.name as string}
+        brandColor={(event?.branding as Record<string, unknown>)?.primaryColor as string | undefined}
+        onUnlocked={() => setPinUnlocked(true)}
+      />
+    );
   }
 
   return (
