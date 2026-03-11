@@ -10,6 +10,31 @@ const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShor
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
 
+// ─── Webhook helper ───────────────────────────────────────────────────────────
+async function fireWebhook(event, payload) {
+  const webhookUrl = event?.settings?.webhookUrl;
+  if (!webhookUrl) return;
+  try {
+    const body = JSON.stringify({
+      ...payload,
+      event_id: event.id,
+      event_name: event.name,
+      timestamp: new Date().toISOString(),
+    });
+    const headers = { 'Content-Type': 'application/json' };
+    if (event?.settings?.webhookSecret) {
+      const crypto = require('crypto');
+      headers['X-SnapBooth-Signature'] = crypto
+        .createHmac('sha256', event.settings.webhookSecret)
+        .update(body)
+        .digest('hex');
+    }
+    await fetch(webhookUrl, { method: 'POST', headers, body, signal: AbortSignal.timeout(5000) });
+  } catch (err) {
+    console.warn('Webhook fire failed:', err.message);
+  }
+}
+
 // Multer: memory storage for direct processing
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -108,6 +133,12 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
       galleryUrl,
       mode,
       timestamp: new Date().toISOString(),
+    });
+
+    // Fire webhook (non-blocking)
+    fireWebhook(event, {
+      trigger: 'photo.created',
+      photo: { id: photoId, url: photoUrl, thumbUrl, galleryUrl, mode },
     });
 
     res.json({
