@@ -298,7 +298,8 @@ export async function sharePhotoBySMS(photoId: string, toPhone: string) {
 
 // ─── Burst mode (rapid-fire photos) ──────────────────────────────────────
 
-export async function createBurst(frames: Blob[], eventId: string, sessionId: string) {
+// Change this line in createBurst:
+export async function createBurst(frames: Blob[], eventId: string, sessionId?: string) {
   const form = new FormData();
   frames.forEach((f, i) => form.append(`frame_${i}`, f, `burst_${i}.jpg`));
   form.append('eventId', eventId);
