@@ -2,6 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
 
 /**
  * Generate a URL-safe slug from event name
@@ -17,9 +18,9 @@ function generateSlug(name) {
 
 /**
  * GET /api/events
- * List all events (admin)
+ * List all events for the authenticated user
  */
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { data: events, error } = await supabase
       .from('events')
@@ -27,6 +28,7 @@ router.get('/', async (req, res) => {
         id, name, slug, date, venue, status, created_at,
         photos(count)
       `)
+      .eq('owner_id', req.user.id)
       .order('date', { ascending: false });
 
     if (error) throw error;
@@ -38,9 +40,9 @@ router.get('/', async (req, res) => {
 
 /**
  * GET /api/events/:id
- * Get single event details
+ * Get single event details (must be owner)
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const param = req.params.id;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param);
@@ -64,7 +66,7 @@ router.get('/:id', async (req, res) => {
  * POST /api/events
  * Create a new event
  */
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const {
       name,
@@ -125,6 +127,7 @@ router.post('/', async (req, res) => {
         branding: defaultBranding,
         settings: defaultSettings,
         status: 'active',
+        owner_id: req.user.id,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -143,7 +146,7 @@ router.post('/', async (req, res) => {
  * PUT /api/events/:id
  * Update event (branding, settings, etc.)
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -152,6 +155,7 @@ router.put('/:id', async (req, res) => {
       .from('events')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('owner_id', req.user.id)
       .select()
       .single();
 
@@ -166,12 +170,13 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/events/:id
  * Archive an event (soft delete)
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { error } = await supabase
       .from('events')
       .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('owner_id', req.user.id);
 
     if (error) throw error;
     res.json({ success: true });
