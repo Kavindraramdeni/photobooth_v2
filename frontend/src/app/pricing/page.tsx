@@ -269,7 +269,7 @@ export default function PricingPage() {
                       plan.features.analytics ? 'Analytics dashboard' : null,
                       plan.features.white_label ? 'White-label' : null,
                       !plan.features.ai_filters ? '— No AI filters' : null,
-                    ].filter(Boolean).slice(0, 5).map(f => (
+                    ].filter((f): f is string => Boolean(f)).slice(0, 5).map(f => (
                       <li key={f as string} className={`flex items-center gap-2 ${(f as string).startsWith('—') ? 'text-white/20' : 'text-white/60'}`}>
                         {!(f as string).startsWith('—') && <span className="text-violet-400 text-xs">→</span>}
                         <span>{f}</span>
