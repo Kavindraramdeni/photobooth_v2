@@ -46,6 +46,7 @@ function safeRoute(name, path) {
 }
 
 app.use('/api/photos',    safeRoute('photos',    './routes/photos'));
+app.use('/api/photos/share', safeRoute('share', './routes/share')); // alias for frontend calls
 app.use('/api/events',    safeRoute('events',    './routes/events'));
 app.use('/api/auth',      safeRoute('auth',      './routes/auth'));
 app.use('/api/ai',        safeRoute('ai',        './routes/ai'));
