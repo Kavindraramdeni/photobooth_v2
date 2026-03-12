@@ -179,7 +179,7 @@ export default function HomePage() {
               Start for free
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <Link href="/booth"
+            <Link href="/booth?event=snapbooth-demo"
               className="flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/10 text-white font-medium px-8 py-4 rounded-xl transition-all text-base">
               <Play className="w-4 h-4 fill-current" />
               See live demo
@@ -344,7 +344,7 @@ export default function HomePage() {
           <div className="flex items-center gap-8 text-white/25 text-sm">
             <Link href="/pricing"      className="hover:text-white/60 transition">Pricing</Link>
             <Link href="/admin"        className="hover:text-white/60 transition">Dashboard</Link>
-            <Link href="/booth"        className="hover:text-white/60 transition">Live Demo</Link>
+            <Link href="/booth?event=snapbooth-demo"        className="hover:text-white/60 transition">Live Demo</Link>
             <Link href="/login"        className="hover:text-white/60 transition">Sign in</Link>
             <Link href="/signup"       className="hover:text-white/60 transition">Sign up</Link>
           </div>
