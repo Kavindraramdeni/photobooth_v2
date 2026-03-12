@@ -11,21 +11,19 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('sb_access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    if (token) config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// If 401, clear session and redirect to login — but NOT on booth/gallery/p pages
+// 401 → clear session and redirect to login (only on protected pages)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       const path = window.location.pathname;
-      const isPublicRoute = path.startsWith('/booth') || path.startsWith('/gallery') || path.startsWith('/p/') || path === '/';
-      if (!isPublicRoute) {
+      const isPublic = path.startsWith('/booth') || path.startsWith('/gallery') || path.startsWith('/p/') || path === '/';
+      if (!isPublic) {
         localStorage.removeItem('sb_access_token');
         localStorage.removeItem('sb_refresh_token');
         localStorage.removeItem('sb_user');
@@ -55,6 +53,15 @@ export async function createGIF(frames: Blob[], eventId: string, type: 'gif' | '
   form.append('eventId', eventId);
   form.append('type', type);
   const res = await api.post('/photos/gif', form);
+  return res.data;
+}
+
+export async function createBurst(frames: Blob[], eventId: string, sessionId?: string) {
+  const form = new FormData();
+  frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
+  form.append('eventId', eventId);
+  if (sessionId) form.append('sessionId', sessionId);
+  const res = await api.post('/photos/burst', form);
   return res.data;
 }
 
@@ -88,6 +95,11 @@ export async function downloadPhotosZip(eventId: string, eventName: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export async function getPhotoCount(eventId: string): Promise<number> {
+  const res = await api.get(`/photos/event/${eventId}/count`);
+  return res.data.count ?? 0;
 }
 
 // ─── AI ────────────────────────────────────────────────────────────────────
@@ -147,6 +159,30 @@ export async function getEventQR(idOrSlug: string) {
   return res.data;
 }
 
+export async function testWebhook(
+  eventId: string,
+  webhookUrl: string
+): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const res = await api.post(`/events/${eventId}/webhook-test`, { webhookUrl });
+    return res.data;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Request failed';
+    return { ok: false, error: msg };
+  }
+}
+
+// ─── Gallery ───────────────────────────────────────────────────────────────
+
+export async function verifyGalleryPassword(eventId: string, password: string): Promise<boolean> {
+  try {
+    const res = await api.post(`/events/${eventId}/gallery-auth`, { password });
+    return res.data.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Analytics ─────────────────────────────────────────────────────────────
 
 export async function trackAction(eventId: string, action: string, metadata = {}) {
@@ -162,19 +198,34 @@ export async function getDashboardStats(days = 30) {
   return res.data;
 }
 
-export async function getMyPlan() {
-  const res = await api.get('/billing/my-plan');
+export async function getEventAnalytics(eventId: string, days = 30) {
+  const res = await api.get(`/analytics/event/${eventId}?days=${days}`);
   return res.data;
 }
 
-export async function checkEventLimits() {
-  const res = await api.get('/billing/check-limits');
-  return res.data;
-}
-
-export async function openBillingPortal() {
-  const res = await api.post('/billing/portal');
-  return res.data;
+export function exportAnalyticsCSV(
+  rows: { action: string; metadata: Record<string, unknown>; created_at: string }[],
+  eventName: string
+) {
+  const headers = ['Action', 'Mode', 'Details', 'Date'];
+  const data = rows.map(r => [
+    r.action,
+    (r.metadata?.mode as string) || '',
+    JSON.stringify(r.metadata).replace(/"/g, "'"),
+    new Date(r.created_at).toLocaleString(),
+  ]);
+  const csv = [headers, ...data]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eventName.replace(/\s+/g, '_')}_analytics.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Diagnostics ───────────────────────────────────────────────────────────
@@ -208,7 +259,7 @@ export async function getEventPhotosWithHidden(eventId: string) {
   return res.data;
 }
 
-// ─── Leads ────────────────────────────────────────────────────────────────
+// ─── Leads ─────────────────────────────────────────────────────────────────
 
 export async function submitLead(data: {
   eventId: string; photoId?: string;
@@ -223,15 +274,13 @@ export async function getEventLeads(eventId: string) {
   return res.data;
 }
 
-export function exportLeadsCSV(leads: { email?: string; name?: string; phone?: string; created_at: string }[], eventName: string) {
+export function exportLeadsCSV(
+  leads: { email?: string; name?: string; phone?: string; created_at: string }[],
+  eventName: string
+) {
   const rows = [
     ['Name', 'Email', 'Phone', 'Captured At'],
-    ...leads.map(l => [
-      l.name || '',
-      l.email || '',
-      l.phone || '',
-      new Date(l.created_at).toLocaleString(),
-    ]),
+    ...leads.map(l => [l.name || '', l.email || '', l.phone || '', new Date(l.created_at).toLocaleString()]),
   ];
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -245,67 +294,31 @@ export function exportLeadsCSV(leads: { email?: string; name?: string; phone?: s
   URL.revokeObjectURL(url);
 }
 
-// ─── Photo count check ────────────────────────────────────────────────────
+// ─── Share ─────────────────────────────────────────────────────────────────
 
-export async function getPhotoCount(eventId: string): Promise<number> {
-  const res = await api.get(`/photos/event/${eventId}/count`);
-  return res.data.count ?? 0;
-}
-
-// ─── Webhook test ─────────────────────────────────────────────────────────
-
-export async function testWebhook(eventId: string, url: string) {
-  const res = await api.post(`/events/${eventId}/webhook-test`, { url });
+export async function sharePhotoByEmail(photoId: string, email: string, eventId: string) {
+  const res = await api.post('/photos/share/email', { photoId, email, eventId });
   return res.data;
 }
 
-// ─── Analytics export ─────────────────────────────────────────────────────
-
-export async function getEventAnalytics(eventId: string, days = 30) {
-  const res = await api.get(`/events/${eventId}/analytics?days=${days}`);
+export async function sharePhotoBySMS(photoId: string, phone: string, eventId: string) {
+  const res = await api.post('/photos/share/sms', { photoId, phone, eventId });
   return res.data;
 }
 
-export function exportAnalyticsCSV(rows: Record<string, unknown>[], eventName: string) {
-  if (!rows?.length) return;
-  const headers = Object.keys(rows[0]);
-  const csv = [
-    headers.join(','),
-    ...rows.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')),
-  ].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${eventName.replace(/\s+/g, '_')}_analytics.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+// ─── Billing / Plan ────────────────────────────────────────────────────────
 
-// ─── Share by email / SMS ─────────────────────────────────────────────────
-
-export async function sharePhotoByEmail(photoId: string, toEmail: string, eventId?: string) {
-  const res = await api.post('/share/email', { photoId, toEmail, eventId });
+export async function getMyPlan() {
+  const res = await api.get('/billing/my-plan');
   return res.data;
 }
 
-export async function sharePhotoBySMS(photoId: string, toPhone: string, eventId?: string) {
-  const res = await api.post('/share/sms', { photoId, toPhone, eventId });
+export async function checkEventLimits() {
+  const res = await api.get('/billing/check-limits');
   return res.data;
 }
 
-// ─── Burst mode (rapid-fire photos) ──────────────────────────────────────
-
-export async function createBurst(frames: Blob[], eventId: string, sessionId?: string) {
-  const form = new FormData();
-  frames.forEach((f, i) => form.append(`frame_${i}`, f, `burst_${i}.jpg`));
-  form.append('eventId', eventId);
-  if (sessionId) form.append('sessionId', sessionId);
-  form.append('mode', 'burst');
-  const res = await api.post('/photos/burst', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+export async function openBillingPortal() {
+  const res = await api.post('/billing/portal');
   return res.data;
 }
