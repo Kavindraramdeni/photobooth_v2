@@ -95,8 +95,8 @@ router.get('/:photoId', async (req, res) => {
 
 // ─── POST /api/share/email ────────────────────────────────────────────────────
 router.post('/email', async (req, res) => {
-  const { photoId, recipient, email } = req.body;
-  const recipient = recipient || email;
+  const { photoId, toEmail, email } = req.body;
+  const recipient = toEmail || email;
 
   if (!photoId || !recipient) return res.status(400).json({ error: 'photoId and email are required' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return res.status(400).json({ error: 'Invalid email address' });
@@ -191,8 +191,8 @@ router.post('/email', async (req, res) => {
 
 // ─── POST /api/share/sms ──────────────────────────────────────────────────────
 router.post('/sms', async (req, res) => {
-  const { photoId, recipient, phone } = req.body;
-  const recipient = recipient || phone;
+  const { photoId, toPhone, phone } = req.body;
+  const recipient = toPhone || phone;
 
   if (!photoId || !recipient) return res.status(400).json({ error: 'photoId and phone are required' });
 
