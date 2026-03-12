@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, createContext, useContext } from 'react';
+import { useRouter } from 'next/navigation';
 import { useBoothStore } from '@/lib/store';
 import { getEvent } from '@/lib/api';
 import { BoothMain } from '@/components/booth/BoothMain';
@@ -9,6 +10,12 @@ import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary';
 import { BoothPIN } from '@/components/booth/BoothPIN';
 import { motion } from 'framer-motion';
 import { Camera, Sparkles } from 'lucide-react';
+
+// Demo context — lets PreviewScreen know to show the trial CTA
+export const DemoContext = createContext(false);
+export const useIsDemo = () => useContext(DemoContext);
+
+const DEMO_EVENT_SLUG = process.env.NEXT_PUBLIC_DEMO_EVENT_SLUG || 'snapbooth-demo';
 
 interface BoothPageClientProps {
   eventSlug?: string;
@@ -19,10 +26,17 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pinUnlocked, setPinUnlocked] = useState(false);
+  const router = useRouter();
+
+  const isDemo = eventSlug === DEMO_EVENT_SLUG;
 
   useEffect(() => {
     async function loadEvent() {
-      if (!eventSlug) { setLoading(false); return; }
+      // No slug at all → redirect to the live demo event
+      if (!eventSlug) {
+        router.replace(`/booth?event=${DEMO_EVENT_SLUG}`);
+        return;
+      }
       try {
         const eventData = await getEvent(eventSlug);
         setEvent(eventData);
@@ -33,7 +47,7 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
       }
     }
     loadEvent();
-  }, [eventSlug, setEvent]);
+  }, [eventSlug, setEvent, router]);
 
   if (loading) {
     return (
@@ -53,13 +67,14 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
           <Camera className="w-20 h-20 text-purple-400 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-white mb-3">Oops!</h2>
           <p className="text-white/60 mb-6">{error}</p>
-          <p className="text-sm text-white/40">URL format: /booth?event=your-event-slug</p>
+          <a href={`/booth?event=${DEMO_EVENT_SLUG}`}
+            className="inline-block mt-2 px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold hover:bg-purple-500 transition">
+            Try the Demo Instead →
+          </a>
         </div>
       </div>
     );
   }
-
-  if (!event && !eventSlug) return <DemoMode />;
 
   // Show PIN screen if event has a PIN set and not yet unlocked
   const operatorPin = (event?.settings as Record<string, unknown>)?.operatorPin as string | undefined;
@@ -75,47 +90,12 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
   }
 
   return (
-    <BoothErrorBoundary>
-      <BoothGuard>
-        <BoothMain />
-      </BoothGuard>
-    </BoothErrorBoundary>
-  );
-}
-
-function DemoMode() {
-  return (
-    <div className="booth-container items-center justify-center p-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-md"
-      >
-        <div className="relative inline-block mb-8">
-          <div className="w-24 h-24 rounded-full ai-gradient flex items-center justify-center glow-purple">
-            <Camera className="w-12 h-12 text-white" />
-          </div>
-          <Sparkles className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 float-animation" />
-        </div>
-
-        <h1 className="text-4xl font-bold text-white mb-3">SnapBooth AI</h1>
-        <p className="text-white/60 text-lg mb-8">
-          Professional AI-powered photobooth for unforgettable events
-        </p>
-
-        <div className="bg-white/5 rounded-2xl p-6 text-left space-y-3 border border-white/10">
-          <p className="text-white/80 font-medium">To launch a booth:</p>
-          <code className="block bg-black/40 rounded-lg p-3 text-purple-300 text-sm">
-            /booth?event=your-event-slug
-          </code>
-          <p className="text-white/50 text-sm">
-            Create events in the{' '}
-            <a href="/admin" className="text-purple-400 underline">
-              Admin Dashboard
-            </a>
-          </p>
-        </div>
-      </motion.div>
-    </div>
+    <DemoContext.Provider value={isDemo}>
+      <BoothErrorBoundary>
+        <BoothGuard>
+          <BoothMain />
+        </BoothGuard>
+      </BoothErrorBoundary>
+    </DemoContext.Provider>
   );
 }
