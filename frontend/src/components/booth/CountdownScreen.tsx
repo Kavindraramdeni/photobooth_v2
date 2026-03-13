@@ -47,6 +47,43 @@ export function CountdownScreen() {
     return new Blob([u8arr], { type: mime });
   }, []);
 
+  // Composite captured frame with the event frame overlay (if set)
+  const compositeWithFrame = useCallback(async (blob: Blob): Promise<Blob> => {
+    const frameUrl = event?.branding?.frameUrl as string | null | undefined;
+    if (!frameUrl) return blob; // no overlay configured — return as-is
+
+    return new Promise((resolve) => {
+      const photo = new Image();
+      const frame = new Image();
+      frame.crossOrigin = 'anonymous';
+      photo.crossOrigin = 'anonymous';
+
+      photo.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = photo.naturalWidth;
+        canvas.height = photo.naturalHeight;
+        const ctx = canvas.getContext('2d')!;
+
+        // Draw webcam photo
+        ctx.drawImage(photo, 0, 0);
+
+        // Draw frame overlay on top (stretched to fill)
+        frame.onload = () => {
+          ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(
+            (composited) => resolve(composited || blob),
+            'image/jpeg',
+            0.92
+          );
+        };
+        frame.onerror = () => resolve(blob); // fallback: use original
+        frame.src = frameUrl;
+      };
+      photo.onerror = () => resolve(blob);
+      photo.src = URL.createObjectURL(blob);
+    });
+  }, [event?.branding?.frameUrl]);
+
   const processCaptures = useCallback(
     async (frames: Blob[]) => {
       setPhase('processing');
@@ -55,18 +92,21 @@ export function CountdownScreen() {
       try {
         if (!event) throw new Error('No event loaded');
 
+        // Apply frame overlay to every captured frame before upload
+        const composited = await Promise.all(frames.map(f => compositeWithFrame(f)));
+
         let result;
 
         if (mode === 'single') {
-          result = await uploadPhoto(frames[0], event.id, sessionId, 'single');
+          result = await uploadPhoto(composited[0], event.id, sessionId, 'single');
           setCurrentPhoto(result.photo);
           setScreen('preview');
         } else if (mode === 'strip') {
-          result = await createStrip(frames, event.id);
+          result = await createStrip(composited, event.id);
           setCurrentPhoto({ ...result.strip, mode: 'strip' });
           setScreen('preview');
         } else if (mode === 'gif' || mode === 'boomerang') {
-          result = await createGIF(frames, event.id, mode);
+          result = await createGIF(composited, event.id, mode);
           setCurrentPhoto({ ...result.gif, mode });
           setScreen('preview');
         }
@@ -79,7 +119,7 @@ export function CountdownScreen() {
         clearFrames();
       }
     },
-    [event, mode, sessionId, setCurrentPhoto, setScreen, setProcessing, clearFrames]
+    [event, mode, sessionId, setCurrentPhoto, setScreen, setProcessing, clearFrames, compositeWithFrame]
   );
 
   // Main countdown + capture logic — only fires once isCameraReady is true
