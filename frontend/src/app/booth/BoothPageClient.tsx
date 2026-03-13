@@ -7,7 +7,6 @@ import { getEvent } from '@/lib/api';
 import { BoothMain } from '@/components/booth/BoothMain';
 import { BoothGuard } from '@/components/booth/BoothGuard';
 import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary';
-import { BoothPIN } from '@/components/booth/BoothPIN';
 import { motion } from 'framer-motion';
 import { Camera, Sparkles } from 'lucide-react';
 
@@ -25,7 +24,6 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
   const { event, setEvent } = useBoothStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pinUnlocked, setPinUnlocked] = useState(false);
   const router = useRouter();
 
   const isDemo = eventSlug === DEMO_EVENT_SLUG;
@@ -73,19 +71,6 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
           </a>
         </div>
       </div>
-    );
-  }
-
-  // Show PIN screen if event has a PIN set and not yet unlocked
-  const operatorPin = (event?.settings as Record<string, unknown>)?.operatorPin as string | undefined;
-  if (event && operatorPin && operatorPin.length > 0 && !pinUnlocked) {
-    return (
-      <BoothPIN
-        correctPin={operatorPin}
-        eventName={event.name as string}
-        brandColor={(event?.branding as Record<string, unknown>)?.primaryColor as string | undefined}
-        onUnlocked={() => setPinUnlocked(true)}
-      />
     );
   }
 
