@@ -111,7 +111,7 @@ router.post('/', requireAuth, checkEventLimit, async (req, res) => {
       printCopies: 1,
       aiStyles: ['anime', 'vintage', 'watercolor', 'cyberpunk', 'oilpainting', 'comic'],
       sessionTimeout: 60, // seconds before reset
-      operatorPin: '1234',
+      operatorPin: '',
       ...settings,
     };
 
