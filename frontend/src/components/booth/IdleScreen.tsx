@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Image, Film, Zap, Settings, X, AlertCircle } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
+import { AttractScreenWrapper } from './AttractScreen';
 
 export function IdleScreen() {
   const { event, setScreen, setMode, resetSession } = useBoothStore();
@@ -105,6 +106,14 @@ export function IdleScreen() {
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-8 relative overflow-hidden select-none">
+
+      {/* Attract screen — shows after 60s of no interaction */}
+      <AttractScreenWrapper
+        eventName={eventName}
+        logoUrl={logoUrl}
+        primaryColor={primaryColor}
+        timeoutMs={120_000}
+      />
       {/* Background */}
       {idleMediaUrl ? (
         isVideo
