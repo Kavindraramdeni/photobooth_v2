@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
 
 // ─── GET /api/leads/event/:eventId ───────────────────────────────────────────
 
-router.get('/event/:eventId', async (req, res) => {
+router.get('/event/:eventId', requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('leads')
