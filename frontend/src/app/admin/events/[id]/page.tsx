@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getEvent, updateEvent, getEventPhotos, getEventStats, deletePhoto, downloadPhotosZip, pingBackend, hidePhoto, unhidePhoto, getEventLeads, exportLeadsCSV, getEventPhotosWithHidden, testWebhook, exportAnalyticsCSV, getEventAnalytics } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -314,6 +314,15 @@ export default function EventManagePage() {
   const router = useRouter();
   const eventId = params.id as string;
 
+  const searchParams = useSearchParams();
+  const isOperatorMode = searchParams.get('operator') === 'true';
+
+  // Operator PIN gate
+  const [operatorUnlocked, setOperatorUnlocked] = useState(false);
+  const [operatorPinInput, setOperatorPinInput] = useState('');
+  const [operatorPinError, setOperatorPinError] = useState(false);
+  const [operatorPinEvent, setOperatorPinEvent] = useState<{ name: string; settings: Record<string, unknown> } | null>(null);
+
   const [event, setEvent] = useState<EventData | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -332,6 +341,26 @@ export default function EventManagePage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingIdle, setUploadingIdle] = useState(false);
   const [uploadingFrame, setUploadingFrame] = useState(false);
+
+  // For operator mode: fetch just enough to show PIN gate
+  useEffect(() => {
+    if (!isOperatorMode) return;
+    getEvent(eventId)
+      .then(ev => setOperatorPinEvent({ name: ev.name, settings: ev.settings || {} }))
+      .catch(() => {});
+  }, [eventId, isOperatorMode]);
+
+  function handleOperatorPin() {
+    if (!operatorPinEvent) return;
+    const correctPin = operatorPinEvent.settings?.operatorPin as string;
+    if (!correctPin || operatorPinInput === correctPin) {
+      setOperatorUnlocked(true);
+    } else {
+      setOperatorPinError(true);
+      setOperatorPinInput('');
+      setTimeout(() => setOperatorPinError(false), 1500);
+    }
+  }
 
   useEffect(() => {
     async function load() {
