@@ -344,7 +344,7 @@ router.get('/event/:eventId/count', async (req, res) => {
  * Hide or unhide a photo (moderation queue)
  * Body: { is_hidden: boolean, reason?: string }
  */
-router.patch('/:photoId/moderate', async (req, res) => {
+router.patch('/:photoId/moderate', requireAuth, async (req, res) => {
   const { is_hidden, reason = '' } = req.body;
   if (typeof is_hidden !== 'boolean') {
     return res.status(400).json({ error: 'is_hidden (boolean) required' });
@@ -430,7 +430,7 @@ router.get('/:photoId/stories', async (req, res) => {
  * DELETE /api/photos/:photoId
  * Permanently delete a photo from DB and storage
  */
-router.delete('/:photoId', async (req, res) => {
+router.delete('/:photoId', requireAuth, async (req, res) => {
   try {
     const { photoId } = req.params;
 
@@ -469,7 +469,7 @@ router.delete('/:photoId', async (req, res) => {
  * GET /api/photos/event/:eventId/zip
  * Download all photos for an event as a ZIP
  */
-router.get('/event/:eventId/zip', async (req, res) => {
+router.get('/event/:eventId/zip', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const archiver = require('archiver');
