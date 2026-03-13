@@ -33,7 +33,20 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+// Global rate limit — 500 req / 15 min across all API routes
 app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 500 }));
+
+// Tight rate limit on auth endpoints — 10 attempts / 15 min per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many attempts, please try again in 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/signup', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 
 // ── Safe route loader ─────────────────────────────────────────────────────────
 const routeStatus = {};
@@ -105,11 +118,35 @@ async function seedDemoEvent() {
       .eq('slug', 'snapbooth-demo')
       .single();
 
-    if (existing) return;
+    if (existing) {
+      // If owner_id is null, patch it with the owner's user id
+      if (!existing.owner_id && process.env.OWNER_EMAIL) {
+        const { createClient } = require('@supabase/supabase-js');
+        const adminClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const { data: users } = await adminClient.auth.admin.listUsers();
+        const owner = users?.users?.find(u => u.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase());
+        if (owner) {
+          await supabase.from('events').update({ owner_id: owner.id }).eq('slug', 'snapbooth-demo');
+          console.log('🔧 Demo event owner_id patched');
+        }
+      }
+      return;
+    }
+
+    // Look up owner user id from OWNER_EMAIL
+    let ownerId = null;
+    if (process.env.OWNER_EMAIL) {
+      const { createClient } = require('@supabase/supabase-js');
+      const adminClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+      const { data: users } = await adminClient.auth.admin.listUsers();
+      const owner = users?.users?.find(u => u.email?.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase());
+      if (owner) ownerId = owner.id;
+    }
 
     await supabase.from('events').insert({
       name: 'SnapBooth Live Demo',
       slug: 'snapbooth-demo',
+      owner_id: ownerId,
       date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       venue: 'Live Demo',
       status: 'active',
