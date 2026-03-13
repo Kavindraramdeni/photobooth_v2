@@ -11,13 +11,25 @@ const httpServer = createServer(app);
 
 app.set('trust proxy', 1);
 
+// ── CORS origins ──────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://photobooth-v2-xi.vercel.app')
+  .split(',').map(o => o.trim()).filter(Boolean);
+
 const io = new Server(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
 });
 app.set('io', io);
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: (origin, cb) => cb(null, true), credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
@@ -61,7 +73,9 @@ app.get('/', (req, res) => res.json({ name: 'SnapBooth AI Backend', status: 'ok'
 app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.0.0', timestamp: new Date().toISOString() }));
 
 // Debug endpoint — shows which routes loaded OK vs failed
-app.get('/debug/routes', (req, res) => res.json(routeStatus));
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/debug/routes', (req, res) => res.json(routeStatus));
+}
 
 // Keep Render free tier awake (pings /health every 14 min)
 if (process.env.RENDER) {
@@ -97,7 +111,7 @@ async function seedDemoEvent() {
       name: 'SnapBooth Live Demo',
       slug: 'snapbooth-demo',
       date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      location: 'Live Demo',
+      venue: 'Live Demo',
       status: 'active',
       branding: {
         primaryColor: '#7c3aed',
