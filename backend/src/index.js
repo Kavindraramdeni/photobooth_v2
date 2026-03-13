@@ -80,3 +80,48 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => console.log(`🚀 SnapBooth Backend running on port ${PORT}`));
+
+// ─── Auto-seed demo event on startup ─────────────────────────────────────────
+async function seedDemoEvent() {
+  try {
+    const supabase = require('./services/database');
+    const { data: existing } = await supabase
+      .from('events')
+      .select('id')
+      .eq('slug', 'snapbooth-demo')
+      .single();
+
+    if (existing) return;
+
+    await supabase.from('events').insert({
+      name: 'SnapBooth Live Demo',
+      slug: 'snapbooth-demo',
+      date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      location: 'Live Demo',
+      status: 'active',
+      branding: {
+        primaryColor: '#7c3aed',
+        eventName: 'SnapBooth Demo',
+        overlayText: '✨ Powered by SnapBooth AI',
+      },
+      settings: {
+        operatorPin: '',
+        allowAI: true,
+        allowGIF: true,
+        allowBoomerang: true,
+        allowStrip: false,
+        allowPrint: false,
+        allowRetakes: true,
+        leadCapture: false,
+        autoGallery: true,
+        modes: ['single', 'gif', 'boomerang'],
+        countdownSeconds: 3,
+      },
+    });
+    console.log('🌱 Demo event created (slug: snapbooth-demo)');
+  } catch (e) {
+    console.warn('⚠️  Could not seed demo event:', e.message);
+  }
+}
+
+seedDemoEvent();
