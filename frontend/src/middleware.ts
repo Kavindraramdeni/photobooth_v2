@@ -3,16 +3,25 @@ import type { NextRequest } from 'next/server';
 
 /**
  * Protects all /admin routes.
- * Checks for sb_access_token cookie — if missing, redirects to /login.
- * Token is set by the frontend after successful login.
+ * Exception: /admin/events/[id]?operator=true — PIN verified client-side.
  */
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
 
-  // Protect /admin and /dashboard routes
-  if (pathname.startsWith('/admin') || pathname.startsWith('/dashboard') || pathname.startsWith('/account')) {
+  // Allow operator access to a specific event page (PIN verified client-side)
+  const isOperatorMode = searchParams.get('operator') === 'true';
+  const isEventPage = /^\/admin\/events\/[^/]+$/.test(pathname);
+  if (isOperatorMode && isEventPage) {
+    return NextResponse.next();
+  }
+
+  // Protect all other /admin, /dashboard, /account routes
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/account')
+  ) {
     const token = request.cookies.get('sb_access_token')?.value;
-
     if (!token) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('from', pathname);
