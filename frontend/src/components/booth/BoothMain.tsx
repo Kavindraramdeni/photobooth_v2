@@ -43,7 +43,7 @@ export function BoothMain() {
     const pin = (event?.settings as Record<string, unknown>)?.operatorPin as string;
     // If no PIN set, allow direct access; otherwise verify
     if (!pin || operatorPin === pin) {
-      window.location.href = `/admin/events/${event?.id}`;
+      window.location.href = `/admin/events/${event?.id}?operator=true`;
     } else {
       setPinError(true);
       setOperatorPin('');
