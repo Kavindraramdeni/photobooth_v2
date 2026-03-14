@@ -201,4 +201,73 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/ai/status
+ * Returns which AI tier is active based on env vars + a live ping to Cloudflare.
+ * No auth required — used by admin dashboard to show AI health.
+ */
+router.get('/status', async (req, res) => {
+  const hasCF = !!(process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN);
+  const hasHF = !!(process.env.HUGGINGFACE_API_TOKEN);
+
+  const tiers = {
+    cloudflare: { configured: hasCF, status: 'unknown', model: '@cf/bytedance/stable-diffusion-xl-lightning' },
+    huggingface: { configured: hasHF, status: 'unknown', model: 'black-forest-labs/FLUX.1-schnell' },
+    sharp: { configured: true, status: 'active', model: 'Local colour grading (always available)' },
+  };
+
+  // Quick ping Cloudflare if configured
+  if (hasCF) {
+    try {
+      const pingRes = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/models/search?per_page=1`,
+        { headers: { Authorization: `Bearer ${process.env.CF_AI_TOKEN}` }, signal: AbortSignal.timeout(5000) }
+      );
+      tiers.cloudflare.status = pingRes.ok ? 'active' : 'error';
+      if (!pingRes.ok) tiers.cloudflare.error = `HTTP ${pingRes.status}`;
+    } catch (e) {
+      tiers.cloudflare.status = 'error';
+      tiers.cloudflare.error = e.message;
+    }
+  } else {
+    tiers.cloudflare.status = 'not_configured';
+  }
+
+  if (hasHF) {
+    tiers.huggingface.status = 'configured'; // HF warms up on demand, can't ping cheaply
+  } else {
+    tiers.huggingface.status = 'not_configured';
+  }
+
+  // Determine active tier
+  let activeTier = 'sharp';
+  let activeTierLabel = '⚡ Sharp filters (local)';
+  if (hasGemini) {
+    activeTier = 'gemini';
+    activeTierLabel = '✨ Gemini 2.0 Flash (highest quality)';
+  } else if (hasFal) {
+    activeTier = 'fal';
+    activeTierLabel = '🎬 Fal.ai FLUX img2img (cinematic)';
+    tiers.fal.status = 'active';
+  } else if (tiers.cloudflare.status === 'active') {
+    activeTier = 'cloudflare';
+    activeTierLabel = '☁️ Cloudflare Workers AI (img2img)';
+  } else if (tiers.huggingface.status === 'configured') {
+    activeTier = 'huggingface';
+    activeTierLabel = '🤗 HuggingFace FLUX.1';
+  }
+
+  res.json({
+    activeTier,
+    activeTierLabel,
+    tiers,
+    summary: {
+      cloudflare: hasCF ? tiers.cloudflare.status : 'not_configured',
+      huggingface: hasHF ? 'configured' : 'not_configured',
+      sharp: 'always_available',
+    }
+  });
+});
+
 module.exports = router;
