@@ -33,31 +33,30 @@ interface PrintJob {
   id: string; status: string; time: string; name: string;
 }
 
-// ── Supabase file upload ──────────────────────────────────────────────────
-async function uploadFileToSupabase(file: File, path: string): Promise<string> {
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase env vars missing');
+// ── R2 file upload via backend proxy ─────────────────────────────────────
+async function uploadAssetViaBackend(
+  file: File, eventId: string, type: 'logo' | 'frame' | 'idle'
+): Promise<string> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const token = localStorage.getItem('sb_access_token');
+  if (!token) throw new Error('Not authenticated');
 
-  const bucket = 'photobooth-media';
-  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
+  const formData = new FormData();
+  formData.append('file', file);
 
-  const res = await fetch(uploadUrl, {
+  const res = await fetch(`${API_BASE}/api/events/${eventId}/upload-asset?type=${type}`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_ANON}`,
-      'x-upsert': 'true',
-      'Content-Type': file.type,
-    },
-    body: file,
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Upload failed: ${err}`);
+    const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(err.error || 'Upload failed');
   }
 
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  const { url } = await res.json();
+  return url;
 }
 
 // ── File upload button ─────────────────────────────────────────────────────
@@ -69,14 +68,17 @@ function UploadButton({
 }) {
   const ref = useRef<HTMLInputElement>(null);
 
+  // storagePath format: "branding/{eventId}/{type}" — extract both parts
+  const pathParts = storagePath.split('/');
+  const eventId = pathParts[1];
+  const assetType = pathParts[2] as 'logo' | 'frame' | 'idle';
+
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `${storagePath}_${Date.now()}.${ext}`;
-      const url = await uploadFileToSupabase(file, path);
+      const url = await uploadAssetViaBackend(file, eventId, assetType);
       onUploaded(url);
       toast.success(`${label} uploaded!`);
     } catch (err: unknown) {
@@ -127,6 +129,25 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
   const [storage, setStorage] = useState('Checking...');
   const [printJobs] = useState<PrintJob[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // AI status
+  const [aiStatus, setAiStatus] = useState<{
+    activeTier: string;
+    activeTierLabel: string;
+    tiers: Record<string, { configured: boolean; status: string; model: string; error?: string }>;
+  } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const fetchAiStatus = useCallback(async () => {
+    setAiLoading(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${API_BASE}/api/ai/status`);
+      if (res.ok) setAiStatus(await res.json());
+    } catch { /* silent */ } finally { setAiLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchAiStatus(); }, [fetchAiStatus]);
 
   useEffect(() => {
     const up = () => setOnline(true);
@@ -192,6 +213,21 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
     setTimeout(() => setTestingPrint(false), 2000);
   }
 
+  const tierColor = (status: string) => {
+    if (status === 'active' || status === 'configured') return '#34d399';
+    if (status === 'not_configured') return 'rgba(255,255,255,0.25)';
+    if (status === 'error') return '#f87171';
+    return '#fbbf24';
+  };
+
+  const tierBadge = (status: string) => {
+    if (status === 'active') return { label: 'ACTIVE', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)', color: '#34d399' };
+    if (status === 'configured') return { label: 'STANDBY', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.25)', color: '#fbbf24' };
+    if (status === 'not_configured') return { label: 'NOT SET', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' };
+    if (status === 'error') return { label: 'ERROR', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.25)', color: '#f87171' };
+    return { label: 'UNKNOWN', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' };
+  };
+
   const StatusRow = ({ label, ok, value, sub }: { label: string; ok: boolean | null; value: string; sub?: string }) => (
     <div className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
       <div>
@@ -224,6 +260,81 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
             sub={latency !== null ? `${latency}ms latency` : undefined} />
           <StatusRow label="Local Storage" ok={true} value={storage} />
           <StatusRow label="Socket.IO" ok={backendOk} value={backendOk ? 'Active' : 'Disconnected'} sub="Live photo push" />
+        </div>
+
+        {/* AI Tier Status */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-white">🤖 AI Generation</h3>
+            <button onClick={fetchAiStatus} disabled={aiLoading}
+              className="text-xs px-3 py-1.5 rounded-lg bg-purple-600/40 hover:bg-purple-600/60 text-purple-300 disabled:opacity-40 font-medium transition-all">
+              {aiLoading ? 'Checking...' : '↻ Refresh'}
+            </button>
+          </div>
+
+          {aiStatus ? (
+            <>
+              {/* Active tier banner */}
+              <div className="flex items-center gap-3 p-3 rounded-xl mb-4"
+                style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                <span className="text-2xl">
+                  {aiStatus.activeTier === 'cloudflare' ? '☁️' : aiStatus.activeTier === 'huggingface' ? '🤗' : '⚡'}
+                </span>
+                <div>
+                  <p className="text-white font-bold text-sm">{aiStatus.activeTierLabel}</p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {aiStatus.activeTier === 'cloudflare' && 'Free · 10,000 req/day · ~2s per image'}
+                    {aiStatus.activeTier === 'huggingface' && 'Free · Cold starts possible · ~10-30s per image'}
+                    {aiStatus.activeTier === 'sharp' && 'Local colour grading · Instant · Always available'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tier list */}
+              <div className="space-y-2">
+                {Object.entries(aiStatus.tiers).map(([key, tier]: [string, any]) => {
+                  const isActive = aiStatus.activeTier === key;
+                  const statusColors: Record<string, string> = {
+                    active: '#34d399', configured: '#fbbf24',
+                    not_configured: 'rgba(255,255,255,0.25)', error: '#f87171', unknown: '#94a3b8'
+                  };
+                  const statusLabels: Record<string, string> = {
+                    active: '✅ ACTIVE', configured: '⏸ STANDBY',
+                    not_configured: '○ NOT SET', error: '❌ ERROR', unknown: '? UNKNOWN'
+                  };
+                  return (
+                    <div key={key} className="flex items-center justify-between py-2 px-3 rounded-lg"
+                      style={{ background: isActive ? 'rgba(52,211,153,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isActive ? 'rgba(52,211,153,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white/80 text-xs font-semibold">
+                          {key === 'sharp' ? '⚡ Sharp Local Filters' : key === 'cloudflare' ? '☁️ Cloudflare Workers AI' : '🤗 HuggingFace FLUX.1'}
+                          {isActive && <span className="ml-2 text-[10px] text-emerald-400 font-black">← IN USE NOW</span>}
+                        </p>
+                        <p className="text-white/30 text-[11px] truncate">{tier.model}</p>
+                        {tier.error && <p className="text-red-400 text-[11px]">{tier.error}</p>}
+                      </div>
+                      <span className="ml-3 text-[10px] font-bold flex-shrink-0"
+                        style={{ color: statusColors[tier.status] || '#94a3b8' }}>
+                        {statusLabels[tier.status] || tier.status}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {aiStatus.activeTier !== 'cloudflare' && (
+                <div className="mt-4 p-3 rounded-lg" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)' }}>
+                  <p className="text-white/50 text-xs leading-relaxed">
+                    💡 <span className="text-violet-300 font-semibold">Upgrade to Cloudflare</span> — set{' '}
+                    <code className="bg-white/8 px-1 rounded text-[11px]">CF_ACCOUNT_ID</code> and{' '}
+                    <code className="bg-white/8 px-1 rounded text-[11px]">CF_AI_TOKEN</code> on Render for free SDXL Lightning AI (10k/day free).
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-white/30 text-sm">{aiLoading ? '⏳ Checking AI status...' : '⚠️ Could not reach AI status endpoint'}</p>
+          )}
         </div>
 
         {/* Camera Bridge */}
