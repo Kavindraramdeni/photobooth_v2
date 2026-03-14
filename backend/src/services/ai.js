@@ -76,13 +76,12 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
 
   const style = AI_STYLES[styleKey] || AI_STYLES.anime;
 
-  const resized = await sharp(imageBuffer)
-    .resize(512, 512, { fit: 'cover', position: 'center' })
-    .png()
-    .toBuffer();
-
-  // Cloudflare Workers AI img2img endpoint
-  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/@cf/runwayml/stable-diffusion-v1-5-img2img`;
+  // SDXL-Lightning is text-to-image — we style via prompt, not img2img
+  // Saves processing time and avoids deprecated model errors
+  // @cf/bytedance/stable-diffusion-xl-lightning — fast SDXL, free on CF Workers AI
+  // img2img via: @cf/runwayml/stable-diffusion-v1-5-img2img (deprecated) replaced below
+  const CF_MODEL = '@cf/bytedance/stable-diffusion-xl-lightning';
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_MODEL}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -91,11 +90,10 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      prompt: style.prompt,
-      image: [...resized], // CF expects array of bytes
-      strength: style.strength,
-      num_steps: 20,
-      guidance: 7.5,
+      prompt: `${style.prompt}, photobooth portrait, high quality, sharp focus`,
+      negative_prompt: style.negativePrompt,
+      num_steps: 4,   // lightning model is optimised for 4-8 steps
+      guidance: 1.0,  // lightning needs low guidance
     }),
   });
 
