@@ -242,19 +242,21 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   });
   if (result) { console.log('[AI] ✅ Generated via Cloudflare img2img'); return result; }
 
-  // Tier 2: HuggingFace — styled portrait (face not preserved)
-  try {
-    result = await generateWithHuggingFace(imageBuffer, styleKey);
-  } catch (err) {
-    if (err.message.startsWith('MODEL_LOADING:')) throw err;
-    console.warn('[AI] HuggingFace failed:', err.message);
-  }
-  if (result) { console.log('[AI] ✅ Generated via HuggingFace (text2img)'); return result; }
-
-  // Tier 3: Sharp local filters — instant, always works, face preserved
+  // Tier 2: Sharp local filters — instant, face preserved, colour grading
+  // NOTE: HuggingFace FLUX is text-to-image only — it ignores the guest photo entirely
+  // and generates a random styled person. Sharp is better for a photobooth until
+  // Cloudflare img2img is configured (set CF_ACCOUNT_ID + CF_AI_TOKEN on Render).
   result = await generateWithSharp(imageBuffer, styleKey);
-  console.log('[AI] ✅ Generated via local Sharp filters');
+  console.log('[AI] ✅ Generated via local Sharp filters (face preserved)');
   return result;
+
+  // Tier 3: HuggingFace — disabled for now (text2img, does not use guest photo)
+  // Re-enable below once CF img2img is set up, as a fallback for style variety
+  // try {
+  //   result = await generateWithHuggingFace(imageBuffer, styleKey);
+  // } catch (err) {
+  //   if (err.message.startsWith('MODEL_LOADING:')) throw err;
+  // }
 }
 
 // ─── Apply filter only (no generation) ───────────────────────────────────────
