@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang'| 'burst';
+export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang';
 export type BoothScreen = 'idle' | 'countdown' | 'capture' | 'preview' | 'ai' | 'share' | 'print';
 
 export interface Photo {
@@ -57,6 +57,14 @@ export interface Event {
     allowSMSShare?:   boolean;
     emailFromName?:   string;
     emailReplyTo?:    string;
+    // New sharing features
+    shareScreenTimeout?:   number;
+    whatsappCountryCode?:  string;
+    emailSubject?:         string;
+    smsMessage?:           string;
+    // Print settings
+    maxPrints?:    number | null;
+    printScale?:   number;
   };
 }
 
