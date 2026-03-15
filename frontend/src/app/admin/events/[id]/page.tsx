@@ -631,16 +631,7 @@ export default function EventManagePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, event?.id]);
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: 'overview',    label: '📋 Overview' },
-    { key: 'branding',    label: '🎨 Branding' },
-    { key: 'settings',    label: '⚙️ Settings' },
-    { key: 'photos',      label: `📸 Photos${photos.filter(p => !p.is_hidden).length ? ` (${photos.filter(p => !p.is_hidden).length})` : ''}` },
-    { key: 'moderation',  label: `🛡️ Moderation${photos.filter(p => p.is_hidden).length ? ` (${photos.filter(p => p.is_hidden).length})` : ''}` },
-    { key: 'leads',       label: `📧 Leads${leads.length ? ` (${leads.length})` : ''}` },
-    { key: 'analytics',   label: '📊 Analytics' },
-    { key: 'diagnostics', label: '🔧 Diagnostics' },
-  ];
+  // NAV array above replaces the old TABS array
 
   if (loading) return (
     <div className="min-h-screen bg-[#080810] flex items-center justify-center">
