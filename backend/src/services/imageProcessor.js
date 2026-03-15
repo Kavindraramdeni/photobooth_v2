@@ -93,46 +93,67 @@ async function applyBrandingOverlay(photoBuffer, branding = {}) {
  * @param {Object} branding - Branding config
  */
 async function createPhotoStrip(photos, branding = {}) {
-  const stripWidth = 640;
-  const photoHeight = 480;
-  const padding = 20;
-  const headerHeight = 80;
-  const footerHeight = 80;
+  // Classic photobooth strip — narrow portrait format (2x6 inch at 300dpi = 600x1800px)
+  // Photos are square-ish, 4 stacked vertically with thin gaps and header/footer
+  const stripWidth  = 600;   // ~2 inches at 300dpi
+  const photoWidth  = 560;   // photo width (20px margin each side)
+  const photoHeight = 420;   // 4:3 aspect per photo
+  const padding     = 12;    // gap between photos
+  const margin      = 20;    // left/right margin
+  const headerHeight = 70;
+  const footerHeight = 60;
 
-  const stripHeight = photoHeight * photos.length + padding * (photos.length + 1) + headerHeight + footerHeight;
+  const totalPhotoArea = photoHeight * 4 + padding * 3;
+  const stripHeight = headerHeight + padding + totalPhotoArea + padding + footerHeight;
 
   const { primaryColor = '#1a1a2e', eventName = 'SnapBooth', footerText = '' } = branding;
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  // Create base canvas
-  const svgBase = `
-    <svg width="${stripWidth}" height="${stripHeight}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${stripWidth}" height="${stripHeight}" fill="${primaryColor}"/>
-      <text 
-        x="${stripWidth / 2}" y="${headerHeight / 2 + 10}" 
-        text-anchor="middle" dominant-baseline="middle"
-        font-family="Arial, sans-serif" font-size="32px"
-        fill="white" font-weight="bold" letter-spacing="4"
-      >${escapeXml(eventName.toUpperCase())}</text>
-      <text 
-        x="${stripWidth / 2}" y="${stripHeight - footerHeight / 2 + 10}"
-        text-anchor="middle" dominant-baseline="middle"
-        font-family="Arial, sans-serif" font-size="18px"
-        fill="white" opacity="0.8"
-      >${escapeXml(footerText || new Date().toLocaleDateString())}</text>
-    </svg>`;
+  const svgBase = `<svg width="${stripWidth}" height="${stripHeight}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${primaryColor}"/>
+        <stop offset="100%" stop-color="${primaryColor}dd"/>
+      </linearGradient>
+    </defs>
+    <rect width="${stripWidth}" height="${stripHeight}" fill="url(#bg)"/>
+    <rect x="0" y="0" width="${stripWidth}" height="${headerHeight}" fill="rgba(0,0,0,0.25)"/>
+    <text x="${stripWidth/2}" y="${headerHeight/2}" text-anchor="middle" dominant-baseline="middle"
+      font-family="Arial, sans-serif" font-size="26px" fill="white" font-weight="900"
+      letter-spacing="3">${escapeXml(eventName.toUpperCase())}</text>
+    <rect x="0" y="${stripHeight - footerHeight}" width="${stripWidth}" height="${footerHeight}" fill="rgba(0,0,0,0.25)"/>
+    <text x="${stripWidth/2}" y="${stripHeight - footerHeight/2}" text-anchor="middle" dominant-baseline="middle"
+      font-family="Arial, sans-serif" font-size="16px" fill="rgba(255,255,255,0.85)">
+      ${escapeXml(footerText || dateStr)}
+    </text>
+  </svg>`;
 
   const compositeInputs = [];
 
-  for (let i = 0; i < photos.length && i < 4; i++) {
+  for (let i = 0; i < Math.min(photos.length, 4); i++) {
     const resized = await sharp(photos[i])
-      .resize(stripWidth - padding * 2, photoHeight, { fit: 'cover', position: 'center' })
-      .jpeg({ quality: 90 })
+      .resize(photoWidth, photoHeight, { fit: 'cover', position: 'center' })
+      .jpeg({ quality: 92 })
       .toBuffer();
 
     compositeInputs.push({
       input: resized,
       top: headerHeight + padding + i * (photoHeight + padding),
-      left: padding,
+      left: margin,
+    });
+  }
+
+  // If fewer than 4 photos, fill remaining slots with a dark placeholder
+  for (let i = photos.length; i < 4; i++) {
+    const placeholderSvg = `<svg width="${photoWidth}" height="${photoHeight}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${photoWidth}" height="${photoHeight}" fill="rgba(0,0,0,0.3)"/>
+      <text x="${photoWidth/2}" y="${photoHeight/2}" text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial" font-size="18px" fill="rgba(255,255,255,0.3)">📸</text>
+    </svg>`;
+    compositeInputs.push({
+      input: Buffer.from(placeholderSvg),
+      top: headerHeight + padding + i * (photoHeight + padding),
+      left: margin,
     });
   }
 
