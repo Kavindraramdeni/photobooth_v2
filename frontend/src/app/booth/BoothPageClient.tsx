@@ -74,6 +74,50 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
     );
   }
 
+  // ── Kiosk mode — fullscreen lock ─────────────────────────────────────────
+  // Requests fullscreen on mount. On iPad in "Add to Home Screen" mode this
+  // runs standalone and the browser chrome is already hidden.
+  // The beforeunload + visibilitychange handlers make it hard to accidentally leave.
+  useEffect(() => {
+    const kioskMode = event?.settings?.kioskMode as boolean | undefined;
+    if (!kioskMode) return;
+
+    // Request fullscreen
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+
+    // Block accidental navigation
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+
+    // Re-request fullscreen if user exits it
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+        setTimeout(() => {
+          if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+          else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+        }, 500);
+      }
+    };
+
+    // Hide address bar on scroll (mobile)
+    window.scrollTo(0, 1);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [event?.settings?.kioskMode]);
+
   return (
     <DemoContext.Provider value={isDemo}>
       <BoothErrorBoundary>
