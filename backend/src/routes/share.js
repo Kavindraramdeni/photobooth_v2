@@ -116,6 +116,9 @@ router.post('/email', async (req, res) => {
     const fromName     = settings.emailFromName || eventName;
     const replyTo      = settings.emailReplyTo  || null;
     const photoPageUrl = buildPhotoPageUrl(photo.id);
+    // Custom subject/body per event (operator can set in admin)
+    const customSubject = settings.emailSubject || null;
+    const customBody    = settings.emailBody || null;
 
     if (!process.env.RESEND_API_KEY) {
       return res.status(503).json({ error: 'Email service not configured. Add RESEND_API_KEY to Render environment variables. Get a free key at resend.com' });
@@ -131,7 +134,7 @@ router.post('/email', async (req, res) => {
     const emailBody = {
       from: fromAddress,
       to:   [recipient],
-      subject: `Your photo from ${eventName} 📸`,
+      subject: customSubject || `Your photo from ${eventName} 📸`,
       ...(replyTo ? { reply_to: replyTo } : {}),
       html: `<!DOCTYPE html>
 <html>
@@ -212,7 +215,11 @@ router.post('/sms', async (req, res) => {
 
     const eventName   = photo.events?.name || 'SnapBooth';
     const photoPageUrl = buildPhotoPageUrl(photo.id);
-    const messageBody  = `📸 ${eventName} — here's your photo! View & save: ${photoPageUrl}`;
+    const eventSettings = photo.events?.settings || {};
+    const customSmsMsg  = eventSettings.smsMessage || null;
+    const messageBody   = customSmsMsg
+      ? customSmsMsg.replace('{url}', photoPageUrl).replace('{event}', eventName)
+      : `📸 ${eventName} — here's your photo! View & save: ${photoPageUrl}`;
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
@@ -237,6 +244,58 @@ router.post('/sms', async (req, res) => {
     });
 
     res.json({ success: true, message: `SMS sent to ${recipient}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ─── POST /api/share/test-email ───────────────────────────────────────────────
+// Operator sends themselves a test email from the event settings panel
+router.post('/test-email', async (req, res) => {
+  const { toEmail, eventId } = req.body;
+  if (!toEmail || !eventId) return res.status(400).json({ error: 'toEmail and eventId required' });
+
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(503).json({ error: 'RESEND_API_KEY not set on Render' });
+  }
+
+  try {
+    const { data: event } = await supabase.from('events').select('name, branding, settings').eq('id', eventId).single();
+    const eventName    = event?.name || 'SnapBooth';
+    const settings     = event?.settings || {};
+    const primaryColor = event?.branding?.primaryColor || '#7c3aed';
+    const fromName     = settings.emailFromName || eventName;
+    const replyTo      = settings.emailReplyTo || null;
+    const customSubject = settings.emailSubject || null;
+    const fromEmail    = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    const fromAddress  = process.env.RESEND_FROM_EMAIL ? `${fromName} <${fromEmail}>` : `SnapBooth Photos <onboarding@resend.dev>`;
+
+    const emailBody = {
+      from: fromAddress,
+      to: [toEmail],
+      subject: customSubject || `[TEST] Your photo from ${eventName} 📸`,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      html: `<!DOCTYPE html><html><body style="background:#0a0a0f;font-family:Arial,sans-serif;padding:32px">
+        <div style="max-width:600px;margin:0 auto;text-align:center">
+          <h1 style="color:#fff;font-size:24px">Test Email ✅</h1>
+          <p style="color:rgba(255,255,255,0.5)">This is a test email from <strong style="color:#fff">${eventName}</strong></p>
+          <div style="background:${primaryColor};padding:16px;border-radius:12px;margin:24px 0">
+            <p style="color:#fff;margin:0;font-weight:bold">Email sharing is working correctly!</p>
+          </div>
+          <p style="color:rgba(255,255,255,0.3);font-size:12px">Sent from SnapBooth AI operator panel</p>
+        </div>
+      </body></html>`,
+    };
+
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(emailBody),
+    });
+
+    if (!r.ok) { const d = await r.text(); return res.status(502).json({ error: 'Test email failed', detail: d }); }
+    res.json({ success: true, message: `Test email sent to ${toEmail}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
