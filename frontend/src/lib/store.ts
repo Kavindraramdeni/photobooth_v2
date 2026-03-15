@@ -65,6 +65,7 @@ export interface Event {
     // Print settings
     maxPrints?:    number | null;
     printScale?:   number;
+    autoPrint?:    boolean;
   };
 }
 
