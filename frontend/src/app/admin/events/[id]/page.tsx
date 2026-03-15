@@ -419,6 +419,56 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
   );
 }
 
+
+// ── Test email button component ───────────────────────────────────────────────
+function TestEmailButton({ eventId }: { eventId: string }) {
+  const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+  async function sendTest() {
+    if (!email.trim()) return;
+    setSending(true);
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      const res = await fetch(`${API_BASE}/api/share/test-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ toEmail: email.trim(), eventId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(`✅ Test email sent to ${email}!`);
+      setEmail('');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send test email');
+    } finally { setSending(false); }
+  }
+
+  return (
+    <div className="pt-3 border-t border-white/5">
+      <label className="text-white/50 text-sm block mb-2">✉️ Send Test Email</label>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="your@email.com"
+          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500"
+          onKeyDown={e => e.key === 'Enter' && sendTest()}
+        />
+        <button
+          onClick={sendTest}
+          disabled={!email.trim() || sending}
+          className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-sm font-bold transition-all flex-shrink-0"
+        >
+          {sending ? '⏳' : 'Send'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function EventManagePage() {
   const params = useParams();
@@ -1102,6 +1152,32 @@ export default function EventManagePage() {
                     {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} cop{n > 1 ? 'ies' : 'y'}</option>)}
                   </select>
                 </div>
+
+                {/* Max total prints */}
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Max Prints Per Event</label>
+                  <input type="number" min="0" max="9999"
+                    value={(event.settings?.maxPrints as number) || ''}
+                    onChange={e => updateSettings('maxPrints', e.target.value ? Number(e.target.value) : null)}
+                    placeholder="Unlimited"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  <p className="text-white/25 text-xs mt-1">Leave blank for unlimited. Booth shows message when limit hit.</p>
+                </div>
+
+                {/* Print alignment */}
+                <div className="border-t border-white/5 pt-4">
+                  <label className="text-white/50 text-sm block mb-3">🖨️ Print Scale</label>
+                  <div className="flex items-center gap-3">
+                    <input type="range" min="80" max="100" step="1"
+                      value={(event.settings?.printScale as number) || 98}
+                      onChange={e => updateSettings('printScale', Number(e.target.value))}
+                      className="flex-1 accent-purple-500" />
+                    <span className="text-white text-sm font-mono w-10 text-right flex-shrink-0">
+                      {(event.settings?.printScale as number) || 98}%
+                    </span>
+                  </div>
+                  <p className="text-white/25 text-xs mt-1">Reduce if photo is cropped at edges when printing.</p>
+                </div>
               </div>
 
               {/* Booth Limits */}
@@ -1324,6 +1400,58 @@ export default function EventManagePage() {
                       onChange={e => updateSettings('allowSMSShare', e.target.checked)}
                       className="w-5 h-5 accent-purple-500" />
                   </label>
+
+                  {/* Custom email subject */}
+                  <div className="pt-2 border-t border-white/5">
+                    <label className="text-white/50 text-sm block mb-1.5">📧 Custom Email Subject</label>
+                    <input
+                      value={(event.settings?.emailSubject as string) || ''}
+                      onChange={e => updateSettings('emailSubject', e.target.value)}
+                      placeholder={`Your photo from ${event.name} 📸`}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  </div>
+
+                  {/* Custom SMS message */}
+                  <div>
+                    <label className="text-white/50 text-sm block mb-1.5">📱 Custom SMS Message</label>
+                    <textarea
+                      value={(event.settings?.smsMessage as string) || ''}
+                      onChange={e => updateSettings('smsMessage', e.target.value)}
+                      rows={2}
+                      placeholder={`📸 ${event.name} — here's your photo! View & save: {url}`}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 resize-none" />
+                    <p className="text-white/25 text-xs mt-1">Use {'{url}'} for photo link, {'{event}'} for event name</p>
+                  </div>
+
+                  {/* WhatsApp country code */}
+                  <div>
+                    <label className="text-white/50 text-sm block mb-1.5">🟢 WhatsApp Country Code</label>
+                    <input
+                      value={(event.settings?.whatsappCountryCode as string) || ''}
+                      onChange={e => updateSettings('whatsappCountryCode', e.target.value)}
+                      placeholder="91 (India) or 1 (US) — leave blank to let guest enter"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  </div>
+
+                  {/* Share screen timeout */}
+                  <div>
+                    <label className="text-white/50 text-sm block mb-1.5">⏱️ Share Screen Timeout</label>
+                    <div className="flex items-center gap-3">
+                      <input type="range" min="0" max="120" step="5"
+                        value={(event.settings?.shareScreenTimeout as number) || 0}
+                        onChange={e => updateSettings('shareScreenTimeout', Number(e.target.value))}
+                        className="flex-1 accent-purple-500" />
+                      <span className="text-white text-sm font-mono w-20 text-right flex-shrink-0">
+                        {(event.settings?.shareScreenTimeout as number) || 0 === 0
+                          ? 'Off'
+                          : `${event.settings?.shareScreenTimeout}s`}
+                      </span>
+                    </div>
+                    <p className="text-white/25 text-xs mt-1">Auto-advance to next guest after this many seconds. 0 = disabled.</p>
+                  </div>
+
+                  {/* Test email button */}
+                  <TestEmailButton eventId={event.id} />
                 </div>
               </div>
 
