@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang';
+export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang' | 'burst';
 export type BoothScreen = 'idle' | 'countdown' | 'capture' | 'preview' | 'ai' | 'share' | 'print';
 
 export interface Photo {
