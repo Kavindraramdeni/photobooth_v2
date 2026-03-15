@@ -10,8 +10,7 @@ import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type Tab = 'overview' | 'branding' | 'settings' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
-type SideSection = 'event' | 'capture' | 'design' | 'sharing' | 'data' | 'advanced';
+type Tab = 'overview' | 'branding' | 'capture' | 'sharing' | 'print' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
 
 interface EventData {
   id: string; name: string; slug: string; date: string; venue: string; status: string;
@@ -654,19 +653,42 @@ export default function EventManagePage() {
   const hiddenPhotos  = photos.filter(p => p.is_hidden);
 
   // Sidebar nav groups
-  const NAV: { section: string; icon: string; label: string; tabs: { key: Tab; label: string }[] }[] = [
-    { section: 'event',    icon: '📋', label: 'Event',    tabs: [{ key: 'overview', label: 'Overview' }] },
-    { section: 'design',   icon: '🎨', label: 'Design',   tabs: [{ key: 'branding', label: 'Branding & Style' }] },
-    { section: 'capture',  icon: '📷', label: 'Capture',  tabs: [{ key: 'settings', label: 'Booth Settings' }] },
-    { section: 'data',     icon: '📸', label: 'Content',  tabs: [
-      { key: 'photos',     label: `Photos (${visiblePhotos.length})` },
-      { key: 'moderation', label: `Moderation${hiddenPhotos.length ? ` (${hiddenPhotos.length})` : ''}` },
-      { key: 'leads',      label: `Leads${leads.length ? ` (${leads.length})` : ''}` },
-    ]},
-    { section: 'advanced', icon: '📊', label: 'Analytics', tabs: [
-      { key: 'analytics',   label: 'Analytics' },
-      { key: 'diagnostics', label: 'Diagnostics' },
-    ]},
+  const NAV: { section: string; icon: string; label: string; tabs: { key: Tab; label: string; badge?: string }[] }[] = [
+    {
+      section: 'event', icon: '🎪', label: 'EVENT',
+      tabs: [{ key: 'overview', label: 'Overview & Access' }],
+    },
+    {
+      section: 'design', icon: '🎨', label: 'DESIGN',
+      tabs: [{ key: 'branding', label: 'Branding & Preview' }],
+    },
+    {
+      section: 'capture', icon: '📷', label: 'CAPTURE',
+      tabs: [{ key: 'capture', label: 'Booth & Camera' }],
+    },
+    {
+      section: 'sharing', icon: '📤', label: 'SHARING',
+      tabs: [{ key: 'sharing', label: 'Share & Email' }],
+    },
+    {
+      section: 'print', icon: '🖨️', label: 'PRINT',
+      tabs: [{ key: 'print', label: 'Print Setup' }],
+    },
+    {
+      section: 'content', icon: '📸', label: 'CONTENT',
+      tabs: [
+        { key: 'photos',     label: `Photos`, badge: visiblePhotos.length > 0 ? String(visiblePhotos.length) : undefined },
+        { key: 'moderation', label: 'Moderation', badge: hiddenPhotos.length > 0 ? String(hiddenPhotos.length) : undefined },
+        { key: 'leads',      label: 'Leads', badge: leads.length > 0 ? String(leads.length) : undefined },
+      ],
+    },
+    {
+      section: 'insights', icon: '📊', label: 'INSIGHTS',
+      tabs: [
+        { key: 'analytics',   label: 'Analytics' },
+        { key: 'diagnostics', label: 'Diagnostics' },
+      ],
+    },
   ];
 
   return (
@@ -759,12 +781,17 @@ export default function EventManagePage() {
                 {/* Group items */}
                 {group.tabs.map(t => (
                   <button key={t.key} onClick={() => setTab(t.key)}
-                    className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all ${
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all ${
                       tab === t.key
                         ? 'bg-violet-600/20 text-violet-200 font-semibold border border-violet-500/25'
                         : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
                     }`}>
                     <span className="leading-none">{t.label}</span>
+                    {t.badge && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/30 text-violet-200">
+                        {t.badge}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -793,10 +820,11 @@ export default function EventManagePage() {
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-[#0a0a15]/95 backdrop-blur border-t border-white/[0.07] flex overflow-x-auto scrollbar-none px-2 py-1 gap-1">
           {NAV.flatMap(g => g.tabs).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-medium transition-all ${
+              className={`flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-[11px] font-medium transition-all ${
                 tab === t.key ? 'bg-violet-600 text-white' : 'text-white/40 hover:text-white/70'
               }`}>
               {t.label}
+              {t.badge && <span className="text-[9px] bg-white/20 rounded-full px-1">{t.badge}</span>}
             </button>
           ))}
         </div>
@@ -1169,456 +1197,465 @@ export default function EventManagePage() {
           </div>
         )}
 
-        {/* ══ SETTINGS TAB ══ */}
-        {tab === 'settings' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* ══ CAPTURE TAB ══ */}
+        {tab === 'capture' && (
+          <div className="space-y-5">
 
-            {/* ── LEFT COLUMN ── */}
-            <div className="space-y-4">
-
-              {/* Booth Features */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h3 className="font-semibold text-lg mb-5">Booth Features</h3>
-                <div className="space-y-1">
-                  {[
-                    { key: 'allowAI',        label: '🤖 AI Generation', desc: 'Let guests apply AI art styles' },
-                    { key: 'allowGIF',       label: '🎬 GIF Mode',       desc: 'Animated GIFs from burst frames' },
-                    { key: 'allowBoomerang', label: '🔄 Boomerang',      desc: 'Ping-pong loop animation' },
-                    { key: 'allowPrint',     label: '🖨️ Print',          desc: 'AirPrint directly from booth' },
-                    { key: 'autoPrint',      label: '⚡ Auto-Print',     desc: 'Print automatically after every capture' },
-                    { key: 'allowRetakes',   label: '🔁 Retakes',        desc: 'Let guests retake their photo' },
-                  ].map(item => (
-                    <label key={item.key} className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0 cursor-pointer">
-                      <div>
-                        <p className="text-white/90 text-sm font-medium">{item.label}</p>
-                        <p className="text-white/30 text-xs">{item.desc}</p>
-                      </div>
+            {/* Capture modes */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="font-bold text-base mb-1">📷 Capture Modes</h3>
+              <p className="text-white/35 text-xs mb-5">Choose which capture modes guests can use</p>
+              <div className="space-y-1">
+                {[
+                  { key: 'allowAI',        label: '🤖 AI Styles',    desc: 'Guests apply AI art transformations after capture' },
+                  { key: 'allowGIF',       label: '🎬 GIF Mode',     desc: 'Animated GIF from 6 burst frames' },
+                  { key: 'allowBoomerang', label: '🔄 Boomerang',    desc: 'Ping-pong looping video' },
+                  { key: 'allowStrip',     label: '🎞️ Strip Mode',   desc: '4-photo film strip layout' },
+                  { key: 'allowRetakes',   label: '🔁 Retakes',      desc: 'Let guests reshoot before saving' },
+                ].map(item => (
+                  <label key={item.key} className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0 cursor-pointer group">
+                    <div>
+                      <p className="text-white/90 text-sm font-medium group-hover:text-white transition-colors">{item.label}</p>
+                      <p className="text-white/30 text-xs mt-0.5">{item.desc}</p>
+                    </div>
+                    <div className="relative flex-shrink-0 ml-4">
                       <input type="checkbox"
                         checked={(event.settings?.[item.key] as boolean) ?? true}
                         onChange={e => updateSettings(item.key, e.target.checked)}
-                        className="w-5 h-5 accent-purple-500 cursor-pointer" />
-                    </label>
-                  ))}
-                </div>
+                        className="sr-only peer" id={`toggle-${item.key}`} />
+                      <label htmlFor={`toggle-${item.key}`}
+                        className="block w-11 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-violet-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                    </div>
+                  </label>
+                ))}
               </div>
-
-              {/* Timing */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">⏱️ Timing</h3>
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Photo Countdown</label>
-                  <select value={(event.settings?.countdownSeconds as number) || 3}
-                    onChange={e => updateSettings('countdownSeconds', Number(e.target.value))}
-                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
-                    {[1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n} second{n > 1 ? 's' : ''}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Session Timeout</label>
-                  <select value={(event.settings?.sessionTimeout as number) || 60}
-                    onChange={e => updateSettings('sessionTimeout', Number(e.target.value))}
-                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
-                    {[30, 60, 90, 120, 180].map(n => <option key={n} value={n}>{n} seconds</option>)}
-                  </select>
-                  <p className="text-white/30 text-xs mt-1">Auto-returns to idle after inactivity</p>
-                </div>
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Photos Per Session</label>
-                  <select value={(event.settings?.photosPerSession as number) || 1}
-                    onChange={e => updateSettings('photosPerSession', Number(e.target.value))}
-                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
-                    {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} photo{n > 1 ? 's' : ''}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Operator Security */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">🔐 Operator Security</h3>
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Operator PIN</label>
-                  <input type="text" inputMode="numeric" pattern="[0-9]*"
-                    value={(event.settings?.operatorPin as string) || '1234'}
-                    onChange={e => updateSettings('operatorPin', e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    maxLength={8}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xl tracking-[0.4em] font-mono focus:outline-none focus:border-purple-500" />
-                  <p className="text-white/30 text-xs mt-1">4–8 digits. Used to unlock operator panel (gear icon).</p>
-                </div>
-                <div>
-                  {/* Kiosk Mode */}
-                  <div className="border-t border-white/5 pt-4">
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <div>
-                        <p className="text-white/80 text-sm font-medium">🔒 Kiosk Mode</p>
-                        <p className="text-white/30 text-xs">Locks booth in fullscreen. Guests cannot exit or navigate away. Best for unattended events.</p>
-                      </div>
-                      <input type="checkbox"
-                        checked={(event.settings?.kioskMode as boolean) ?? false}
-                        onChange={e => updateSettings('kioskMode', e.target.checked)}
-                        className="w-5 h-5 accent-purple-500" />
-                    </label>
-                  </div>
-
-                  <label className="text-white/50 text-sm block mb-1.5">Print Copies Per Session</label>
-                  <select value={(event.settings?.printCopies as number) || 1}
-                    onChange={e => updateSettings('printCopies', Number(e.target.value))}
-                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
-                    {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} cop{n > 1 ? 'ies' : 'y'}</option>)}
-                  </select>
-                </div>
-
-                {/* Max total prints */}
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Max Prints Per Event</label>
-                  <input type="number" min="0" max="9999"
-                    value={(event.settings?.maxPrints as number) || ''}
-                    onChange={e => updateSettings('maxPrints', e.target.value ? Number(e.target.value) : null)}
-                    placeholder="Unlimited"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                  <p className="text-white/25 text-xs mt-1">Leave blank for unlimited. Booth shows message when limit hit.</p>
-                </div>
-
-                {/* Print alignment */}
-                <div className="border-t border-white/5 pt-4">
-                  <label className="text-white/50 text-sm block mb-3">🖨️ Print Scale</label>
-                  <div className="flex items-center gap-3">
-                    <input type="range" min="80" max="100" step="1"
-                      value={(event.settings?.printScale as number) || 98}
-                      onChange={e => updateSettings('printScale', Number(e.target.value))}
-                      className="flex-1 accent-purple-500" />
-                    <span className="text-white text-sm font-mono w-10 text-right flex-shrink-0">
-                      {(event.settings?.printScale as number) || 98}%
-                    </span>
-                  </div>
-                  <p className="text-white/25 text-xs mt-1">Reduce if photo is cropped at edges when printing.</p>
-                </div>
-              </div>
-
-              {/* Booth Limits */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">🚦 Booth Limits</h3>
-                <p className="text-white/30 text-xs">Leave blank for no limit.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-white/50 text-sm block mb-1.5">Opens At</label>
-                    <input type="datetime-local"
-                      value={(event.settings?.boothStart as string) || ''}
-                      onChange={e => updateSettings('boothStart', e.target.value || null)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-white/50 text-sm block mb-1.5">Closes At</label>
-                    <input type="datetime-local"
-                      value={(event.settings?.boothEnd as string) || ''}
-                      onChange={e => updateSettings('boothEnd', e.target.value || null)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Max Photos</label>
-                  <input type="number" min="0" max="10000"
-                    value={(event.settings?.photoLimit as number) || ''}
-                    onChange={e => updateSettings('photoLimit', e.target.value ? Number(e.target.value) : null)}
-                    placeholder="Unlimited"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 placeholder-white/20" />
-                  <p className="text-white/25 text-xs mt-1">Current: {photos.length} photos taken.</p>
-                </div>
-              </div>
-
             </div>
 
-            {/* ── RIGHT COLUMN ── */}
-            <div className="space-y-4">
+            {/* AI Styles */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="font-bold text-base mb-1">🤖 AI Style Selection</h3>
+              <p className="text-white/35 text-xs mb-4">Choose which AI styles guests can apply</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { key: 'anime',       label: 'Anime Art',     emoji: '🎌' },
+                  { key: 'vintage',     label: 'Vintage Film',  emoji: '📷' },
+                  { key: 'watercolor',  label: 'Watercolor',    emoji: '🎨' },
+                  { key: 'cyberpunk',   label: 'Cyberpunk',     emoji: '🌆' },
+                  { key: 'oilpainting', label: 'Oil Painting',  emoji: '🖼️' },
+                  { key: 'comic',       label: 'Comic Book',    emoji: '💥' },
+                ].map(style => {
+                  const enabled = !(event.settings?.disabledAIStyles as string[] || []).includes(style.key);
+                  return (
+                    <button key={style.key}
+                      onClick={() => {
+                        const disabled = (event.settings?.disabledAIStyles as string[]) || [];
+                        updateSettings('disabledAIStyles', enabled
+                          ? [...disabled, style.key]
+                          : disabled.filter((s: string) => s !== style.key));
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all ${
+                        enabled
+                          ? 'bg-violet-600/15 border-violet-500/30 text-violet-200'
+                          : 'bg-white/3 border-white/8 text-white/30'
+                      }`}>
+                      <span>{style.emoji}</span>
+                      <span className="font-medium">{style.label}</span>
+                      {enabled && <span className="ml-auto text-violet-400 text-xs">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-              {/* Gallery Privacy */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">👁️ Gallery Privacy</h3>
-
-                {/* Password toggle */}
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-white/80 text-sm font-medium">Password-protect gallery</p>
-                    <p className="text-white/40 text-xs mt-0.5">Guests must enter a PIN to view photos</p>
-                  </div>
-                  <button
-                    onClick={() => updateSettings('galleryPasswordEnabled', !(event.settings?.galleryPasswordEnabled as boolean))}
-                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${(event.settings?.galleryPasswordEnabled as boolean) ? 'bg-purple-600' : 'bg-white/20'}`}>
-                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${(event.settings?.galleryPasswordEnabled as boolean) ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </button>
-                </label>
-
-                {(event.settings?.galleryPasswordEnabled as boolean) && (
-                  <input
-                    type="text"
-                    value={(event.settings?.galleryPassword as string) || ''}
-                    onChange={e => updateSettings('galleryPassword', e.target.value)}
-                    placeholder="Gallery password / PIN"
-                    className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:border-purple-500" />
-                )}
-
+            {/* Timing */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">⏱️ Timing</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Gallery Expiry</label>
-                  <select
-                    value={(event.settings?.galleryExpireDays as number) || 0}
-                    onChange={e => updateSettings('galleryExpireDays', Number(e.target.value))}
-                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500">
-                    <option value={0}>Never expire</option>
-                    <option value={7}>7 days after event</option>
-                    <option value={30}>30 days after event</option>
-                    <option value={90}>90 days after event</option>
-                    <option value={365}>1 year after event</option>
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Countdown</label>
+                  <select value={(event.settings?.countdownSeconds as number) || 3}
+                    onChange={e => updateSettings('countdownSeconds', Number(e.target.value))}
+                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500">
+                    {[1,2,3,5,10].map(n => <option key={n} value={n}>{n}s</option>)}
                   </select>
                 </div>
-
-                <a href={`/gallery/${event.slug}`} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-purple-400 hover:text-purple-300 text-sm transition-colors">
-                  View public gallery →
-                </a>
-              </div>
-
-              {/* Webhook / Zapier */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">🔗 Webhook / Zapier</h3>
-                <p className="text-white/40 text-xs">POST to this URL every time a photo is taken. Works with Zapier, Make, or any webhook receiver.</p>
                 <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Webhook URL</label>
-                  <input type="url"
-                    value={(event.settings?.webhookUrl as string) || ''}
-                    onChange={e => updateSettings('webhookUrl', e.target.value)}
-                    placeholder="https://hooks.zapier.com/hooks/catch/..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Session Timeout</label>
+                  <select value={(event.settings?.sessionTimeout as number) || 60}
+                    onChange={e => updateSettings('sessionTimeout', Number(e.target.value))}
+                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500">
+                    {[30,60,90,120,180].map(n => <option key={n} value={n}>{n}s</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Secret <span className="text-white/25 font-normal">(optional)</span></label>
-                  <input type="text"
-                    value={(event.settings?.webhookSecret as string) || ''}
-                    onChange={e => updateSettings('webhookSecret', e.target.value)}
-                    placeholder="Sent as X-SnapBooth-Secret header"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <button
-                    disabled={webhookTesting || !(event.settings?.webhookUrl as string)}
-                    onClick={async () => {
-                      if (!(event.settings?.webhookUrl as string)) return;
-                      setWebhookTesting(true); setWebhookResult(null);
-                      try {
-                        const r = await testWebhook(event.id, event.settings.webhookUrl as string);
-                        setWebhookResult(r.ok ? 'ok' : 'fail');
-                        toast[r.ok ? 'success' : 'error'](r.ok ? 'Webhook delivered ✅' : `Failed: ${r.error || 'HTTP error'}`);
-                      } catch { setWebhookResult('fail'); toast.error('Webhook test failed'); }
-                      finally { setWebhookTesting(false); }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm font-medium hover:bg-blue-600/30 transition-colors disabled:opacity-40">
-                    {webhookTesting
-                      ? <div className="w-4 h-4 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
-                      : '🔗'}
-                    {webhookTesting ? 'Testing…' : 'Send test event'}
-                  </button>
-                  {webhookResult === 'ok'   && <span className="text-green-400 text-xs">✅ Delivered!</span>}
-                  {webhookResult === 'fail' && <span className="text-red-400 text-xs">❌ Failed — check URL</span>}
-                </div>
-                <div className="bg-black/30 rounded-xl p-3 text-[11px] text-white/30 font-mono leading-relaxed break-all">
-                  {`{ "event": "photo.taken", "photoId": "...", "photoUrl": "...", "galleryUrl": "...", "mode": "single" }`}
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Photos/Session</label>
+                  <select value={(event.settings?.photosPerSession as number) || 1}
+                    onChange={e => updateSettings('photosPerSession', Number(e.target.value))}
+                    className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500">
+                    {[1,2,3,4].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
                 </div>
               </div>
+            </div>
 
-              {/* Email Template */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">📧 Email Template</h3>
-                <p className="text-white/40 text-xs">Customise the email guests receive when they share their photo.</p>
-
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Subject line</label>
-                  <input type="text"
-                    value={(event.branding?.emailSubject as string) || ''}
-                    onChange={e => updateBranding('emailSubject', e.target.value)}
-                    placeholder={`Your photo from ${event.name} 📸`}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                </div>
-
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Header message</label>
-                  <textarea
-                    value={(event.branding?.emailHeaderText as string) || ''}
-                    onChange={e => updateBranding('emailHeaderText', e.target.value)}
-                    rows={2}
-                    placeholder={`Thanks for stopping by ${event.name}!`}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 resize-none" />
-                </div>
-
-                <div>
-                  <label className="text-white/50 text-sm block mb-1.5">Footer text</label>
-                  <input type="text"
-                    value={(event.branding?.emailFooterText as string) || ''}
-                    onChange={e => updateBranding('emailFooterText', e.target.value)}
-                    placeholder="Powered by SnapBooth AI"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                </div>
-
-                {/* Live email preview */}
-                <div className="border border-white/10 rounded-xl overflow-hidden">
-                  <div className="bg-white/5 px-3 py-2 text-white/40 text-xs font-semibold uppercase tracking-widest">Email Preview</div>
-                  <div className="bg-white p-4 space-y-2">
-                    <p className="text-xs text-gray-400">Subject: <span className="text-gray-700 font-medium">{(event.branding?.emailSubject as string) || `Your photo from ${event.name} 📸`}</span></p>
-                    <div className="border-t pt-3 space-y-2">
-                      <p className="text-gray-800 text-sm">{(event.branding?.emailHeaderText as string) || `Thanks for visiting ${event.name}!`}</p>
-                      <div className="bg-gray-100 rounded-lg h-20 flex items-center justify-center text-gray-400 text-xs">[Photo here]</div>
-                      <div className="flex gap-2">
-                        <div className="px-3 py-1.5 rounded-lg text-white text-xs font-bold" style={{ background: primaryColor }}>Save Photo</div>
-                        <div className="px-3 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-bold">WhatsApp</div>
-                      </div>
-                      <p className="text-gray-400 text-xs">{(event.branding?.emailFooterText as string) || 'Powered by SnapBooth AI'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Email channel settings */}
-                <div className="border-t border-white/10 pt-4 space-y-3">
-                  <label className="flex items-center justify-between cursor-pointer">
+            {/* Security & Kiosk */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">🔐 Security & Kiosk</h3>
+              <div>
+                <label className="text-white/50 text-xs block mb-2 uppercase tracking-wide font-semibold">Operator PIN</label>
+                <input type="text" inputMode="numeric" pattern="[0-9]*"
+                  value={(event.settings?.operatorPin as string) || ''}
+                  onChange={e => updateSettings('operatorPin', e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  maxLength={8} placeholder="No PIN set"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xl tracking-[0.5em] font-mono focus:outline-none focus:border-violet-500 max-w-xs" />
+                <p className="text-white/25 text-xs mt-1.5">4–8 digits. Tap ⚙️ in booth to unlock operator controls.</p>
+              </div>
+              <div className="border-t border-white/5 pt-4 space-y-3">
+                {[
+                  { key: 'kioskMode', label: '🔒 Kiosk Mode', desc: 'Locks booth in fullscreen — guests cannot exit. Best for unattended events.' },
+                  { key: 'autoGallery', label: '🖼️ Auto Gallery', desc: 'Photos automatically appear in public gallery after capture' },
+                  { key: 'leadCapture', label: '📋 Lead Capture', desc: 'Ask guests for email before they see their photo' },
+                ].map(item => (
+                  <label key={item.key} className="flex items-center justify-between cursor-pointer group">
                     <div>
-                      <p className="text-white/80 text-sm font-medium">📧 Email Share</p>
-                      <p className="text-white/30 text-xs">Requires RESEND_API_KEY on Render</p>
+                      <p className="text-white/80 text-sm font-medium group-hover:text-white transition-colors">{item.label}</p>
+                      <p className="text-white/30 text-xs mt-0.5">{item.desc}</p>
                     </div>
-                    <input type="checkbox"
-                      checked={(event.settings?.allowEmailShare as boolean) ?? true}
-                      onChange={e => updateSettings('allowEmailShare', e.target.checked)}
-                      className="w-5 h-5 accent-purple-500" />
+                    <div className="relative flex-shrink-0 ml-4">
+                      <input type="checkbox"
+                        checked={(event.settings?.[item.key] as boolean) ?? false}
+                        onChange={e => updateSettings(item.key, e.target.checked)}
+                        className="sr-only peer" id={`sec-${item.key}`} />
+                      <label htmlFor={`sec-${item.key}`}
+                        className="block w-11 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-violet-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                    </div>
                   </label>
-                  {(event.settings?.allowEmailShare as boolean) !== false && (
-                    <div className="space-y-3 pt-1">
-                      <div>
-                        <label className="text-white/50 text-sm block mb-1.5">From Name</label>
-                        <input value={(event.settings?.emailFromName as string) || ''}
-                          onChange={e => updateSettings('emailFromName', e.target.value)}
-                          placeholder={event.name || 'SnapBooth AI'}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                      </div>
-                      <div>
-                        <label className="text-white/50 text-sm block mb-1.5">Reply-To</label>
-                        <input type="email"
-                          value={(event.settings?.emailReplyTo as string) || ''}
-                          onChange={e => updateSettings('emailReplyTo', e.target.value)}
-                          placeholder="you@yourdomain.com"
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                      </div>
-                    </div>
-                  )}
-                  <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-white/5">
-                    <div>
-                      <p className="text-white/80 text-sm font-medium">📱 SMS Share</p>
-                      <p className="text-white/30 text-xs">Requires Twilio env vars on Render</p>
-                    </div>
-                    <input type="checkbox"
-                      checked={(event.settings?.allowSMSShare as boolean) ?? false}
-                      onChange={e => updateSettings('allowSMSShare', e.target.checked)}
-                      className="w-5 h-5 accent-purple-500" />
-                  </label>
-
-                  {/* Custom email subject */}
-                  <div className="pt-2 border-t border-white/5">
-                    <label className="text-white/50 text-sm block mb-1.5">📧 Custom Email Subject</label>
-                    <input
-                      value={(event.settings?.emailSubject as string) || ''}
-                      onChange={e => updateSettings('emailSubject', e.target.value)}
-                      placeholder={`Your photo from ${event.name} 📸`}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  {/* Custom SMS message */}
-                  <div>
-                    <label className="text-white/50 text-sm block mb-1.5">📱 Custom SMS Message</label>
-                    <textarea
-                      value={(event.settings?.smsMessage as string) || ''}
-                      onChange={e => updateSettings('smsMessage', e.target.value)}
-                      rows={2}
-                      placeholder={`📸 ${event.name} — here's your photo! View & save: {url}`}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500 resize-none" />
-                    <p className="text-white/25 text-xs mt-1">Use {'{url}'} for photo link, {'{event}'} for event name</p>
-                  </div>
-
-                  {/* WhatsApp country code */}
-                  <div>
-                    <label className="text-white/50 text-sm block mb-1.5">🟢 WhatsApp Country Code</label>
-                    <input
-                      value={(event.settings?.whatsappCountryCode as string) || ''}
-                      onChange={e => updateSettings('whatsappCountryCode', e.target.value)}
-                      placeholder="91 (India) or 1 (US) — leave blank to let guest enter"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  {/* Share screen timeout */}
-                  <div>
-                    <label className="text-white/50 text-sm block mb-1.5">⏱️ Share Screen Timeout</label>
-                    <div className="flex items-center gap-3">
-                      <input type="range" min="0" max="120" step="5"
-                        value={(event.settings?.shareScreenTimeout as number) || 0}
-                        onChange={e => updateSettings('shareScreenTimeout', Number(e.target.value))}
-                        className="flex-1 accent-purple-500" />
-                      <span className="text-white text-sm font-mono w-20 text-right flex-shrink-0">
-                        {(event.settings?.shareScreenTimeout as number) || 0 === 0
-                          ? 'Off'
-                          : `${event.settings?.shareScreenTimeout}s`}
-                      </span>
-                    </div>
-                    <p className="text-white/25 text-xs mt-1">Auto-advance to next guest after this many seconds. 0 = disabled.</p>
-                  </div>
-
-                  {/* Test email button */}
-                  <TestEmailButton eventId={event.id} />
-                </div>
-              </div>
-
-              {/* Lead Capture */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                <h3 className="font-semibold text-lg">📋 Lead Capture</h3>
-                <p className="text-white/30 text-xs">Show an email input modal between preview and share screen.</p>
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-white/80 text-sm font-medium">Enable lead capture</p>
-                    <p className="text-white/30 text-xs">Guests see an email field before the share screen</p>
-                  </div>
-                  <input type="checkbox"
-                    checked={(event.settings?.leadCapture as boolean) ?? false}
-                    onChange={e => updateSettings('leadCapture', e.target.checked)}
-                    className="w-5 h-5 accent-purple-500" />
-                </label>
+                ))}
                 {(event.settings?.leadCapture as boolean) && (
-                  <label className="flex items-center justify-between cursor-pointer border-t border-white/5 pt-3">
+                  <label className="flex items-center justify-between cursor-pointer pl-4 border-l-2 border-violet-500/30">
                     <div>
-                      <p className="text-white/80 text-sm font-medium">Make email required</p>
-                      <p className="text-white/30 text-xs">Removes the &quot;Skip&quot; option</p>
+                      <p className="text-white/70 text-sm font-medium">Make email required</p>
+                      <p className="text-white/25 text-xs">Removes the Skip option</p>
                     </div>
                     <input type="checkbox"
                       checked={(event.settings?.leadRequired as boolean) ?? false}
                       onChange={e => updateSettings('leadRequired', e.target.checked)}
-                      className="w-5 h-5 accent-purple-500" />
+                      className="w-4 h-4 accent-purple-500" />
                   </label>
                 )}
               </div>
+            </div>
 
-              {/* Data Export */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">
-                <h3 className="font-semibold text-lg">📥 Data Export</h3>
-                <button
-                  onClick={async () => {
-                    try {
-                      const data = await getEventAnalytics(event.id, 90);
-                      const rows = data.analytics || data.rows || [];
-                      if (!rows.length) { toast.error('No analytics data yet'); return; }
-                      exportAnalyticsCSV(rows, event.name);
-                      toast.success('Analytics CSV downloaded!');
-                    } catch { toast.error('Export failed'); }
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-colors text-sm">
-                  📊
-                  <div className="text-left">
-                    <p className="font-medium text-white/80">Analytics CSV</p>
-                    <p className="text-xs text-white/40">All actions: photos, prints, AI filters, shares</p>
-                  </div>
-                </button>
+            {/* Booth Limits */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">🚦 Booth Limits</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Opens At</label>
+                  <input type="datetime-local"
+                    value={(event.settings?.boothStart as string) || ''}
+                    onChange={e => updateSettings('boothStart', e.target.value || null)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500" />
+                </div>
+                <div>
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Closes At</label>
+                  <input type="datetime-local"
+                    value={(event.settings?.boothEnd as string) || ''}
+                    onChange={e => updateSettings('boothEnd', e.target.value || null)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500" />
+                </div>
+                <div>
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Max Photos</label>
+                  <input type="number" min="0" max="10000"
+                    value={(event.settings?.photoLimit as number) || ''}
+                    onChange={e => updateSettings('photoLimit', e.target.value ? Number(e.target.value) : null)}
+                    placeholder="Unlimited"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ SHARING TAB ══ */}
+        {tab === 'sharing' && (
+          <div className="space-y-5">
+
+            {/* Share channels */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="font-bold text-base mb-1">📤 Share Channels</h3>
+              <p className="text-white/35 text-xs mb-5">Control which sharing options guests see on the share screen</p>
+              <div className="space-y-1">
+                {[
+                  { key: 'allowEmailShare',   label: '📧 Email',      desc: 'Send photo to guest email. Requires RESEND_API_KEY on Render.', default: true },
+                  { key: 'allowSMSShare',     label: '📱 SMS',        desc: 'Send photo via SMS. Requires Twilio env vars on Render.', default: false },
+                  { key: 'allowWhatsApp',     label: '🟢 WhatsApp',   desc: 'Open WhatsApp share. Always shown by default.', default: true },
+                  { key: 'allowInstagram',    label: '📷 Instagram',  desc: 'Copy link for Instagram Stories sharing.', default: true },
+                  { key: 'allowAirDrop',      label: '📡 AirDrop',    desc: 'iOS/macOS native share. Apple devices only.', default: true },
+                ].map(item => (
+                  <label key={item.key} className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0 cursor-pointer group">
+                    <div>
+                      <p className="text-white/90 text-sm font-medium">{item.label}</p>
+                      <p className="text-white/30 text-xs mt-0.5">{item.desc}</p>
+                    </div>
+                    <div className="relative flex-shrink-0 ml-4">
+                      <input type="checkbox"
+                        checked={(event.settings?.[item.key] as boolean) ?? item.default}
+                        onChange={e => updateSettings(item.key, e.target.checked)}
+                        className="sr-only peer" id={`share-${item.key}`} />
+                      <label htmlFor={`share-${item.key}`}
+                        className="block w-11 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-violet-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Share screen behaviour */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">⏱️ Share Screen Behaviour</h3>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white/60 text-sm font-medium">Auto-advance timeout</label>
+                  <span className="text-violet-300 font-bold text-sm">
+                    {(event.settings?.shareScreenTimeout as number) > 0
+                      ? `${event.settings?.shareScreenTimeout}s`
+                      : 'Off'}
+                  </span>
+                </div>
+                <input type="range" min="0" max="120" step="5"
+                  value={(event.settings?.shareScreenTimeout as number) || 0}
+                  onChange={e => updateSettings('shareScreenTimeout', Number(e.target.value))}
+                  className="w-full accent-violet-500" />
+                <p className="text-white/25 text-xs mt-1.5">Share screen auto-advances to next guest after this time. 0 = wait forever.</p>
+              </div>
+              <div>
+                <label className="text-white/60 text-xs block mb-1.5 uppercase tracking-wide font-semibold">WhatsApp Country Code</label>
+                <input
+                  value={(event.settings?.whatsappCountryCode as string) || ''}
+                  onChange={e => updateSettings('whatsappCountryCode', e.target.value)}
+                  placeholder="91 for India, 1 for US — leave blank for guest to enter"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+              </div>
+            </div>
+
+            {/* Email customisation */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">📧 Email Customisation</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">From Name</label>
+                  <input value={(event.settings?.emailFromName as string) || ''}
+                    onChange={e => updateSettings('emailFromName', e.target.value)}
+                    placeholder={event.name || 'SnapBooth AI'}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+                </div>
+                <div>
+                  <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Reply-To Email</label>
+                  <input type="email"
+                    value={(event.settings?.emailReplyTo as string) || ''}
+                    onChange={e => updateSettings('emailReplyTo', e.target.value)}
+                    placeholder="you@yourdomain.com"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+                </div>
+              </div>
+              <div>
+                <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Email Subject</label>
+                <input
+                  value={(event.settings?.emailSubject as string) || ''}
+                  onChange={e => updateSettings('emailSubject', e.target.value)}
+                  placeholder={`Your photo from ${event.name} 📸`}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">SMS Message</label>
+                <textarea
+                  value={(event.settings?.smsMessage as string) || ''}
+                  onChange={e => updateSettings('smsMessage', e.target.value)}
+                  rows={2}
+                  placeholder={`📸 ${event.name} — here's your photo! View & save: {url}`}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500 resize-none" />
+                <p className="text-white/25 text-xs mt-1">Use {'{url}'} for photo link, {'{event}'} for event name</p>
+              </div>
+              <TestEmailButton eventId={event.id} />
+            </div>
+
+            {/* Webhook */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">🔗 Webhook / Zapier</h3>
+              <p className="text-white/35 text-xs">POST to this URL every time a photo is taken. Works with Zapier, Make, n8n.</p>
+              <div>
+                <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Webhook URL</label>
+                <input type="url"
+                  value={(event.settings?.webhookUrl as string) || ''}
+                  onChange={e => updateSettings('webhookUrl', e.target.value)}
+                  placeholder="https://hooks.zapier.com/hooks/catch/..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Secret (optional)</label>
+                <input type="text"
+                  value={(event.settings?.webhookSecret as string) || ''}
+                  onChange={e => updateSettings('webhookSecret', e.target.value)}
+                  placeholder="Sent as X-SnapBooth-Secret header"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500" />
+              </div>
+              <button
+                disabled={webhookTesting || !(event.settings?.webhookUrl as string)}
+                onClick={async () => {
+                  if (!(event.settings?.webhookUrl as string)) return;
+                  setWebhookTesting(true); setWebhookResult(null);
+                  try {
+                    const r = await testWebhook(event.id, event.settings.webhookUrl as string);
+                    setWebhookResult(r.ok ? 'ok' : 'fail');
+                    toast[r.ok ? 'success' : 'error'](r.ok ? 'Webhook delivered ✅' : `Failed: ${r.error || 'HTTP error'}`);
+                  } catch { setWebhookResult('fail'); toast.error('Webhook test failed'); }
+                  finally { setWebhookTesting(false); }
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm font-medium hover:bg-blue-600/30 transition-colors disabled:opacity-40">
+                {webhookTesting ? <div className="w-4 h-4 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" /> : '🔗'}
+                {webhookTesting ? 'Testing…' : 'Send test event'}
+              </button>
+              {webhookResult === 'ok' && <span className="text-green-400 text-xs">✅ Delivered!</span>}
+              {webhookResult === 'fail' && <span className="text-red-400 text-xs">❌ Failed — check URL</span>}
+            </div>
+          </div>
+        )}
+
+        {/* ══ PRINT SETUP TAB ══ */}
+        {tab === 'print' && (
+          <div className="space-y-5">
+
+            {/* Printer status */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="font-bold text-base mb-1">🖨️ Printer Connection</h3>
+              <p className="text-white/35 text-xs mb-4">SnapBooth uses AirPrint — any AirPrint-compatible printer on the same WiFi network will work.</p>
+              <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl p-4">
+                <p className="text-blue-300 text-sm font-semibold mb-1">✅ Your Epson PM-520 is AirPrint compatible</p>
+                <p className="text-blue-200/50 text-xs">Make sure the printer is on the same WiFi network as your iPad. When you tap Print in the booth, iPad will show the AirPrint printer picker automatically.</p>
+              </div>
+              <p className="text-white/25 text-xs mt-3">To check if your printer is detected: go to 🔧 Diagnostics → tap "Print Test Page" — if the printer picker appears, it is connected.</p>
+            </div>
+
+            {/* Paper size */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">📄 Paper Size</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { key: '4x6', label: '4×6"', desc: 'Standard photo', recommended: true },
+                  { key: '5x7', label: '5×7"', desc: 'Large photo' },
+                  { key: 'a5',  label: 'A5',   desc: '148×210mm' },
+                  { key: 'a4',  label: 'A4',   desc: '210×297mm' },
+                ].map(size => (
+                  <button key={size.key}
+                    onClick={() => updateSettings('paperSize', size.key)}
+                    className={`flex flex-col items-center p-3 rounded-xl border text-sm transition-all ${
+                      (event.settings?.paperSize as string || '4x6') === size.key
+                        ? 'bg-violet-600/20 border-violet-500/40 text-violet-200'
+                        : 'bg-white/3 border-white/8 text-white/50 hover:border-white/20 hover:text-white/70'
+                    }`}>
+                    <span className="font-bold text-base">{size.label}</span>
+                    <span className="text-xs opacity-70 mt-0.5">{size.desc}</span>
+                    {size.recommended && <span className="text-[9px] mt-1 text-green-400">Recommended</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Print settings */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
+              <h3 className="font-bold text-base mb-1">⚙️ Print Settings</h3>
+
+              {/* Copies */}
+              <div>
+                <label className="text-white/50 text-xs block mb-2 uppercase tracking-wide font-semibold">Copies Per Guest</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(n => (
+                    <button key={n}
+                      onClick={() => updateSettings('printCopies', n)}
+                      className={`w-12 h-12 rounded-xl font-bold text-lg transition-all border ${
+                        ((event.settings?.printCopies as number) || 1) === n
+                          ? 'bg-violet-600 border-violet-500 text-white'
+                          : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25'
+                      }`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* Max prints */}
+              <div>
+                <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Max Prints Per Event</label>
+                <input type="number" min="0" max="9999"
+                  value={(event.settings?.maxPrints as number) || ''}
+                  onChange={e => updateSettings('maxPrints', e.target.value ? Number(e.target.value) : null)}
+                  placeholder="Unlimited"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500 max-w-xs" />
+                <p className="text-white/25 text-xs mt-1">Leave blank for unlimited prints. Booth shows a message when the limit is reached.</p>
+              </div>
+
+              {/* Print scale */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white/60 text-sm font-medium">Print Scale (alignment)</label>
+                  <span className="text-violet-300 font-bold text-sm">{(event.settings?.printScale as number) || 98}%</span>
+                </div>
+                <input type="range" min="80" max="100" step="1"
+                  value={(event.settings?.printScale as number) || 98}
+                  onChange={e => updateSettings('printScale', Number(e.target.value))}
+                  className="w-full accent-violet-500" />
+                <p className="text-white/25 text-xs mt-1.5">Reduce if photo is being cropped at the edges. 98% recommended for Epson PM-520.</p>
+              </div>
+            </div>
+
+            {/* Auto print */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">
+              <h3 className="font-bold text-base mb-1">⚡ Auto-Print</h3>
+              <label className="flex items-center justify-between cursor-pointer">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Print automatically after every capture</p>
+                  <p className="text-white/30 text-xs mt-0.5">Photo sends to printer immediately without guest tapping Print. Best for events where every guest gets a print.</p>
+                </div>
+                <div className="relative flex-shrink-0 ml-4">
+                  <input type="checkbox"
+                    checked={(event.settings?.autoPrint as boolean) ?? false}
+                    onChange={e => updateSettings('autoPrint', e.target.checked)}
+                    className="sr-only peer" id="auto-print-toggle" />
+                  <label htmlFor="auto-print-toggle"
+                    className="block w-11 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-violet-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                </div>
+              </label>
+            </div>
+
+            {/* Print test */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h3 className="font-bold text-base mb-3">🧪 Test Print</h3>
+              <p className="text-white/35 text-xs mb-4">Sends a test page to confirm printer is connected and paper size is correct.</p>
+              <button
+                onClick={() => {
+                  const w = window.open('', '_blank', 'width=400,height=500');
+                  if (w) {
+                    w.document.write(`<html><head><title>SnapBooth Print Test</title>
+                    <style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:4in;height:6in;overflow:hidden}
+                    @page{size:4in 6in portrait;margin:0}
+                    .p{position:absolute;top:0;left:0;width:4in;height:6in;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;font-family:Arial,sans-serif;gap:8px}
+                    h1{color:#7c3aed;font-size:24px}p{color:#555;font-size:12px;text-align:center}
+                    .box{border:3px dashed #7c3aed;border-radius:12px;padding:20px;text-align:center}</style>
+                    </head><body><div class="p"><div class="box">
+                    <h1>📷 SnapBooth AI</h1>
+                    <p>Test Print Successful</p>
+                    <p>Paper: ${(event.settings?.paperSize as string || '4x6').toUpperCase()} | Scale: ${(event.settings?.printScale as number) || 98}%</p>
+                    <p style="font-size:10px;color:#999;margin-top:8px">${new Date().toLocaleString()}</p>
+                    </div></div>
+                    <script>setTimeout(function(){window.print();window.close()},600)</script>
+                    </body></html>`);
+                    w.document.close();
+                  }
+                }}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-200 font-semibold text-sm hover:bg-violet-600/30 transition-colors">
+                🖨️ Send Test Page
+              </button>
             </div>
           </div>
         )}
