@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, Sparkles, Share2, CheckCircle, Rocket, Printer } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
@@ -63,10 +63,7 @@ function ActionBtn({
       whileTap={{ scale: 0.93 }}
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white
-                 text-xs select-none transition-colors active:opacity-80 disabled:opacity-40
-                 // portrait: fixed height in row; landscape: fills panel width
-                 h-16 sm:h-auto sm:py-4 px-2 sm:px-3 min-w-[64px] sm:min-w-0 sm:w-full"
+      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-colors active:opacity-80 disabled:opacity-40 h-16 sm:h-auto sm:py-4 px-2 sm:px-3 min-w-[64px] sm:min-w-0 sm:w-full"
       style={color ? { background: color } : accent
         ? { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }
         : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }
@@ -97,14 +94,31 @@ export function PreviewScreen() {
     else setScreen('share');
   }
 
+  const printScale = (event?.settings?.printScale as number) || 98;
+
   async function handlePrint() {
     if (!event) return;
     try {
-      printPhotoOnly(photo.url, eventName);
+      printPhotoOnly(photo.url, eventName, printScale);
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer!');
     } catch { toast.error('Print failed — try again'); }
   }
+
+  // ── Auto-print: fires once on mount if operator enabled it ─────────────────
+  const autoPrinted = useRef(false);
+  useEffect(() => {
+    const autoPrint = event?.settings?.autoPrint as boolean | undefined;
+    if (autoPrint && !autoPrinted.current && photo?.url && event) {
+      autoPrinted.current = true;
+      // Small delay so the photo renders first
+      setTimeout(() => {
+        printPhotoOnly(photo.url, eventName, printScale);
+        trackAction(event.id, 'photo_printed', { photoId: photo.id, auto: true });
+        toast.success('🖨️ Auto-printing...', { duration: 2000 });
+      }, 800);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build action list dynamically
   const actions = [
@@ -168,7 +182,11 @@ export function PreviewScreen() {
             <img
               src={photo.url}
               alt="Your photo"
-              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+              className="max-h-full object-contain rounded-2xl shadow-2xl"
+              style={{
+                maxWidth: mode === 'strip' ? '320px' : '100%',
+                width: mode === 'strip' ? 'auto' : '100%',
+              }}
               draggable={false}
             />
 
@@ -246,13 +264,8 @@ export function PreviewScreen() {
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.12 }}
-          className="
-            hidden sm:flex
-            flex-shrink-0 w-32 lg:w-40
-            flex-col gap-2.5 py-4 px-2.5
-            border-l border-white/[0.06] bg-[#0d0d1a]/60
-            overflow-y-auto
-          "
+          className="hidden sm:flex flex-shrink-0 flex-col gap-2.5 py-4 px-2.5 border-l border-white/[0.06] bg-[#0d0d1a]/60 overflow-y-auto"
+          style={{ width: '140px', minWidth: '140px' }}
         >
           {actions.map((a, i) => (
             <motion.div
