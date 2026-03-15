@@ -10,7 +10,7 @@ import { useIsDemo } from '@/app/booth/BoothPageClient';
 import toast from 'react-hot-toast';
 
 // ── Print — single page, no blank pages ───────────────────────────────────────
-function printPhotoOnly(photoUrl: string, eventName: string) {
+function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   const existing = document.getElementById('__snapbooth_print_frame');
   if (existing) existing.remove();
   const iframe = document.createElement('iframe');
