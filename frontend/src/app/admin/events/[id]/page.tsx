@@ -654,20 +654,20 @@ export default function EventManagePage() {
   const hiddenPhotos  = photos.filter(p => p.is_hidden);
 
   // Sidebar nav groups
-  const NAV = [
-    { section: 'event',    icon: '📋', label: 'Event',    tabs: [{ key: 'overview' as Tab, label: 'Overview' }] },
-    { section: 'design',   icon: '🎨', label: 'Design',   tabs: [{ key: 'branding' as Tab, label: 'Branding & Style' }] },
-    { section: 'capture',  icon: '📷', label: 'Capture',  tabs: [{ key: 'settings' as Tab, label: 'Booth Settings' }] },
+  const NAV: { section: string; icon: string; label: string; tabs: { key: Tab; label: string }[] }[] = [
+    { section: 'event',    icon: '📋', label: 'Event',    tabs: [{ key: 'overview', label: 'Overview' }] },
+    { section: 'design',   icon: '🎨', label: 'Design',   tabs: [{ key: 'branding', label: 'Branding & Style' }] },
+    { section: 'capture',  icon: '📷', label: 'Capture',  tabs: [{ key: 'settings', label: 'Booth Settings' }] },
     { section: 'data',     icon: '📸', label: 'Content',  tabs: [
-      { key: 'photos' as Tab,     label: `Photos (${visiblePhotos.length})` },
-      { key: 'moderation' as Tab, label: `Moderation${hiddenPhotos.length ? ` (${hiddenPhotos.length})` : ''}` },
-      { key: 'leads' as Tab,      label: `Leads${leads.length ? ` (${leads.length})` : ''}` },
+      { key: 'photos',     label: `Photos (${visiblePhotos.length})` },
+      { key: 'moderation', label: `Moderation${hiddenPhotos.length ? ` (${hiddenPhotos.length})` : ''}` },
+      { key: 'leads',      label: `Leads${leads.length ? ` (${leads.length})` : ''}` },
     ]},
     { section: 'advanced', icon: '📊', label: 'Analytics', tabs: [
-      { key: 'analytics' as Tab,   label: 'Analytics' },
-      { key: 'diagnostics' as Tab, label: 'Diagnostics' },
+      { key: 'analytics',   label: 'Analytics' },
+      { key: 'diagnostics', label: 'Diagnostics' },
     ]},
-  ] as const;
+  ];
 
   return (
     <div className="min-h-screen bg-[#080810] text-white flex flex-col" style={{ fontFamily: 'system-ui, sans-serif' }}>
