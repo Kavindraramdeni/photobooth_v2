@@ -11,6 +11,7 @@ import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 type Tab = 'overview' | 'branding' | 'settings' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
+type SideSection = 'event' | 'capture' | 'design' | 'sharing' | 'data' | 'advanced';
 
 interface EventData {
   id: string; name: string; slug: string; date: string; venue: string; status: string;
@@ -643,76 +644,174 @@ export default function EventManagePage() {
   ];
 
   if (loading) return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-      <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen bg-[#080810] flex items-center justify-center">
+      <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
   if (!event) return null;
 
+  const visiblePhotos = photos.filter(p => !p.is_hidden);
+  const hiddenPhotos  = photos.filter(p => p.is_hidden);
+
+  // Sidebar nav groups
+  const NAV = [
+    { section: 'event',    icon: '📋', label: 'Event',    tabs: [{ key: 'overview' as Tab, label: 'Overview' }] },
+    { section: 'design',   icon: '🎨', label: 'Design',   tabs: [{ key: 'branding' as Tab, label: 'Branding & Style' }] },
+    { section: 'capture',  icon: '📷', label: 'Capture',  tabs: [{ key: 'settings' as Tab, label: 'Booth Settings' }] },
+    { section: 'data',     icon: '📸', label: 'Content',  tabs: [
+      { key: 'photos' as Tab,     label: `Photos (${visiblePhotos.length})` },
+      { key: 'moderation' as Tab, label: `Moderation${hiddenPhotos.length ? ` (${hiddenPhotos.length})` : ''}` },
+      { key: 'leads' as Tab,      label: `Leads${leads.length ? ` (${leads.length})` : ''}` },
+    ]},
+    { section: 'advanced', icon: '📊', label: 'Analytics', tabs: [
+      { key: 'analytics' as Tab,   label: 'Analytics' },
+      { key: 'diagnostics' as Tab, label: 'Diagnostics' },
+    ]},
+  ] as const;
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* ── Header ── */}
-      <div className="border-b border-white/10 px-6 py-4 sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-3">
+    <div className="min-h-screen bg-[#080810] text-white flex flex-col" style={{ fontFamily: 'system-ui, sans-serif' }}>
+
+      {/* ── Top header ── */}
+      <header className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c18]/90 backdrop-blur-md sticky top-0 z-20">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-3">
+          {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/admin" className="text-white/40 hover:text-white text-sm flex items-center gap-1.5 flex-shrink-0">
-              ← Dashboard
+            <Link href="/admin"
+              className="flex items-center gap-1.5 text-white/35 hover:text-white/70 transition-colors text-sm flex-shrink-0">
+              ← Back
             </Link>
-            <span className="text-white/20">/</span>
-            <h1 className="font-bold text-lg truncate">{event.name}</h1>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${event.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/40'}`}>
-              {event.status}
-            </span>
+            <div className="w-px h-5 bg-white/10 flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="font-bold text-base truncate leading-tight">{event.name}</h1>
+              <p className="text-white/30 text-xs truncate">{event.venue || 'No venue set'} · {event.date?.split('T')[0]}</p>
+            </div>
+            <span className={`hidden sm:inline text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 uppercase tracking-wide ${
+              event.status === 'active' ? 'bg-green-500/15 text-green-400 border border-green-500/25' : 'bg-white/5 text-white/30 border border-white/10'
+            }`}>{event.status}</span>
           </div>
+
+          {/* Right — quick actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => { navigator.clipboard.writeText(boothUrl); toast.success('Copied!'); }}
-              className="text-sm bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl transition-colors">
+            {/* Stats pills */}
+            {stats && (
+              <div className="hidden md:flex items-center gap-1.5">
+                {[
+                  { v: stats.totalPhotos, e: '📸', l: 'photos' },
+                  { v: stats.totalShares, e: '📤', l: 'shares' },
+                  { v: stats.totalPrints, e: '🖨️', l: 'prints' },
+                ].map(s => (
+                  <div key={s.l} className="flex items-center gap-1 bg-white/5 border border-white/8 rounded-lg px-2.5 py-1">
+                    <span className="text-xs">{s.e}</span>
+                    <span className="text-white font-bold text-sm">{s.v ?? 0}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => { navigator.clipboard.writeText(boothUrl); toast.success('Booth URL copied!'); }}
+              className="hidden sm:flex items-center gap-1.5 text-xs bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-xl transition-colors">
               📋 Copy URL
             </button>
             <Link href={`/booth?event=${event.slug}`} target="_blank"
-              className="text-sm bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl transition-colors">
+              className="flex items-center gap-1.5 text-xs bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 px-3 py-2 rounded-xl transition-colors font-semibold">
               🚀 Open Booth
             </Link>
             <button onClick={handleSave} disabled={saving}
-              className="text-sm bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-xl font-semibold disabled:opacity-50 transition-colors">
-              {saving ? 'Saving...' : 'Save Changes'}
+              className="flex items-center gap-1.5 text-xs bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl font-bold disabled:opacity-50 transition-colors">
+              {saving ? '⏳' : '💾'} {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* ── Stats ── */}
+        {/* ── Stats bar (mobile) ── */}
         {stats && (
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-2 mb-6">
+          <div className="md:hidden flex items-center gap-2 px-4 pb-2.5 overflow-x-auto scrollbar-none">
             {[
-              { label: 'Photos', value: stats.totalPhotos, emoji: '📸' },
-              { label: 'GIFs', value: stats.totalGIFs, emoji: '🎬' },
-              { label: 'Strips', value: stats.totalStrips, emoji: '🎞️' },
-              { label: 'Boomerangs', value: stats.totalBoomerangs, emoji: '🔄' },
-              { label: 'AI Used', value: stats.totalAIGenerated, emoji: '🤖' },
-              { label: 'Shares', value: stats.totalShares, emoji: '📤' },
-              { label: 'Prints', value: stats.totalPrints, emoji: '🖨️' },
-              { label: 'Sessions', value: stats.totalSessions, emoji: '👥' },
+              { v: stats.totalPhotos, e: '📸', l: 'Photos' },
+              { v: stats.totalGIFs, e: '🎬', l: 'GIFs' },
+              { v: stats.totalStrips, e: '🎞️', l: 'Strips' },
+              { v: stats.totalShares, e: '📤', l: 'Shares' },
+              { v: stats.totalPrints, e: '🖨️', l: 'Prints' },
+              { v: stats.totalSessions, e: '👥', l: 'Sessions' },
             ].map(s => (
-              <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-2.5 text-center">
-                <div className="text-lg mb-0.5">{s.emoji}</div>
-                <div className="text-xl font-bold">{s.value ?? 0}</div>
-                <div className="text-white/40 text-[10px] leading-tight">{s.label}</div>
+              <div key={s.l} className="flex-shrink-0 flex flex-col items-center bg-white/5 border border-white/8 rounded-xl px-3 py-1.5">
+                <span className="text-xs">{s.e}</span>
+                <span className="text-white font-bold text-sm leading-none">{s.v ?? 0}</span>
+                <span className="text-white/30 text-[9px]">{s.l}</span>
               </div>
             ))}
           </div>
         )}
+      </header>
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-1 bg-white/5 rounded-xl p-1 mb-6 overflow-x-auto">
-          {TABS.map(t => (
+      {/* ── Body: sidebar + content ── */}
+      <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+
+        {/* ── LEFT SIDEBAR ── */}
+        <aside className="hidden md:flex flex-col w-48 lg:w-56 flex-shrink-0 border-r border-white/[0.06] bg-[#0a0a15] overflow-y-auto">
+          <div className="p-3 space-y-1">
+            {NAV.map(group => (
+              <div key={group.section}>
+                {/* Group header */}
+                <div className="px-3 pt-3 pb-1">
+                  <span className="text-white/25 text-[10px] font-bold uppercase tracking-widest">{group.icon} {group.label}</span>
+                </div>
+                {/* Group items */}
+                {group.tabs.map(t => (
+                  <button key={t.key} onClick={() => setTab(t.key)}
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all ${
+                      tab === t.key
+                        ? 'bg-violet-600/20 text-violet-200 font-semibold border border-violet-500/25'
+                        : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
+                    }`}>
+                    <span className="leading-none">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom: kiosk mode quick toggle */}
+          <div className="mt-auto p-3 border-t border-white/[0.05]">
+            <div className="bg-white/3 border border-white/8 rounded-xl p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-white/60 text-xs font-semibold">🔒 Kiosk Mode</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox"
+                    checked={(event.settings?.kioskMode as boolean) ?? false}
+                    onChange={e => updateSettings('kioskMode', e.target.checked)}
+                    className="sr-only peer" />
+                  <div className="w-8 h-4 bg-white/15 peer-checked:bg-violet-600 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
+                </label>
+              </div>
+              <p className="text-white/25 text-[10px] leading-relaxed">Locks booth in fullscreen. Guests cannot exit.</p>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── MOBILE TAB BAR (bottom) ── */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-[#0a0a15]/95 backdrop-blur border-t border-white/[0.07] flex overflow-x-auto scrollbar-none px-2 py-1 gap-1">
+          {NAV.flatMap(g => g.tabs).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${tab === t.key ? 'bg-purple-600 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}>
+              className={`flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-medium transition-all ${
+                tab === t.key ? 'bg-violet-600 text-white' : 'text-white/40 hover:text-white/70'
+              }`}>
               {t.label}
             </button>
           ))}
         </div>
+
+        {/* ── MAIN CONTENT ── */}
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+
+            {/* ── Section title ── */}
+            <div className="mb-5">
+              <h2 className="text-white font-bold text-xl capitalize">
+                {NAV.flatMap(g => g.tabs).find(t => t.key === tab)?.label || tab}
+              </h2>
+              <div className="w-8 h-0.5 mt-1.5 rounded-full bg-violet-500 opacity-60" />
+            </div>
 
         {/* ══ OVERVIEW TAB ══ */}
         {tab === 'overview' && (
@@ -1086,6 +1185,7 @@ export default function EventManagePage() {
                     { key: 'allowGIF',       label: '🎬 GIF Mode',       desc: 'Animated GIFs from burst frames' },
                     { key: 'allowBoomerang', label: '🔄 Boomerang',      desc: 'Ping-pong loop animation' },
                     { key: 'allowPrint',     label: '🖨️ Print',          desc: 'AirPrint directly from booth' },
+                    { key: 'autoPrint',      label: '⚡ Auto-Print',     desc: 'Print automatically after every capture' },
                     { key: 'allowRetakes',   label: '🔁 Retakes',        desc: 'Let guests retake their photo' },
                   ].map(item => (
                     <label key={item.key} className="flex items-center justify-between py-3.5 border-b border-white/5 last:border-0 cursor-pointer">
@@ -1145,6 +1245,20 @@ export default function EventManagePage() {
                   <p className="text-white/30 text-xs mt-1">4–8 digits. Used to unlock operator panel (gear icon).</p>
                 </div>
                 <div>
+                  {/* Kiosk Mode */}
+                  <div className="border-t border-white/5 pt-4">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <p className="text-white/80 text-sm font-medium">🔒 Kiosk Mode</p>
+                        <p className="text-white/30 text-xs">Locks booth in fullscreen. Guests cannot exit or navigate away. Best for unattended events.</p>
+                      </div>
+                      <input type="checkbox"
+                        checked={(event.settings?.kioskMode as boolean) ?? false}
+                        onChange={e => updateSettings('kioskMode', e.target.checked)}
+                        className="w-5 h-5 accent-purple-500" />
+                    </label>
+                  </div>
+
                   <label className="text-white/50 text-sm block mb-1.5">Print Copies Per Session</label>
                   <select value={(event.settings?.printCopies as number) || 1}
                     onChange={e => updateSettings('printCopies', Number(e.target.value))}
@@ -1686,18 +1800,81 @@ export default function EventManagePage() {
         {/* ══ ANALYTICS TAB ══ */}
         {tab === 'analytics' && (
           <div className="space-y-6">
-            {/* Live dashboard at top */}
+            {/* Tracked events summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Photos Taken', value: stats?.totalPhotos ?? 0, icon: '📸', color: '#7c3aed' },
+                { label: 'GIFs / Boomerangs', value: (stats?.totalGIFs ?? 0) + (stats?.totalBoomerangs ?? 0), icon: '🎬', color: '#06b6d4' },
+                { label: 'AI Generated', value: stats?.totalAIGenerated ?? 0, icon: '🤖', color: '#f59e0b' },
+                { label: 'Total Shares', value: stats?.totalShares ?? 0, icon: '📤', color: '#10b981' },
+                { label: 'Prints', value: stats?.totalPrints ?? 0, icon: '🖨️', color: '#6366f1' },
+                { label: 'Email Shares', value: 0, icon: '📧', color: '#ec4899' },
+                { label: 'Sessions', value: stats?.totalSessions ?? 0, icon: '👥', color: '#8b5cf6' },
+                { label: 'Gallery Views', value: 0, icon: '🖼️', color: '#14b8a6' },
+              ].map(s => (
+                <div key={s.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                  <div className="text-2xl mb-1">{s.icon}</div>
+                  <div className="text-2xl font-black" style={{ color: s.color }}>{s.value}</div>
+                  <div className="text-white/40 text-xs mt-0.5">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Live dashboard */}
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-              <h3 className="text-white font-semibold text-base mb-4">🟢 Live — Right Now</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <h3 className="text-white font-semibold">Live — Right Now</h3>
+              </div>
               <LiveDashboard eventId={event.id} />
             </div>
-            {/* Historical charts below */}
+
+            {/* Historical charts */}
             <AnalyticsDashboard eventId={event.id} />
+
+            {/* What is tracked */}
+            <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
+              <h3 className="text-white/60 text-sm font-semibold mb-3">✅ What is tracked automatically</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  'Photo / GIF / Strip capture',
+                  'AI filter generation',
+                  'WhatsApp shares',
+                  'Email shares',
+                  'SMS shares',
+                  'Gallery views',
+                  'Gallery downloads',
+                  'Print jobs',
+                  'Lead captures',
+                ].map(item => (
+                  <div key={item} className="flex items-center gap-2 text-white/40 text-xs">
+                    <span className="text-green-400">✓</span>
+                    {item}
+                  </div>
+                ))}
+              </div>
+              <p className="text-white/20 text-xs mt-3">All events are stored in Supabase analytics table and available for CSV export.</p>
+            </div>
+
+            {/* Export */}
+            <button onClick={async () => {
+              try {
+                const data = await getEventAnalytics(event.id, 90);
+                const rows = (data.daily || []).map((d: Record<string, unknown>) => ({ date: d.date, photos: d.photos, gifs: d.gifs, ai: d.ai }));
+                exportAnalyticsCSV(rows, event.name);
+                toast.success('Analytics exported!');
+              } catch { toast.error('Export failed'); }
+            }}
+              className="w-full py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/70 text-sm font-semibold transition-colors">
+              📥 Export Analytics CSV
+            </button>
           </div>
         )}
 
         {/* ══ DIAGNOSTICS TAB ══ */}
         {tab === 'diagnostics' && <DiagnosticsPanel eventId={event.id} />}
+          </div>
+        </main>
       </div>
     </div>
   );
