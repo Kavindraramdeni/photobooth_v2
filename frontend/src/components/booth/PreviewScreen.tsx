@@ -269,9 +269,7 @@ export function PreviewScreen() {
       <AnimatePresence>
         {showLeadModal && (
           <LeadCaptureModal
-            event={event!}
-            onComplete={() => { setShowLeadModal(false); setScreen('share'); }}
-            onSkip={() => { setShowLeadModal(false); setScreen('share'); }}
+            onContinue={() => { setShowLeadModal(false); setScreen('share'); }}
           />
         )}
       </AnimatePresence>
