@@ -66,6 +66,7 @@ export interface Event {
     maxPrints?:    number | null;
     printScale?:   number;
     autoPrint?:    boolean;
+    kioskMode?:    boolean;
   };
 }
 
