@@ -132,6 +132,62 @@ The final result should look like a premium variant cover for a major superhero 
     negativePrompt: 'realistic photograph, painterly, watercolor, soft edges, gradients, muted colours, blurry, anime, manga, low detail, poorly drawn, amateur',
     strength: 0.80,
   },
+
+  renaissance: {
+    name: 'Renaissance',
+    emoji: '🎨',
+    prompt: 'Transform this photograph into a Renaissance oil painting in the style of Leonardo da Vinci or Raphael. Preserve the person's exact facial features and likeness. Apply soft sfumato shading, warm amber lighting from one side, and a dark classical background. Clothing should be rendered in period-appropriate Renaissance attire with rich fabrics. The overall feel should be a museum-quality Renaissance portrait.',
+    negativePrompt: 'modern, digital, cartoon, anime, flat colours, harsh lighting, photography',
+    strength: 0.78,
+  },
+
+  statue: {
+    name: 'Marble Statue',
+    emoji: '🏛️',
+    prompt: 'Transform the person in this photograph into a classical white marble statue. Preserve their exact facial features and likeness. The entire body and clothing should appear carved from brilliant white marble with realistic stone texture, subtle veining, and cool grey shadows. The background should be a classical museum or ancient Greek setting. Lighting should be dramatic studio lighting that reveals the marble texture.',
+    negativePrompt: 'color, painted, modern, digital, cartoon, blurry',
+    strength: 0.82,
+  },
+
+  eighties: {
+    name: '80s Yearbook',
+    emoji: '✨',
+    prompt: 'Make this person look like a 1980s high school yearbook photo. Preserve their exact face and likeness. Add period-appropriate 1980s hairstyle, clothing with shoulder pads or polo shirt. Use warm studio lighting with a gradient blue/purple backdrop typical of school portrait photography in the 1980s. Add subtle film grain and the slightly oversaturated look of 1980s portrait photography.',
+    negativePrompt: 'modern, digital clean, 21st century, contemporary clothing, neutral background',
+    strength: 0.70,
+  },
+
+  psychedelic: {
+    name: 'Psychedelic',
+    emoji: '🌈',
+    prompt: 'Create a 1960s psychedelic hand-drawn poster-style illustration based on this person. Use bright bold solid colors and swirling shapes around them. Transform the background into swirling rainbow patterns, kaleidoscopic geometric shapes, and flowing organic forms. Keep the person's face recognisable but stylise it with bold outlines and vivid saturated colours. Do not add any text.',
+    negativePrompt: 'realistic, muted colors, grayscale, modern, digital, text, words',
+    strength: 0.80,
+  },
+
+  pixelart: {
+    name: '8-bit Pixel',
+    emoji: '🎮',
+    prompt: 'Transform this image into a cute minimalist 8-bit pixel art character on a colorful retro background. The pixel size should be visible and large (like an 80x80 pixel grid scaled up). Use a limited bright color palette. The person's face should be clearly recognisable in pixel art style. Add a simple pixel art background with stars or a game-like environment.',
+    negativePrompt: 'photorealistic, smooth, anti-aliased, high resolution details, blurry',
+    strength: 0.85,
+  },
+
+  daguerreotype: {
+    name: '19th Century',
+    emoji: '🎩',
+    prompt: 'Make this photograph look like a 19th century daguerreotype portrait. Preserve the person's face exactly. Transform their clothing into period-appropriate Victorian attire — formal suit, cravat, or Victorian dress. The image should be sepia-toned with the characteristic metallic sheen of a daguerreotype. Add slight vignetting, film scratches, and the soft focus of early photography. The background should suggest a Victorian studio with draped fabric.',
+    negativePrompt: 'modern, colorful, casual clothing, digital, sharp, HDR',
+    strength: 0.72,
+  },
+
+  old: {
+    name: 'Aged',
+    emoji: '👴',
+    prompt: 'Make the person in this photograph look extremely old — in their 90s — while keeping their face completely recognisable. Add deep wrinkles across the forehead, around the eyes, and mouth. Make the hair white or silver. Add age spots, loose skin under the chin, and the characteristic drooping of very advanced age. Keep their expression and the background the same. This should be a photorealistic transformation.',
+    negativePrompt: 'young, smooth skin, dark hair, cartoon, anime, painted',
+    strength: 0.75,
+  },
 };
 
 
