@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
-export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang' | 'burst';
-export type BoothScreen = 'idle' | 'countdown' | 'capture' | 'preview' | 'ai' | 'share' | 'print';
+export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang' | 'burst' | 'aistudio';
+export type BoothScreen = 'idle' | 'countdown' | 'capture' | 'preview' | 'ai' | 'aistudio' | 'airesult' | 'share' | 'print';
 
 export interface Photo {
   id: string;
@@ -85,6 +85,7 @@ interface BoothStore {
   isProcessing: boolean;
   aiGenerating: boolean;
   aiProgress: string;
+  selectedAIStyle: string;
   sessionId: string;
   flashActive: boolean;
 
@@ -113,6 +114,7 @@ export const useBoothStore = create<BoothStore>((set, get) => ({
   isProcessing: false,
   aiGenerating: false,
   aiProgress: '',
+  selectedAIStyle: 'anime',
   sessionId: generateSessionId(),
   flashActive: false,
 
