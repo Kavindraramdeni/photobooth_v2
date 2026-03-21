@@ -118,7 +118,8 @@ export function IdleScreen() {
       {idleMediaUrl ? (
         isVideo
           ? <video src={idleMediaUrl} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />
-          : <img src={idleMediaUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          : /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={idleMediaUrl} alt="" className="absolute inset-0 w-full h-full object-contain" />
       ) : (
         <>
           <div className="absolute inset-0 bg-[#0a0a0f]" />
