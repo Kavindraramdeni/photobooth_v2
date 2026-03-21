@@ -204,7 +204,7 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
   const check = useCallback(async () => {
     setChecking(true);
     try {
-      const ok = await pingBackend(); setBackendOk(ok);
+      const result = await pingBackend(); setBackendOk(result.ok);
       const token = localStorage.getItem('sb_access_token');
       const res = await fetch(`${API_BASE}/api/ai/status`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (res.ok) setAiStatus(await res.json());
