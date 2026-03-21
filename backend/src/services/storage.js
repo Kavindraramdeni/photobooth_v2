@@ -41,12 +41,13 @@ if (R2_CONFIGURED) {
 
 // ── Supabase Storage fallback ─────────────────────────────────────────────────
 const SUPABASE_URL    = process.env.SUPABASE_URL;
-const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_KEY;
+// Accept SERVICE_KEY (preferred) or ANON_KEY as fallback
+const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
 const SUPABASE_BUCKET = 'photobooth-media';
 
 async function uploadToSupabase(buffer, key, contentType) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error('No storage configured. Set R2 env vars or SUPABASE_SERVICE_KEY on Render.');
+    throw new Error(`No storage configured. Set SUPABASE_SERVICE_KEY on Render (found SUPABASE_URL: ${!!SUPABASE_URL}, SUPABASE_KEY: ${!!SUPABASE_KEY}).`);
   }
 
   const url = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${key}`;
@@ -98,6 +99,36 @@ async function createSupabaseBucket() {
 }
 
 // ── Main API ──────────────────────────────────────────────────────────────────
+
+// Create bucket on startup so first upload doesn't fail
+if (!R2_CONFIGURED && SUPABASE_URL && SUPABASE_KEY) {
+  (async () => {
+    try {
+      // Check if bucket exists
+      const checkRes = await fetch(`${SUPABASE_URL}/storage/v1/bucket/${SUPABASE_BUCKET}`, {
+        headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+      });
+      if (checkRes.status === 404) {
+        // Create it
+        const createRes = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: SUPABASE_BUCKET, name: SUPABASE_BUCKET, public: true }),
+        });
+        if (createRes.ok) {
+          console.log(`✅ Storage: Supabase bucket '${SUPABASE_BUCKET}' created`);
+        } else {
+          const err = await createRes.text();
+          console.log(`ℹ️  Storage bucket check: ${err.slice(0, 100)}`);
+        }
+      } else {
+        console.log(`✅ Storage: Supabase bucket '${SUPABASE_BUCKET}' ready`);
+      }
+    } catch (e) {
+      console.error('Storage init error:', e.message);
+    }
+  })();
+}
 
 async function uploadToStorage(buffer, key, contentType = 'image/jpeg') {
   if (R2_CONFIGURED) {
