@@ -7,6 +7,44 @@ import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
 import toast from 'react-hot-toast';
 
+
+// ── Web Audio API sounds (no files needed) ───────────────────────────────────
+function playBeep(frequency = 880, duration = 0.12, volume = 0.3) {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = frequency;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+    setTimeout(() => ctx.close(), duration * 1000 + 100);
+  } catch { /* audio not supported */ }
+}
+
+function playShutter() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Click sound: short noise burst
+    const bufferSize = ctx.sampleRate * 0.05;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.4;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start();
+    setTimeout(() => ctx.close(), 200);
+  } catch { /* audio not supported */ }
+}
+
 const STRIP_COUNT = 4;
 const GIF_COUNT = 6;
 const BOOMERANG_COUNT = 5;
@@ -33,6 +71,8 @@ export function CountdownScreen() {
 
   const totalShots = mode === 'strip' ? STRIP_COUNT : mode === 'gif' ? GIF_COUNT : mode === 'boomerang' ? BOOMERANG_COUNT : 1;
   const countdownSeconds = event?.settings?.countdownSeconds ?? 3;
+  const soundEnabled = (event?.settings?.countdownSound as boolean) !== false; // on by default
+  const roamingMode = (event?.settings?.roamingMode as boolean) ?? false; // no countdown, instant capture
 
   const captureFrame = useCallback((): Blob | null => {
     const imageSrc = webcamRef.current?.getScreenshot();
@@ -134,19 +174,28 @@ export function CountdownScreen() {
       for (let shot = 0; shot < totalShots; shot++) {
         if (cancelled) return;
 
-        // Countdown
-        setPhase('countdown');
-        for (let i = countdownSeconds; i >= 1; i--) {
-          if (cancelled) return;
-          setCountdown(i);
-          await sleep(1000);
+        if (roamingMode) {
+          // Roaming mode: no countdown, capture immediately
+          setPhase('capturing');
+          setCountdown(null);
+          triggerFlash();
+          if (soundEnabled) playShutter();
+          await sleep(150);
+        } else {
+          // Normal countdown
+          setPhase('countdown');
+          for (let i = countdownSeconds; i >= 1; i--) {
+            if (cancelled) return;
+            setCountdown(i);
+            if (soundEnabled) playBeep(i === 1 ? 1100 : 880, 0.15, 0.35);
+            await sleep(1000);
+          }
+          setCountdown(null);
+          setPhase('capturing');
+          triggerFlash();
+          if (soundEnabled) playShutter();
+          await sleep(100);
         }
-
-        // Flash + capture
-        setCountdown(null);
-        setPhase('capturing');
-        triggerFlash();
-        await sleep(100); // tiny delay for flash effect
 
         const frame = captureFrame();
         if (frame) allFrames.push(frame);
