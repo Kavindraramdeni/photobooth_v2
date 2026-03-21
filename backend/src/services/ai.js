@@ -29,50 +29,114 @@ const AI_STYLES = {
   anime: {
     name: 'Anime Art',
     emoji: '🎌',
-    prompt: 'anime style illustration, Studio Ghibli, soft cel shading, high quality portrait of a person',
-    negativePrompt: 'ugly, blurry, low quality, deformed, nsfw',
-    strength: 0.75,
+    prompt: `Masterpiece anime-style illustration rendered in the aesthetic tradition of Studio Ghibli and modern Japanese animation studios. 
+The subject is a real person photographed in a photobooth — preserve their exact facial structure, eye shape, skin tone, hair colour, hair length, and overall likeness with absolute fidelity. 
+Their face must remain completely recognisable as the same individual. 
+Apply soft cel shading with clean, confident ink outlines to the face. 
+Eyes should be rendered in classic anime style — slightly enlarged, luminous, with detailed iris reflections and catchlights. 
+Skin should have a smooth, porcelain-like quality with subtle gradient shading — warm highlights on forehead, nose bridge, and cheekbones, cool shadow beneath the chin and along the neck. 
+Hair should be stylised into defined flowing sections with strong directional highlights and deep shadow separations, as seen in high-production anime titles. 
+Clothing should be faithfully reproduced but rendered with anime fabric textures — clean folds, bold shadow shapes, and saturated colour values. 
+The background should be transformed into a painterly anime environment — soft bokeh in pastel tones, distant foliage or architectural elements hinted in impressionistic style. 
+Overall colour palette should be warm, saturated, and harmonious. 
+Lighting should feel cinematic yet soft — a key light from the upper left, gentle fill from the right, and a subtle rim light that separates the subject from the background. 
+Final image should feel like a frame extracted from a premium anime film — professional, polished, and emotionally expressive.`,
+    negativePrompt: 'ugly, deformed, extra limbs, poorly drawn face, mutation, out of frame, low quality, blurry, grainy, watermark, signature, text, nsfw, nudity, bad anatomy, wrong proportions, duplicate, cloned face',
+    strength: 0.78,
   },
+
   vintage: {
     name: 'Vintage Film',
     emoji: '📷',
-    prompt: 'vintage film photograph, Kodachrome, warm grain, 1970s portrait photography, faded colours',
-    negativePrompt: 'modern, digital, oversaturated, sharp',
-    strength: 0.55,
+    prompt: `Transform this photograph into a authentic vintage film portrait captured on Kodachrome 64 slide film in the early 1970s. 
+The subject is a real person — preserve their exact facial features, expression, skin tone, hair, and clothing with complete accuracy. Their identity must be unmistakably preserved. 
+Apply genuine analogue film characteristics: introduce subtle but visible film grain across the entire image with a natural, organic texture — not digital noise. 
+Colour grading should replicate Kodachrome's iconic palette — warm golden-amber midtones, slightly lifted blacks that fade to a milky brown rather than pure black, slightly desaturated cool tones, rich warm skin rendition. 
+Highlights should bloom softly without clipping — a gentle halation effect around bright areas like skin and light sources. 
+Shadows should have a warm brownish-green cast typical of expired Kodachrome. 
+Contrast should be moderate — not flat but not punchy — with a characteristic mid-tone compression. 
+Add a very subtle vignette that darkens the corners, as if shot with a slightly older lens. 
+The image should feel timeless, warm, and nostalgic — like a photograph discovered in an old family album from 1972. 
+Skin tones should feel rich and sun-kissed. The overall mood should be warm, intimate, and deeply human.`,
+    negativePrompt: 'modern digital look, oversaturated, HDR, harsh contrast, sharp edges, clean blacks, digital noise, overexposed, cold tones, blue shadows, modern colour grading',
+    strength: 0.58,
   },
+
   watercolor: {
     name: 'Watercolor',
     emoji: '🎨',
-    prompt: 'watercolor painting portrait, soft washes, artistic, paper texture, loose brushwork',
-    negativePrompt: 'photograph, digital, 3d render, harsh lines',
-    strength: 0.72,
+    prompt: `Transform this photograph into a masterful watercolor portrait painting in the tradition of contemporary illustrative watercolor art. 
+The subject is a real person — preserve their exact facial features, proportions, skin tone, hair colour, and expression with full fidelity. The person must remain completely recognisable. 
+The face should be rendered with careful, controlled washes — soft gradients of transparent colour layered to build form, with wet-on-wet blending on the cheeks and forehead creating beautiful soft transitions. 
+Apply the classic watercolor technique of leaving deliberate white paper areas for highlights on the nose, cheekbones, and eyes — these unpainted areas create the luminosity that defines fine watercolor portraiture. 
+The eyes should be rendered with slightly more detail and precision than the rest of the face — crisp dark pupils, careful iris work, and subtle wet reflections. 
+Hair should be painted with confident, sweeping brushstrokes in varied tones — dark concentrated washes at the roots fading to lighter tones at the tips, with individual strand details suggested rather than explicitly drawn. 
+Clothing should be rendered loosely with gestural washes — suggest the form and colour without tight photographic detail. 
+The background should dissolve into loose, abstract washes of complementary colours — perhaps soft blues, warm yellows, or gentle greens bleeding into each other in a wet-on-wet technique. 
+Visible brushstrokes should be apparent and expressive — this is a painting, not a photo filter. 
+Paper texture should show through the thinner washes. 
+The overall impression should be of a skilled human artist's work — emotionally resonant, technically accomplished, and uniquely beautiful.`,
+    negativePrompt: 'photorealistic, digital painting, harsh lines, black outlines, thick paint, oil paint texture, 3d render, overworked, muddy colours, loss of white areas, overdetailed background',
+    strength: 0.75,
   },
+
   cyberpunk: {
     name: 'Cyberpunk',
     emoji: '🌆',
-    prompt: 'cyberpunk portrait, neon rim light, futuristic city background, high contrast, blade runner',
-    negativePrompt: 'natural light, daytime, dull, boring',
-    strength: 0.70,
+    prompt: `Transform this photograph into a cinematic cyberpunk portrait in the visual style of Blade Runner 2049, Ghost in the Shell, and Cyberpunk 2077 promotional art. 
+The subject is a real person — their exact face, bone structure, eyes, skin tone, and hair must be preserved with complete accuracy. This is critical. Do not alter their facial features in any way. 
+Lighting should be dramatically transformed: add a powerful neon rim light from the left side in electric blue or cyan that traces the cheekbone, ear, and shoulder. 
+Add a secondary fill light from the right in warm magenta or deep violet that softly illuminates the shadow side of the face. 
+The overall scene should feel like it is set in a rain-soaked megacity at night. 
+Reflect neon signage in wet surfaces — subtle reflections of Chinese characters, corporate logos, and coloured lights on skin and clothing surfaces. 
+The background should be a dense urban nightscape: towering skyscrapers with thousands of lit windows receding into atmospheric haze, holographic advertisements floating in the air, flying vehicle trails as streaks of light. 
+Transform the subject's clothing into cyberpunk attire — tactical jacket, chrome accents, embedded LED strips — while maintaining their body posture and position. 
+Colour grading: deep teal and orange in the shadows, electric blue and magenta in the highlights, with the midtones pushed toward a desaturated noir aesthetic. 
+Overall mood should feel dangerous, futuristic, and cinematic — like a still frame from a $200 million science fiction film.`,
+    negativePrompt: 'daytime, natural light, bright colours, countryside, pastoral, warm sunlight, simple background, low contrast, flat lighting, anime, cartoon, painted',
+    strength: 0.82,
   },
+
   oilpainting: {
     name: 'Oil Painting',
     emoji: '🖼️',
-    prompt: 'classical oil painting portrait, Rembrandt lighting, visible brushstrokes, museum quality',
-    negativePrompt: 'photograph, modern, digital, flat',
-    strength: 0.73,
+    prompt: `Transform this photograph into a masterpiece oil painting portrait in the tradition of the Dutch Golden Age masters — Rembrandt van Rijn, Frans Hals, and Johannes Vermeer. 
+The subject is a real person — their exact facial features, skin tone, hair, and expression must be meticulously preserved. The painting should be unmistakably a portrait of this specific individual. 
+Lighting should follow the Rembrandt lighting technique: a single warm light source from the upper left creating a characteristic triangular highlight on the shadow cheek. 
+Deep, luminous shadows with the characteristic Rembrandt warmth — rich browns, dark siennas, and deep ochres building up in the shadow areas through multiple transparent glazes. 
+Skin should be rendered with extraordinary care — the warm undertones of living flesh built up through layered translucent glazes of vermillion, yellow ochre, and titanium white. 
+Visible impasto brushstrokes in the lighter areas — thick, confident strokes of lead white mixed with pale flesh tones for the highlights on the forehead and nose. 
+The background should be a deep, atmospheric dark — soft vignetting into near-black at the edges, with a sense of depth created through subtle tonal variations. 
+Clothing should be rendered with the same mastery — rich fabric textures, the sheen of silk or the weight of wool suggested through careful paint handling. 
+Craquelure — the fine network of cracks in aged oil paint — should be subtly visible throughout the work. 
+The image should feel as though it was painted 350 years ago and has been preserved in perfect condition in a major museum collection.`,
+    negativePrompt: 'modern, photograph, digital, flat, cartoon, anime, watercolor, sketch, bright background, contemporary clothing style, digital brush',
+    strength: 0.76,
   },
+
   comic: {
     name: 'Comic Book',
     emoji: '💥',
-    prompt: 'comic book style portrait, bold ink outlines, flat bright colours, halftone dots, Marvel style',
-    negativePrompt: 'realistic, blurry, photograph, subtle',
-    strength: 0.78,
+    prompt: `Transform this photograph into a premium comic book illustration in the style of high-production Marvel and DC Comics artwork from the modern era — think Alex Ross's painted realism meets Jim Lee's dynamic linework. 
+The subject is a real person — their face, features, and expression must be clearly preserved and recognisable. Do not change their fundamental appearance. 
+Render the entire image with bold, confident ink outlines — varying in weight from thick 3pt boundary lines around the figure to delicate 0.5pt detail lines within. 
+Apply flat colour fills in the base layer — clean, saturated comic book colours without photographic gradients. 
+Then layer cel-shaded shadows as flat dark shapes — no gradients, just sharp shadow forms that define the anatomy and add dimension. 
+Add bright, flat highlight spots to the highest points — top of the skull, nose bridge, cheekbones, shoulders. 
+Eyes should be compelling and expressive — slightly stylised but clearly depicting the real person's eyes. 
+The background should be a dynamic comic panel environment: bold action lines radiating outward, or a dramatic urban backdrop rendered in flat graphic style with bold outlines. 
+Use halftone dot patterns in the midtone areas — classic Ben-Day dots that reference the printing heritage of comic books. 
+Colour should be bold and primary-leaning — vivid reds, deep blues, bright yellows, clean blacks. 
+Add subtle speed lines or energy effects around the figure to create dynamism. 
+The final result should look like a premium variant cover for a major superhero title — dramatic, powerful, and technically flawless.`,
+    negativePrompt: 'realistic photograph, painterly, watercolor, soft edges, gradients, muted colours, blurry, anime, manga, low detail, poorly drawn, amateur',
+    strength: 0.80,
   },
 };
 
 
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
-// Uses gemini-2.0-flash-preview-image-generation for style transfer.
+// Uses gemini-3.1-flash-image-preview for style transfer.
 // Preserves the person's face, lighting, and composition.
 // Set GEMINI_API_KEY on Render to enable.
 async function generateWithGemini(imageBuffer, styleKey) {
@@ -89,34 +153,18 @@ async function generateWithGemini(imageBuffer, styleKey) {
 
   const base64Image = resized.toString('base64');
 
-  // Style-specific prompts optimised for Gemini's image editing
-  const geminiPrompts = {
-    anime: `Transform this photo into anime art style inspired by Studio Ghibli. 
-            Keep the person's exact face, expression, skin tone, and body position completely unchanged. 
-            Apply anime-style cel shading, soft outlines, and vibrant colours to the clothing and background only.
-            The result should look like the same person drawn in anime style.`,
-    vintage: `Apply a vintage Kodachrome film photography effect to this photo. 
-              Keep the person's face and features exactly as they are.
-              Add warm faded tones, subtle grain, slight vignette, and 1970s colour grading.`,
-    watercolor: `Transform this photo into a watercolor painting.
-                 Preserve the person's face and likeness exactly.
-                 Apply soft watercolor washes, paper texture, and loose brushwork to the background and clothing.`,
-    cyberpunk: `Transform this photo into a cyberpunk aesthetic.
-                Keep the person's face completely unchanged.
-                Add neon rim lighting (blue and purple), futuristic city background, high contrast shadows,
-                and cyberpunk-style clothing details. Blade Runner atmosphere.`,
-    oilpainting: `Transform this photo into a classical oil painting portrait in the style of Rembrandt.
-                  Preserve the person's face and likeness perfectly.
-                  Apply visible oil paint brushstrokes, warm dramatic lighting, and rich deep colours.`,
-    comic: `Transform this photo into a comic book illustration.
-            Keep the person's face recognisable and unchanged.
-            Apply bold ink outlines, flat bright colours, halftone dot patterns, and Marvel/DC comic style.`,
-  };
+  // Use the rich AI_STYLES prompts directly — same cinematic quality for Gemini
+  // Prefix with face-preservation instruction critical for Gemini
+  const faceInstruction = `CRITICAL REQUIREMENT: This image contains a real person's face. 
+You must preserve their exact facial features, bone structure, eye shape, skin tone, hair colour and length, 
+and overall identity with 100% fidelity. The person must be completely recognisable as the same individual after transformation. 
+Do not alter their face, change their expression, or modify their physical appearance in any way. 
+Only the artistic style, lighting, background, and colour grading should change. `;
 
-  const prompt = geminiPrompts[styleKey] || geminiPrompts.anime;
+  const prompt = faceInstruction + (AI_STYLES[styleKey]?.prompt || AI_STYLES.anime.prompt);
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
