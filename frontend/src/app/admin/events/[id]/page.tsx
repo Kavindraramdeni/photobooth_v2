@@ -1260,7 +1260,7 @@ export default function EventManagePage() {
 
             {/* Timing */}
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-              <h3 className="font-bold text-base mb-1">⏱️ Timing</h3>
+              <h3 className="font-bold text-base mb-1">⏱️ Timing & Sound</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-white/50 text-xs block mb-1.5 uppercase tracking-wide font-semibold">Countdown</label>
@@ -1285,6 +1285,53 @@ export default function EventManagePage() {
                     className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500">
                     {[1,2,3,4].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
+                </div>
+              </div>
+
+              {/* Sound + Roaming toggles */}
+              <div className="border-t border-white/5 pt-4 space-y-3">
+                {[
+                  { key: 'countdownSound', label: '🔔 Countdown Sound', desc: 'Plays beep on each countdown number + shutter click on capture', default: true },
+                  { key: 'roamingMode',    label: '🚶 Roaming Mode',     desc: 'Skip countdown — capture immediately when button tapped. For roaming photographers.', default: false },
+                ].map(item => (
+                  <label key={item.key} className="flex items-center justify-between cursor-pointer group">
+                    <div>
+                      <p className="text-white/80 text-sm font-medium">{item.label}</p>
+                      <p className="text-white/30 text-xs mt-0.5">{item.desc}</p>
+                    </div>
+                    <div className="relative flex-shrink-0 ml-4">
+                      <input type="checkbox"
+                        checked={(event.settings?.[item.key] as boolean) ?? item.default}
+                        onChange={e => updateSettings(item.key, e.target.checked)}
+                        className="sr-only peer" id={`timing-${item.key}`} />
+                      <label htmlFor={`timing-${item.key}`}
+                        className="block w-11 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-violet-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Beauty Mode */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+              <h3 className="font-bold text-base mb-1">✨ Beauty Mode</h3>
+              <p className="text-white/35 text-xs">Applies skin smoothing to every captured photo. Uses Sharp image processing — no external API needed.</p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white/60 text-sm font-medium">Smoothing Level</label>
+                  <span className="font-bold text-sm" style={{ color: ((event.settings?.beautyLevel as number) || 0) > 0 ? '#a78bfa' : 'rgba(255,255,255,0.3)' }}>
+                    {(event.settings?.beautyLevel as number) || 0 === 0 ? 'Off' : `${event.settings?.beautyLevel}/10`}
+                  </span>
+                </div>
+                <input type="range" min="0" max="10" step="1"
+                  value={(event.settings?.beautyLevel as number) || 0}
+                  onChange={e => updateSettings('beautyLevel', Number(e.target.value))}
+                  className="w-full accent-violet-500" />
+                <div className="flex justify-between text-white/20 text-xs mt-1">
+                  <span>Off</span>
+                  <span>Subtle (3)</span>
+                  <span>Medium (6)</span>
+                  <span>Strong (10)</span>
                 </div>
               </div>
             </div>
