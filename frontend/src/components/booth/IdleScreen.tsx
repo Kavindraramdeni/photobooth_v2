@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Image, Film, Zap, Settings, X, AlertCircle } from 'lucide-react';
+import { Camera, Image, Film, Zap, Settings, X, AlertCircle, Sparkles } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { AttractScreenWrapper } from './AttractScreen';
 
@@ -48,12 +48,18 @@ export function IdleScreen() {
     { mode: 'strip'  as const, label: '4-Strip',   icon: <Image  className="w-6 h-6" />,  enabled: true,                              desc: 'Film strip' },
     { mode: 'gif'    as const, label: 'GIF',        icon: <Film   className="w-6 h-6" />,  enabled: settings?.allowGIF !== false,      desc: 'Animated' },
     { mode: 'boomerang' as const, label: 'Boomerang', icon: <Zap  className="w-6 h-6" />,  enabled: settings?.allowBoomerang !== false, desc: 'Looping' },
+    { mode: 'aistudio' as const, label: 'AI Art',    icon: <Sparkles className="w-6 h-6" />, enabled: settings?.allowAI !== false,        desc: 'AI Studio' },
   ].filter(m => m.enabled);
 
-  function handleStart(mode: 'single' | 'gif' | 'boomerang' | 'strip') {
+  function handleStart(mode: 'single' | 'gif' | 'boomerang' | 'strip' | 'aistudio') {
     if (gated) return;
-    setMode(mode);
-    setScreen('countdown');
+    if (mode === 'aistudio') {
+      setMode('aistudio');
+      setScreen('aistudio'); // goes to style picker first
+    } else {
+      setMode(mode);
+      setScreen('countdown');
+    }
   }
 
   function handleOperatorGear() {
@@ -180,9 +186,12 @@ export function IdleScreen() {
                       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + 0.08 * i }}
                       whileTap={{ scale: 0.93 }} onClick={() => handleStart(m.mode)}
                       className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-semibold text-white text-sm border-2 transition-all active:scale-95"
-                      style={{ background: `${primaryColor}22`, borderColor: `${primaryColor}55`, boxShadow: `0 4px 20px ${primaryColor}22` }}
+                      style={m.mode === 'aistudio'
+                        ? { background: 'linear-gradient(135deg,rgba(124,58,237,0.35),rgba(168,85,247,0.25))', borderColor: 'rgba(139,92,246,0.6)', boxShadow: '0 4px 24px rgba(124,58,237,0.35)' }
+                        : { background: `${primaryColor}22`, borderColor: `${primaryColor}55`, boxShadow: `0 4px 20px ${primaryColor}22` }
+                      }
                     >
-                      <div style={{ color: primaryColor }}>{m.icon}</div>
+                      <div style={{ color: m.mode === 'aistudio' ? '#a78bfa' : primaryColor }}>{m.icon}</div>
                       <span className="text-white font-bold">{m.label}</span>
                       <span className="text-white/40 text-xs">{m.desc}</span>
                     </motion.button>
