@@ -308,8 +308,6 @@ router.post('/:id/webhook-test', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 /**
  * GET /api/events/:id/qr
  * Return QR code data for a booth event (URL + slug for the booth link)
@@ -334,3 +332,37 @@ router.get('/:id/qr', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * POST /api/events/:id/upload-asset
+ * Upload a branding asset (logo, frame, idle image) to R2.
+ * Accepts multipart/form-data with field "file" and query param "type" (logo|frame|idle).
+ * Returns { url } — the public R2 URL stored in event branding.
+ */
+const multer = require('multer');
+const { uploadToStorage } = require('../services/storage');
+const assetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post('/:id/upload-asset', requireAuth, assetUpload.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const type = req.query.type || 'logo'; // logo | frame | idle
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+    const ext = req.file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
+    const key = `branding/${id}/${type}_${Date.now()}.${ext}`;
+    const url = await uploadToStorage(req.file.buffer, key, req.file.mimetype);
+
+    // Update the event's branding in DB
+    const brandingField = type === 'logo' ? 'logoUrl' : type === 'frame' ? 'frameUrl' : 'idleImageUrl';
+    const { data: event } = await supabase.from('events').select('branding').eq('id', id).single();
+    const updatedBranding = { ...(event?.branding || {}), [brandingField]: url };
+    await supabase.from('events').update({ branding: updatedBranding }).eq('id', id).eq('owner_id', req.user.id);
+
+    res.json({ url });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
