@@ -67,6 +67,11 @@ export interface Event {
     printScale?:   number;
     autoPrint?:    boolean;
     kioskMode?:    boolean;
+    countdownSound?: boolean;
+    roamingMode?:   boolean;
+    beautyLevel?:   number;
+    paperSize?:     string;
+    disabledAIStyles?: string[];
   };
 }
 
