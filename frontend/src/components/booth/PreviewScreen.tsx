@@ -123,8 +123,8 @@ export function PreviewScreen() {
   // Build action list dynamically
   const actions = [
     ...(settings?.allowAI !== false && !isGIF ? [{
-      id: 'ai', icon: <Sparkles className="w-5 h-5" />, label: 'AI Filter',
-      color: 'linear-gradient(135deg,#7c3aed,#a855f7)', onClick: () => setScreen('ai'),
+      id: 'ai', icon: <Sparkles className="w-5 h-5" />, label: 'AI Art',
+      color: 'linear-gradient(135deg,#7c3aed,#a855f7)', onClick: () => setScreen('aistudio'),
     }] : []),
     {
       id: 'share', icon: <Share2 className="w-5 h-5" />, label: 'Share & QR',
