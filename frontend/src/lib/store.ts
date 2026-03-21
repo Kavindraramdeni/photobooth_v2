@@ -99,6 +99,7 @@ interface BoothStore {
   setProcessing: (v: boolean) => void;
   setAIGenerating: (v: boolean) => void;
   setAIProgress: (msg: string) => void;
+  setSelectedAIStyle: (style: string) => void;
   triggerFlash: () => void;
   resetSession: () => void;
   newSessionId: () => string;
@@ -128,6 +129,7 @@ export const useBoothStore = create<BoothStore>((set, get) => ({
   setProcessing: (isProcessing) => set({ isProcessing }),
   setAIGenerating: (aiGenerating) => set({ aiGenerating }),
   setAIProgress: (aiProgress) => set({ aiProgress }),
+  setSelectedAIStyle: (selectedAIStyle) => set({ selectedAIStyle }),
   triggerFlash: () => {
     set({ flashActive: true });
     setTimeout(() => set({ flashActive: false }), 600);
