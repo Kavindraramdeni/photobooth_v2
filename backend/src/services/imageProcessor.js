@@ -25,7 +25,32 @@ async function applyBrandingOverlay(photoBuffer, branding = {}) {
 
   const overlays = [];
 
-  // Footer bar overlay
+  // ── Polaroid template: add white border + caption ─────────────────────────
+  if (template === 'polaroid') {
+    const borderSide = Math.round(width * 0.05);
+    const borderBottom = Math.round(width * 0.18);
+    const captionText = footerText || eventName || 'SnapBooth';
+    const newWidth = width + borderSide * 2;
+    const newHeight = height + borderSide + borderBottom;
+
+    const svgPolaroid = `<svg width="${newWidth}" height="${newHeight}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${newWidth}" height="${newHeight}" fill="white" rx="4"/>
+      <rect x="1" y="1" width="${newWidth - 2}" height="${newHeight - 2}" fill="none" stroke="#ddd" stroke-width="1" rx="4"/>
+      <text x="${newWidth / 2}" y="${height + borderSide + borderBottom * 0.6}"
+        text-anchor="middle" dominant-baseline="middle"
+        font-family="'Courier New', monospace" font-size="${Math.round(borderBottom * 0.28)}px"
+        fill="#333">${escapeXml(captionText)}</text>
+    </svg>`;
+
+    // Place original photo on polaroid background
+    const base = await sharp(Buffer.from(svgPolaroid))
+      .composite([{ input: photoBuffer, top: borderSide, left: borderSide }])
+      .jpeg({ quality: 95 })
+      .toBuffer();
+    return base;
+  }
+
+  // Footer bar overlay (classic template)
   if (footerText || showDate) {
     const footerHeight = Math.round(height * 0.08);
     const dateStr = showDate ? new Date().toLocaleDateString('en-US', {
@@ -208,4 +233,24 @@ function escapeXml(text) {
     .replace(/'/g, '&apos;');
 }
 
-module.exports = { applyBrandingOverlay, createPhotoStrip, createPolaroid };
+
+/**
+ * Apply beauty mode — skin smoothing using blur+sharpen pipeline
+ * @param {Buffer} photoBuffer 
+ * @param {number} level — 0 to 10 (default 5)
+ */
+async function applyBeautyMode(photoBuffer, level = 5) {
+  if (!sharp || level === 0) return photoBuffer;
+  const strength = Math.min(10, Math.max(0, level));
+  const blurSigma = 0.3 + (strength / 10) * 1.2;  // 0.3 – 1.5
+  const sharpSigma = 0.5 + (strength / 10) * 0.8;  // 0.5 – 1.3
+  // Slight brightness boost + soft blur + sharpen edges = skin smoothing effect
+  return await sharp(photoBuffer)
+    .modulate({ brightness: 1.02, saturation: 1.05 })
+    .blur(blurSigma)
+    .sharpen({ sigma: sharpSigma, m1: 0.3, m2: 0.1 })
+    .jpeg({ quality: 94 })
+    .toBuffer();
+}
+
+module.exports = { applyBrandingOverlay, createPhotoStrip, createPolaroid, applyBeautyMode };
