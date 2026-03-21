@@ -53,13 +53,9 @@ export function IdleScreen() {
 
   function handleStart(mode: 'single' | 'gif' | 'boomerang' | 'strip' | 'aistudio') {
     if (gated) return;
-    if (mode === 'aistudio') {
-      setMode('aistudio');
-      setScreen('aistudio'); // goes to style picker first
-    } else {
-      setMode(mode);
-      setScreen('countdown');
-    }
+    // All modes go to countdown first — aistudio captures then goes to style picker
+    setMode(mode);
+    setScreen('countdown');
   }
 
   function handleOperatorGear() {
