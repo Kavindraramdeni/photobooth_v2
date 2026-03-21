@@ -354,7 +354,7 @@ router.post('/:id/upload-asset', requireAuth, assetUpload.single('file'), async 
     const url = await uploadToStorage(req.file.buffer, key, req.file.mimetype);
 
     // Update the event's branding in DB
-    const brandingField = type === 'logo' ? 'logoUrl' : type === 'frame' ? 'frameUrl' : 'idleImageUrl';
+    const brandingField = type === 'logo' ? 'logoUrl' : type === 'frame' ? 'frameUrl' : 'idleMediaUrl';
     const { data: event } = await supabase.from('events').select('branding').eq('id', id).single();
     const updatedBranding = { ...(event?.branding || {}), [brandingField]: url };
     await supabase.from('events').update({ branding: updatedBranding }).eq('id', id).eq('owner_id', req.user.id);
