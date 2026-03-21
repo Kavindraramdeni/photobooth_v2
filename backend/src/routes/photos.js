@@ -5,7 +5,7 @@ const sharp = require('sharp');
 const router = express.Router();
 
 const { uploadToStorage } = require('../services/storage');
-const { applyBrandingOverlay, createPhotoStrip } = require('../services/imageProcessor');
+const { applyBrandingOverlay, createPhotoStrip, applyBeautyMode } = require('../services/imageProcessor');
 const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode, generateStoriesImage } = require('../services/sharing');
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
@@ -541,12 +541,10 @@ router.post('/burst', upload.fields([
       const photoId = require('uuid').v4();
       const storageKey = `events/${eventId}/burst/${photoId}.jpg`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('photos')
-        .upload(storageKey, file.buffer, { contentType: 'image/jpeg', upsert: false });
-      if (uploadError) continue;
-
-      const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(storageKey);
+      let publicUrl;
+      try {
+        publicUrl = await uploadToStorage(file.buffer, storageKey, 'image/jpeg');
+      } catch (e) { console.warn('R2 burst upload failed:', e.message); continue; }
       const shortCode = require('nanoid').nanoid(6);
 
       const { data: photo } = await supabase.from('photos').insert({
