@@ -192,16 +192,14 @@ The final result should look like a premium variant cover for a major superhero 
 
 
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
-// Uses gemini-2.0-flash-preview-image-generation for style transfer.
-// Preserves the person's face, lighting, and composition.
-// Set GEMINI_API_KEY on Render to enable.
+// Uses gemini-2.0-flash-exp for image generation (confirmed working model name)
+// Falls back through multiple model names in case one doesn't work
 async function generateWithGemini(imageBuffer, styleKey) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return null;
 
   const style = AI_STYLES[styleKey] || AI_STYLES.anime;
 
-  // Resize for Gemini — 1024x1024 max, JPEG
   const resized = await sharp(imageBuffer)
     .resize(1024, 1024, { fit: 'cover', position: 'center' })
     .jpeg({ quality: 90 })
@@ -209,72 +207,65 @@ async function generateWithGemini(imageBuffer, styleKey) {
 
   const base64Image = resized.toString('base64');
 
-  // Use the rich AI_STYLES prompts directly — same cinematic quality for Gemini
-  // Prefix with face-preservation instruction critical for Gemini
-  const faceInstruction = `CRITICAL REQUIREMENT: This image contains a real person's face. 
-You must preserve their exact facial features, bone structure, eye shape, skin tone, hair colour and length, 
-and overall identity with 100% fidelity. The person must be completely recognisable as the same individual after transformation. 
-Do not alter their face, change their expression, or modify their physical appearance in any way. 
-Only the artistic style, lighting, background, and colour grading should change. `;
+  const faceInstruction = `CRITICAL: Preserve the person's exact face, features, and identity. Only change the artistic style. `;
+  const prompt = faceInstruction + (style.prompt || '');
 
-  const prompt = faceInstruction + (AI_STYLES[styleKey]?.prompt || AI_STYLES.anime.prompt);
+  // Try multiple model names — Google changes these frequently
+  const MODEL_NAMES = [
+    'gemini-2.0-flash-exp',
+    'gemini-2.0-flash-preview-image-generation',
+    'gemini-2.5-flash-preview-05-20',
+  ];
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: base64Image,
-                },
-              },
-              { text: prompt },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseModalities: ['Text', 'Image'],
-        },
-      }),
-      signal: AbortSignal.timeout(60000),
+  for (const modelName of MODEL_NAMES) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+                { text: prompt },
+              ],
+            }],
+            generationConfig: { responseModalities: ['Text', 'Image'] },
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.warn(`[Gemini] Model ${modelName} failed: ${res.status} ${JSON.stringify(data).slice(0,200)}`);
+        continue; // try next model
+      }
+
+      // Extract image from response
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+      if (!imagePart) {
+        console.warn(`[Gemini] Model ${modelName}: no image in response`);
+        continue;
+      }
+
+      console.log(`[Gemini] ✅ Generated via ${modelName}`);
+      const outputBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+      return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
+
+    } catch (err) {
+      console.warn(`[Gemini] Model ${modelName} error:`, err.message);
+      continue;
     }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.warn('[AI] Gemini failed:', res.status, err.slice(0, 300));
-    return null;
   }
 
-  const data = await res.json();
-
-  // Extract image from response parts
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
-
-  if (!imagePart?.inlineData?.data) {
-    console.warn('[AI] Gemini: no image in response', JSON.stringify(parts).slice(0, 200));
-    return null;
-  }
-
-  const outputBuffer = await sharp(Buffer.from(imagePart.inlineData.data, 'base64'))
-    .resize(1024, 1024, { fit: 'cover' })
-    .jpeg({ quality: 92 })
-    .toBuffer();
-
-  return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
+  // All model names failed
+  throw new Error(`Gemini: all model names failed. Check GEMINI_API_KEY and model availability.`);
 }
 
-// ─── TIER 2: Fal.ai — FLUX.1 img2img (cinematic quality, face preserved) ──────
-// Best quality tier. Uses FLUX.1-dev with face preservation.
-// Sign up free at fal.ai — get $5 credit (~500 test images)
-// Set FAL_API_KEY on Render to enable.
+
 async function generateWithFal(imageBuffer, styleKey) {
   const FAL_KEY = process.env.FAL_API_KEY;
   if (!FAL_KEY) return null;
@@ -345,14 +336,8 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
     .jpeg({ quality: 85 })
     .toBuffer();
 
-  // CF Workers AI REST API expects multipart/form-data for img2img
-  const formData = new FormData();
-  formData.append('prompt', style.prompt);
-  formData.append('negative_prompt', style.negativePrompt || '');
-  formData.append('strength', String(style.strength));
-  formData.append('num_steps', '20');
-  formData.append('guidance', '7.5');
-  formData.append('image', new Blob([resized], { type: 'image/jpeg' }), 'photo.jpg');
+  // CF Workers AI img2img expects JSON with image as number array
+  const imageArray = Array.from(resized);
 
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/@cf/runwayml/stable-diffusion-v1-5-img2img`;
 
@@ -360,9 +345,16 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${CF_AI_TOKEN}`,
-      // No Content-Type header — let fetch set it with boundary for FormData
+      'Content-Type': 'application/json',
     },
-    body: formData,
+    body: JSON.stringify({
+      prompt: (style.prompt || 'artistic style transfer').slice(0, 500),
+      negative_prompt: style.negativePrompt || 'blurry, low quality',
+      strength: style.strength || 0.75,
+      num_steps: 20,
+      guidance: 7.5,
+      image: imageArray,
+    }),
     signal: AbortSignal.timeout(60000),
   });
 
