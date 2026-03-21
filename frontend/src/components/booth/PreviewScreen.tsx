@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Sparkles, Share2, CheckCircle, Rocket, Printer } from 'lucide-react';
+import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
@@ -107,6 +107,21 @@ export function PreviewScreen() {
 
   // ── Auto-print: fires once on mount if operator enabled it ─────────────────
   const autoPrinted = useRef(false);
+  const [showEffects, setShowEffects] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('none');
+
+  // CSS filters applied live on the preview image
+  const EFFECTS = [
+    { key: 'none',       label: 'Original',  style: 'none' },
+    { key: 'bw',         label: 'B&W',        style: 'grayscale(100%)' },
+    { key: 'warm',       label: 'Warm',       style: 'sepia(60%) saturate(140%) brightness(105%)' },
+    { key: 'cool',       label: 'Cool',       style: 'hue-rotate(200deg) saturate(120%)' },
+    { key: 'vivid',      label: 'Vivid',      style: 'saturate(180%) contrast(110%)' },
+    { key: 'fade',       label: 'Fade',       style: 'contrast(85%) brightness(110%) saturate(80%)' },
+    { key: 'drama',      label: 'Drama',      style: 'contrast(140%) brightness(90%) saturate(110%)' },
+    { key: 'golden',     label: 'Golden',     style: 'sepia(80%) hue-rotate(-20deg) saturate(160%) brightness(108%)' },
+  ];
+  const currentFilter = EFFECTS.find(e => e.key === activeFilter)?.style || 'none';
   useEffect(() => {
     const autoPrint = event?.settings?.autoPrint as boolean | undefined;
     if (autoPrint && !autoPrinted.current && photo?.url && event) {
@@ -122,10 +137,11 @@ export function PreviewScreen() {
 
   // Build action list dynamically
   const actions = [
-    ...(settings?.allowAI !== false && !isGIF ? [{
-      id: 'ai', icon: <Sparkles className="w-5 h-5" />, label: 'AI Art',
-      color: 'linear-gradient(135deg,#7c3aed,#a855f7)', onClick: () => setScreen('aistudio'),
-    }] : []),
+    {
+      id: 'effects', icon: <Wand2 className="w-5 h-5" />, label: 'Effects',
+      color: 'linear-gradient(135deg,#0ea5e9,#6366f1)',
+      onClick: () => setShowEffects(v => !v),
+    },
     {
       id: 'share', icon: <Share2 className="w-5 h-5" />, label: 'Share & QR',
       color: '#2563eb', onClick: handleShareClick,
@@ -190,6 +206,8 @@ export function PreviewScreen() {
                 maxHeight: 'calc(100vh - 220px)',
                 width: 'auto',
                 height: 'auto',
+                filter: currentFilter,
+                transition: 'filter 0.25s ease',
               }}
               draggable={false}
             />
@@ -296,6 +314,46 @@ export function PreviewScreen() {
           </div>
         </motion.div>
       </div>
+
+      {/* ── Effects Panel (slides up) ───────────────────────────────────── */}
+      <AnimatePresence>
+        {showEffects && (
+          <motion.div
+            initial={{ y: 140, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 140, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="absolute bottom-0 left-0 right-0 z-30 bg-[#0d0d1a]/97 backdrop-blur-xl border-t border-white/10 px-4 pt-4 pb-6"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">🪄 Live Effects</span>
+              <button onClick={() => setShowEffects(false)}
+                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">
+                ✕
+              </button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {EFFECTS.map(ef => (
+                <button key={ef.key}
+                  onClick={() => setActiveFilter(ef.key)}
+                  className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all ${
+                    activeFilter === ef.key
+                      ? 'border-sky-400 bg-sky-500/20 text-sky-200'
+                      : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
+                  }`}>
+                  <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.url} alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{ filter: ef.style }} />
+                  </div>
+                  <span className="text-[10px] font-semibold leading-none whitespace-nowrap">{ef.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Bottom bar ─────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 px-4 pb-safe-or-5 pt-2
