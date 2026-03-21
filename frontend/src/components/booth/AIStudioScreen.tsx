@@ -15,7 +15,7 @@
 
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Wand2, Share2, Images } from 'lucide-react';
+import { Sparkles, Wand2, Share2, ImagePlus } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
@@ -313,7 +313,7 @@ export function AIStudioScreen() {
             <button
               onClick={handleShareBoth}
               className="w-full py-3 rounded-2xl font-semibold text-white/60 text-sm flex items-center justify-center gap-2 bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.07] transition-colors">
-              <Images className="w-4 h-4" />
+              <ImagePlus className="w-4 h-4" />
               Done — Share Original Too
             </button>
           </motion.div>
