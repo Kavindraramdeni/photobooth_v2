@@ -192,7 +192,7 @@ The final result should look like a premium variant cover for a major superhero 
 
 
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
-// Uses gemini-3.1-flash-image-preview for style transfer.
+// Uses gemini-2.0-flash-preview-image-generation for style transfer.
 // Preserves the person's face, lighting, and composition.
 // Set GEMINI_API_KEY on Render to enable.
 async function generateWithGemini(imageBuffer, styleKey) {
@@ -220,7 +220,7 @@ Only the artistic style, lighting, background, and colour grading should change.
   const prompt = faceInstruction + (AI_STYLES[styleKey]?.prompt || AI_STYLES.anime.prompt);
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
