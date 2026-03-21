@@ -5,7 +5,6 @@ import { useBoothStore } from '@/lib/store';
 import { IdleScreen } from './IdleScreen';
 import { CountdownScreen } from './CountdownScreen';
 import { PreviewScreen } from './PreviewScreen';
-import { AIScreen } from './AIScreen';
 import { AIStudioScreen } from './AIStudioScreen';
 import { ShareScreen } from './ShareScreen';
 import { FlashOverlay } from './FlashOverlay';
@@ -71,7 +70,7 @@ export function BoothMain() {
     countdown: <CountdownScreen />,
     capture: <CountdownScreen />, // same component handles capture state
     preview: <PreviewScreen />,
-    ai: <AIScreen />,
+    ai: <AIStudioScreen />,      // legacy 'ai' screen now uses AIStudioScreen
     aistudio: <AIStudioScreen />,
     share: <ShareScreen />,
     print: <ShareScreen />, // print is part of share screen
