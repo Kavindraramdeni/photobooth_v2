@@ -182,10 +182,14 @@ export function PreviewScreen() {
             <img
               src={photo.url}
               alt="Your photo"
-              className="max-h-full object-contain rounded-2xl shadow-2xl"
+              className="rounded-2xl shadow-2xl object-contain"
               style={{
-                maxWidth: mode === 'strip' ? '320px' : '100%',
-                width: mode === 'strip' ? 'auto' : '100%',
+                // Strip is narrow portrait — constrain width
+                // Single/GIF — fill available space but don't overflow
+                maxWidth: mode === 'strip' ? '280px' : 'min(100%, calc(100vh - 280px))',
+                maxHeight: 'calc(100vh - 220px)',
+                width: 'auto',
+                height: 'auto',
               }}
               draggable={false}
             />
