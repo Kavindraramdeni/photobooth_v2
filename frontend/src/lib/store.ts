@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type BoothMode = 'single' | 'strip' | 'gif' | 'boomerang' | 'burst' | 'aistudio';
-export type BoothScreen = 'idle' | 'countdown' | 'capture' | 'preview' | 'ai' | 'aistudio' | 'airesult' | 'share' | 'print';
+export type BoothScreen = 'idle' | 'countdown' | 'capture' | 'preview' | 'ai' | 'aistudio' | 'share' | 'print';
 
 export interface Photo {
   id: string;
