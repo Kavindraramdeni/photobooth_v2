@@ -1214,36 +1214,6 @@ export default function EventManagePage() {
           </div>
         </main>
       </div>
-
-      {/* ── Unsaved Changes Bar ── */}
-      <AnimatePresence>
-        {isDirty && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-6 bg-zinc-900/90 backdrop-blur-xl border border-white/10 px-6 py-4 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.6)]"
-            style={{ width: 'min(520px, calc(100vw - 32px))' }}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-white text-sm font-semibold">Unsaved changes</p>
-                <p className="text-zinc-400 text-xs">Save to update the live booth</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 border-l border-white/[0.08] pl-6 flex-shrink-0">
-              <button onClick={() => setIsDirty(false)} className="px-3 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors">
-                Discard
-              </button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/25 transition-all disabled:opacity-50">
-                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
     </div>
   );
 }
