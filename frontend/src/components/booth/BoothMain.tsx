@@ -7,7 +7,6 @@ import { CountdownScreen } from './CountdownScreen';
 import { PreviewScreen } from './PreviewScreen';
 import { AIScreen } from './AIScreen';
 import { AIStudioScreen } from './AIStudioScreen';
-import { AIResultScreen } from './AIResultScreen';
 import { ShareScreen } from './ShareScreen';
 import { FlashOverlay } from './FlashOverlay';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -74,7 +73,6 @@ export function BoothMain() {
     preview: <PreviewScreen />,
     ai: <AIScreen />,
     aistudio: <AIStudioScreen />,
-    airesult: <AIResultScreen />,
     share: <ShareScreen />,
     print: <ShareScreen />, // print is part of share screen
   };
