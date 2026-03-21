@@ -192,11 +192,22 @@ The final result should look like a premium variant cover for a major superhero 
 
 
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
-// Uses gemini-2.0-flash-exp for image generation (confirmed working model name)
-// Falls back through multiple model names in case one doesn't work
+// Uses @google/genai SDK with gemini-2.0-flash-exp model
+// Same approach as gembooth — SDK handles the image modality correctly
 async function generateWithGemini(imageBuffer, styleKey) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return null;
+
+  // Lazy-load SDK so server still starts if package isn't installed yet
+  let GoogleGenAI, Modality;
+  try {
+    const sdk = require('@google/genai');
+    GoogleGenAI = sdk.GoogleGenAI;
+    Modality = sdk.Modality;
+  } catch (e) {
+    console.warn('[Gemini] @google/genai SDK not installed:', e.message);
+    return null;
+  }
 
   const style = AI_STYLES[styleKey] || AI_STYLES.anime;
 
@@ -207,47 +218,47 @@ async function generateWithGemini(imageBuffer, styleKey) {
 
   const base64Image = resized.toString('base64');
 
-  const faceInstruction = `CRITICAL: Preserve the person's exact face, features, and identity. Only change the artistic style. `;
-  const prompt = faceInstruction + (style.prompt || '');
+  const faceInstruction = `CRITICAL: Preserve the person's exact face, identity, and features. Only the artistic style should change. `;
+  const prompt = faceInstruction + (style.prompt || 'Transform in an artistic style.');
 
-  // Try multiple model names — Google changes these frequently
+  const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
+
+  // Try models in order — gemini-2.0-flash-exp is confirmed working with SDK
   const MODEL_NAMES = [
     'gemini-2.0-flash-exp',
     'gemini-2.0-flash-preview-image-generation',
-    'gemini-2.5-flash-preview-05-20',
+    'gemini-2.5-flash-preview-04-17',
   ];
 
   for (const modelName of MODEL_NAMES) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: prompt },
-              ],
-            }],
-            generationConfig: { responseModalities: ['Text', 'Image'] },
-          }),
-        }
-      );
+      const response = await ai.models.generateContent({
+        model: modelName,
+        config: {
+          responseModalities: Modality
+            ? [Modality.TEXT, Modality.IMAGE]
+            : ['TEXT', 'IMAGE'],
+        },
+        contents: [{
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: base64Image,
+                mimeType: 'image/jpeg',
+              },
+            },
+            { text: prompt },
+          ],
+        }],
+      });
 
-      const data = await res.json();
+      // Find the image part in the response
+      const parts = response?.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(p => p.inlineData?.data);
 
-      if (!res.ok) {
-        console.warn(`[Gemini] Model ${modelName} failed: ${res.status} ${JSON.stringify(data).slice(0,200)}`);
-        continue; // try next model
-      }
-
-      // Extract image from response
-      const parts = data?.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
       if (!imagePart) {
-        console.warn(`[Gemini] Model ${modelName}: no image in response`);
+        console.warn(`[Gemini] ${modelName}: no image in response`);
         continue;
       }
 
@@ -256,13 +267,12 @@ async function generateWithGemini(imageBuffer, styleKey) {
       return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
 
     } catch (err) {
-      console.warn(`[Gemini] Model ${modelName} error:`, err.message);
+      console.warn(`[Gemini] ${modelName} error:`, err.message?.slice(0, 150));
       continue;
     }
   }
 
-  // All model names failed
-  throw new Error(`Gemini: all model names failed. Check GEMINI_API_KEY and model availability.`);
+  throw new Error('Gemini: all models failed — check GEMINI_API_KEY and account access');
 }
 
 
