@@ -141,7 +141,7 @@ export function CountdownScreen() {
           result = await uploadPhoto(composited[0], event.id, sessionId, 'single');
           setCurrentPhoto(result.photo);
           // AI Studio goes to AIResultScreen, regular photo goes to PreviewScreen
-          setScreen(mode === 'aistudio' ? 'airesult' : 'preview');
+          setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
         } else if (mode === 'strip') {
           result = await createStrip(composited, event.id);
           setCurrentPhoto({ ...result.strip, mode: 'strip' });
