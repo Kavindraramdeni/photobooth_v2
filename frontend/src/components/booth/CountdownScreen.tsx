@@ -137,10 +137,11 @@ export function CountdownScreen() {
 
         let result;
 
-        if (mode === 'single') {
+        if (mode === 'single' || mode === 'aistudio') {
           result = await uploadPhoto(composited[0], event.id, sessionId, 'single');
           setCurrentPhoto(result.photo);
-          setScreen('preview');
+          // AI Studio goes to AIResultScreen, regular photo goes to PreviewScreen
+          setScreen(mode === 'aistudio' ? 'airesult' : 'preview');
         } else if (mode === 'strip') {
           result = await createStrip(composited, event.id);
           setCurrentPhoto({ ...result.strip, mode: 'strip' });
