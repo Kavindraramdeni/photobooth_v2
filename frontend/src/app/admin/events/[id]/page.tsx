@@ -686,37 +686,40 @@ export default function EventManagePage() {
     <div className="min-h-screen bg-[#080810] text-white flex flex-col" style={{ fontFamily: 'system-ui, sans-serif' }}>
 
       {/* ── Top header ── */}
-      <header className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c18]/90 backdrop-blur-md sticky top-0 z-20">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-3">
+      <header className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c18]/95 backdrop-blur-md sticky top-0 z-20">
+        <div className="flex items-center justify-between px-5 sm:px-8 py-4 gap-4">
           {/* Left */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-4 min-w-0">
             <Link href="/admin"
-              className="flex items-center gap-1.5 text-white/35 hover:text-white/70 transition-colors text-sm flex-shrink-0">
+              className="flex items-center gap-1.5 text-white/40 hover:text-white/80 transition-colors text-sm font-medium flex-shrink-0 px-2 py-1 rounded-lg hover:bg-white/5">
               ← Back
             </Link>
-            <div className="w-px h-5 bg-white/10 flex-shrink-0" />
+            <div className="w-px h-7 bg-white/10 flex-shrink-0" />
             <div className="min-w-0">
-              <h1 className="font-bold text-base truncate leading-tight">{event.name}</h1>
-              <p className="text-white/30 text-xs truncate">{event.venue || 'No venue set'} · {event.date?.split('T')[0]}</p>
+              <div className="flex items-center gap-2.5">
+                <h1 className="font-black text-xl truncate leading-tight">{event.name}</h1>
+                <span className={`hidden sm:inline text-[10px] px-2.5 py-1 rounded-full font-bold flex-shrink-0 uppercase tracking-widest ${
+                  event.status === 'active' ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-white/5 text-white/30 border border-white/10'
+                }`}>{event.status}</span>
+              </div>
+              <p className="text-white/35 text-xs mt-0.5 truncate">{event.venue || 'No venue'} · {event.date?.split('T')[0]}</p>
             </div>
-            <span className={`hidden sm:inline text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 uppercase tracking-wide ${
-              event.status === 'active' ? 'bg-green-500/15 text-green-400 border border-green-500/25' : 'bg-white/5 text-white/30 border border-white/10'
-            }`}>{event.status}</span>
           </div>
 
-          {/* Right — quick actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Stats pills */}
+          {/* Right — stats + actions */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {/* Stats */}
             {stats && (
-              <div className="hidden md:flex items-center gap-1.5">
+              <div className="hidden md:flex items-center gap-2">
                 {[
-                  { v: stats.totalPhotos, e: '📸', l: 'photos' },
-                  { v: stats.totalShares, e: '📤', l: 'shares' },
-                  { v: stats.totalPrints, e: '🖨️', l: 'prints' },
+                  { v: stats.totalPhotos, e: '📸', l: 'Photos' },
+                  { v: stats.totalShares, e: '📤', l: 'Shares' },
+                  { v: stats.totalPrints, e: '🖨️', l: 'Prints' },
                 ].map(s => (
-                  <div key={s.l} className="flex items-center gap-1 bg-white/5 border border-white/8 rounded-lg px-2.5 py-1">
-                    <span className="text-xs">{s.e}</span>
-                    <span className="text-white font-bold text-sm">{s.v ?? 0}</span>
+                  <div key={s.l} className="flex flex-col items-center bg-white/5 border border-white/8 rounded-xl px-3 py-1.5 min-w-[52px]">
+                    <span className="text-base leading-none">{s.e}</span>
+                    <span className="text-white font-black text-base leading-tight">{s.v ?? 0}</span>
+                    <span className="text-white/25 text-[9px] uppercase tracking-wide">{s.l}</span>
                   </div>
                 ))}
               </div>
@@ -761,25 +764,30 @@ export default function EventManagePage() {
       <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
         {/* ── LEFT SIDEBAR ── */}
-        <aside className="hidden md:flex flex-col w-48 lg:w-56 flex-shrink-0 border-r border-white/[0.06] bg-[#0a0a15] overflow-y-auto">
-          <div className="p-3 space-y-1">
-            {NAV.map(group => (
+        <aside className="hidden md:flex flex-col w-52 flex-shrink-0 border-r border-white/[0.06] bg-[#0a0a14] overflow-y-auto">
+          {/* Event name in sidebar */}
+          <div className="px-4 py-4 border-b border-white/[0.05]">
+            <p className="text-white/50 text-xs font-medium truncate">{event.name}</p>
+          </div>
+
+          <nav className="flex-1 px-3 py-3 space-y-0.5">
+            {NAV.map((group, gi) => (
               <div key={group.section}>
-                {/* Group header */}
-                <div className="px-3 pt-3 pb-1">
-                  <span className="text-white/25 text-[10px] font-bold uppercase tracking-widest">{group.icon} {group.label}</span>
-                </div>
-                {/* Group items */}
+                {/* Thin divider between groups (not first) */}
+                {gi > 0 && <div className="my-2 border-t border-white/[0.05]" />}
                 {group.tabs.map(t => (
                   <button key={t.key} onClick={() => setTab(t.key)}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all ${
                       tab === t.key
-                        ? 'bg-violet-600/20 text-violet-200 font-semibold border border-violet-500/25'
+                        ? 'bg-violet-600/20 text-violet-200 font-semibold'
                         : 'text-white/45 hover:text-white/80 hover:bg-white/[0.04]'
                     }`}>
-                    <span className="leading-none">{t.label}</span>
+                    <span className="flex items-center gap-2.5">
+                      <span className="text-base leading-none">{group.icon}</span>
+                      <span className="leading-none">{t.label}</span>
+                    </span>
                     {t.badge && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/30 text-violet-200">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/25 text-violet-300 ml-1">
                         {t.badge}
                       </span>
                     )}
@@ -787,23 +795,27 @@ export default function EventManagePage() {
                 ))}
               </div>
             ))}
-          </div>
+          </nav>
 
-          {/* Bottom: kiosk mode quick toggle */}
-          <div className="mt-auto p-3 border-t border-white/[0.05]">
-            <div className="bg-white/3 border border-white/8 rounded-xl p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-white/60 text-xs font-semibold">🔒 Kiosk Mode</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox"
-                    checked={(event.settings?.kioskMode as boolean) ?? false}
-                    onChange={e => updateSettings('kioskMode', e.target.checked)}
-                    className="sr-only peer" />
-                  <div className="w-8 h-4 bg-white/15 peer-checked:bg-violet-600 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
-                </label>
+          {/* Kiosk toggle — fixed at bottom, always visible */}
+          <div className="flex-shrink-0 px-3 py-3 border-t border-white/[0.05]">
+            <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] cursor-pointer hover:bg-white/[0.05] transition-colors">
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">🔒</span>
+                <div>
+                  <p className="text-white/70 text-xs font-semibold">Kiosk Mode</p>
+                  <p className="text-white/30 text-[10px]">{(event.settings?.kioskMode as boolean) ? 'Active — fullscreen locked' : 'Off — guests can exit'}</p>
+                </div>
               </div>
-              <p className="text-white/25 text-[10px] leading-relaxed">Locks booth in fullscreen. Guests cannot exit.</p>
-            </div>
+              <div className="relative flex-shrink-0 ml-2">
+                <input type="checkbox"
+                  checked={(event.settings?.kioskMode as boolean) ?? false}
+                  onChange={e => updateSettings('kioskMode', e.target.checked)}
+                  className="sr-only peer" id="sidebar-kiosk" />
+                <label htmlFor="sidebar-kiosk"
+                  className="block w-10 h-5 bg-white/15 rounded-full cursor-pointer peer-checked:bg-violet-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
+              </div>
+            </label>
           </div>
         </aside>
 
@@ -1117,47 +1129,81 @@ export default function EventManagePage() {
                 <h3 className="font-semibold text-base mb-1">Live Preview</h3>
                 <p className="text-white/30 text-xs mb-4">Updates as you type</p>
 
-                {/* Photo preview */}
+                {/* Photo preview — shows template effect */}
                 <div>
                   <p className="text-white/40 text-xs mb-2 uppercase tracking-widest font-medium">Photo Output</p>
-                  <div className="rounded-2xl overflow-hidden relative bg-[#1a1a2e]" style={{ aspectRatio: '3/4' }}>
-                    {(event.branding?.idleMediaUrl as string) && (
-                      (event.branding.idleMediaUrl as string).match(/\.(mp4|webm|mov)$/i)
-                        ? <video src={event.branding.idleMediaUrl as string} muted autoPlay loop playsInline className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                        : /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={event.branding.idleMediaUrl as string} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                    )}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center text-white/20">
-                        <div className="text-5xl mb-2">📷</div>
-                        <p className="text-xs">Photo area</p>
+
+                  {/* Template: Polaroid */}
+                  {((event.branding?.template as string) || 'classic') === 'polaroid' ? (
+                    <div className="rounded-lg overflow-hidden bg-white p-3 shadow-xl" style={{ border: '1px solid #ddd' }}>
+                      <div className="bg-[#1a1a2e] rounded" style={{ aspectRatio: '4/3' }}>
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-center text-white/20">
+                            <div className="text-4xl mb-1">📷</div>
+                            <p className="text-xs">Photo</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="py-3 text-center">
+                        <p className="text-gray-600 text-sm font-mono">{(event.branding?.footerText as string) || (event.branding?.eventName as string) || event.name}</p>
                       </div>
                     </div>
-                    {(event.branding?.frameUrl as string) && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={event.branding.frameUrl as string} alt="Frame" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                    )}
-                    {(event.branding?.overlayText as string) && (
-                      <div className="absolute top-0 left-0 right-0 bg-black/50 px-4 py-3">
-                        <span className="text-white text-sm font-bold">{event.branding.overlayText as string}</span>
+                  ) : ((event.branding?.template as string) || 'classic') === 'strip' ? (
+                    /* Template: Strip — narrow portrait with 4 slots */
+                    <div className="flex justify-center">
+                      <div className="rounded-xl overflow-hidden" style={{ background: primaryColor, width: '120px' }}>
+                        <div className="px-1.5 py-2 text-center">
+                          <p className="text-white text-[9px] font-black tracking-widest uppercase truncate">{(event.branding?.eventName as string) || event.name}</p>
+                        </div>
+                        {[0,1,2,3].map(i => (
+                          <div key={i} className="mx-1.5 mb-1.5 rounded bg-black/40 flex items-center justify-center" style={{ height: '60px' }}>
+                            <span className="text-white/30 text-lg">📷</span>
+                          </div>
+                        ))}
+                        <div className="px-1.5 pb-2 text-center">
+                          <p className="text-white/70 text-[8px]">{new Date().toLocaleDateString()}</p>
+                        </div>
                       </div>
-                    )}
-                    {((event.branding?.footerText as string) || (event.branding?.showDate as boolean)) ? (
-                      <div className="absolute bottom-0 left-0 right-0 py-3 px-4 text-center"
-                        style={{ background: `${primaryColor}ee` }}>
-                        {(event.branding?.footerText as string) && (
-                          <p className="text-white text-sm font-bold">{event.branding.footerText as string}</p>
-                        )}
-                        {(event.branding?.showDate as boolean) && (
-                          <p className="text-white/70 text-xs mt-0.5">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                        )}
+                    </div>
+                  ) : (
+                    /* Template: Classic */
+                    <div className="rounded-2xl overflow-hidden relative bg-[#1a1a2e]" style={{ aspectRatio: '3/4' }}>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center text-white/20">
+                          <div className="text-5xl mb-2">📷</div>
+                          <p className="text-xs">Photo area</p>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="absolute bottom-0 left-0 right-0 py-2 px-4 text-center bg-green-500/10 border-t border-green-500/20">
-                        <p className="text-green-400/80 text-xs font-medium">✓ Clean — no overlay</p>
-                      </div>
-                    )}
-                  </div>
+                      {(event.branding?.frameUrl as string) && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={event.branding.frameUrl as string} alt="Frame" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+                      )}
+                      {(event.branding?.overlayText as string) && (
+                        <div className="absolute top-0 left-0 right-0 bg-black/50 px-4 py-3">
+                          <span className="text-white text-sm font-bold">{event.branding.overlayText as string}</span>
+                        </div>
+                      )}
+                      {((event.branding?.footerText as string) || (event.branding?.showDate as boolean)) ? (
+                        <div className="absolute bottom-0 left-0 right-0 py-3 px-4 text-center"
+                          style={{ background: `${primaryColor}ee` }}>
+                          {(event.branding?.footerText as string) && (
+                            <p className="text-white text-sm font-bold">{event.branding.footerText as string}</p>
+                          )}
+                          {(event.branding?.showDate as boolean) && (
+                            <p className="text-white/70 text-xs mt-0.5">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="absolute bottom-0 left-0 right-0 py-2 px-4 text-center bg-green-500/10 border-t border-green-500/20">
+                          <p className="text-green-400/80 text-xs font-medium">✓ Clean — no overlay</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-white/25 text-xs mt-2 text-center">
+                    Template: <span className="text-violet-300 font-medium capitalize">{(event.branding?.template as string) || 'classic'}</span>
+                  </p>
                 </div>
 
                 {/* Idle screen preview */}
