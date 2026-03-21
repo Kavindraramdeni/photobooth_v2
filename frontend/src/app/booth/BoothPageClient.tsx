@@ -47,36 +47,34 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
     loadEvent();
   }, [eventSlug, setEvent, router]);
 
-  // ── Kiosk mode — must be before early returns (React hooks rule) ──────────
+  // ── Always fullscreen when booth loads ────────────────────────────────────
   useEffect(() => {
-    const kioskMode = event?.settings?.kioskMode as boolean | undefined;
-    if (!kioskMode) return;
-
     const el = document.documentElement;
+    // Request fullscreen — works when opened via window.open() from admin panel
+    // Safari on iPad requires user gesture but open-in-new-tab counts as one
     if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault(); e.returnValue = ''; return '';
-    };
+    // Re-request if user exits fullscreen accidentally
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
         setTimeout(() => {
           if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
           else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
-        }, 500);
+        }, 600);
       }
     };
+
+    // Hide address bar on mobile
     window.scrollTo(0, 1);
-    window.addEventListener('beforeunload', handleBeforeUnload);
+
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
-  }, [event?.settings?.kioskMode]);
+  }, []); // runs once on mount
 
   if (loading) {
     return (
