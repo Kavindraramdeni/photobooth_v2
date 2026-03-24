@@ -99,7 +99,12 @@ export function ShareScreen() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<Set<string>>(new Set());
 
-  if (!currentPhoto) { setScreen('preview'); return null; }
+  // Guard: if somehow we land here without a photo, redirect safely
+  useEffect(() => {
+    if (!currentPhoto) setScreen('preview');
+  }, [currentPhoto, setScreen]);
+
+  if (!currentPhoto) return null;
   const photo = currentPhoto;
 
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
