@@ -15,6 +15,7 @@ async function applyBrandingOverlay(photoBuffer, branding = {}) {
     primaryColor = '#ffffff',
     secondaryColor = '#000000',
     footerText = '',
+    eventName = 'SnapBooth',
     showDate = true,
     template = 'classic', // classic | strip | polaroid
   } = branding;
