@@ -146,11 +146,10 @@ function StyleCard({
       whileTap={{ scale: 0.95 }}
       onClick={onSelect}
       disabled={disabled}
-      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all"
+      className="relative flex flex-col w-full h-full rounded-2xl overflow-hidden border-2 transition-all"
       style={{
         borderColor: isSelected ? style.color : 'rgba(255,255,255,0.08)',
-        boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',
-        aspectRatio: '3/4',
+        boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',  
       }}
     >
       {/* Preview image or gradient fallback */}
@@ -337,15 +336,19 @@ export function AIStudioScreen() {
                 {ALL_STYLES.map((style, i) => (
                   <motion.div
                     key={style.key}
+                    className="relative w-full"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}>
-                    <StyleCard
-                      style={style}
-                      isSelected={selected === style.key}
-                      onSelect={() => setSelected(selected === style.key ? null : style.key)}
-                      disabled={aiGenerating}
-                    />
+                     transition={{ delay: i * 0.03 }}
+                    style={{ paddingTop: '133.3333%' }}>
+                    <div className="absolute inset-0">
+                      <StyleCard
+                        style={style}
+                        isSelected={selected === style.key}
+                        onSelect={() => setSelected(selected === style.key ? null : style.key)}
+                        disabled={aiGenerating}
+                      />
+                    </div>
                   </motion.div>
                 ))}
               </div>
