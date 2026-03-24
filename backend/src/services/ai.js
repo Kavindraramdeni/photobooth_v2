@@ -168,7 +168,9 @@ The final result should look like a premium variant cover for a major superhero 
   pixelart: {
     name: '8-bit Pixel',
     emoji: '🎮',
-    prompt: `Transform this image into a cute minimalist 8-bit pixel art character on a colorful retro background. The pixel size should be visible and large (like an 80x80 pixel grid scaled up). Use a limited bright color palette. The person's face should be clearly recognisable in pixel art style. Add a simple pixel art background with stars or a game-like environment.`,
+    prompt: `Generate a family portrait in traditional attire with intricate gold jewelry for Durga Puja. Women wear red bindis and hold decorated flower plates, with blurred Durga Maa statue and diya lights in the background. Preserve all original faces.”
+
+Captures the festive Indian spirit beautifully.`,
     negativePrompt: 'photorealistic, smooth, anti-aliased, high resolution details, blurry',
     strength: 0.85,
   },
