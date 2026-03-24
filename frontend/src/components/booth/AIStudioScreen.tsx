@@ -13,6 +13,7 @@
  * Style images: /assets/styles/{key}.jpg loaded from public folder
  * Falls back to gradient card if image missing
  */
+
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Wand2, Share2, ImagePlus, ChevronRight } from 'lucide-react';
@@ -145,28 +146,28 @@ function StyleCard({
       whileTap={{ scale: 0.95 }}
       onClick={onSelect}
       disabled={disabled}
-      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all h-32 landscape:h-36"       
+      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all"
       style={{
         borderColor: isSelected ? style.color : 'rgba(255,255,255,0.08)',
         boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',
+        aspectRatio: '3/4',
       }}
-     > 
-      {/* Always keep a visible colorful base so cards never look blank */}
-      <div className="absolute inset-0" style={{ background: style.gradient }} />
-
-      
+    >
+      {/* Preview image or gradient fallback */}
       {!imgError ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imgSrc}
           alt={style.name}
-           className="absolute inset-0 w-full h-full object-cover opacity-55"
+          className="absolute inset-0 w-full h-full object-cover"
           onError={() => setImgError(true)}
         />
-      ) : null}
+      ) : (
+        <div className="absolute inset-0" style={{ background: style.gradient }} />
+      )}
 
       {/* Dark overlay for readability */}
-     <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
       {/* Selected glow border overlay */}
       {isSelected && (
@@ -260,6 +261,18 @@ export function AIStudioScreen() {
 
   return (
     <div className="w-full h-full flex flex-col bg-[#08080f] select-none overflow-hidden">
+      <style>{`
+        .booth-ai-body { flex-direction: column; }
+        .booth-ai-left { width: 100%; height: 28vh; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .booth-ai-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+        @media (orientation: landscape) {
+          .booth-ai-body { flex-direction: row; }
+          .booth-ai-left { width: 36%; height: auto; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.05); }
+          .booth-ai-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+      `}</style>
 
       {/* ── Header ── */}
       <div className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 border-b border-white/[0.06]">
@@ -276,11 +289,11 @@ export function AIStudioScreen() {
         </div>
       </div>
 
-      {/* ── Body: iPad landscape = row, mobile = column ── */}
-      <div className="flex-1 flex flex-col landscape:flex-row min-h-0 overflow-hidden">
+      {/* ── Body: landscape = row, portrait = column ── */}
+      <div className="booth-ai-body flex-1 flex min-h-0 overflow-hidden">
 
         {/* ── LEFT / TOP — original photo ── */}
-        <div className="landscape:w-[38%] portrait:h-[30%] flex-shrink-0 flex flex-col border-b landscape:border-b-0 landscape:border-r border-white/[0.05]">
+        <div className="booth-ai-left flex-shrink-0 flex flex-col border-white/[0.05]">
           <p className="flex-shrink-0 text-white/30 text-[10px] uppercase tracking-widest font-semibold text-center py-1.5">
             Your Photo
           </p>
@@ -290,7 +303,7 @@ export function AIStudioScreen() {
               <img
                 src={currentPhoto.url}
                 alt="Your photo"
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-contain"
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-white/10 text-xs">No photo</div>
@@ -320,7 +333,7 @@ export function AIStudioScreen() {
           {step === 'select' && (
             <div className="flex-1 overflow-y-auto px-3 pb-2 scrollbar-none">
               {/* landscape: 4 cols, portrait: 3 cols */}
-              <div className="grid grid-cols-3 landscape:grid-cols-4 gap-2">
+              <div className="booth-ai-grid gap-2">
                 {ALL_STYLES.map((style, i) => (
                   <motion.div
                     key={style.key}
