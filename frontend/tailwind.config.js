@@ -8,5 +8,11 @@ module.exports = {
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [
+    // Enables `landscape:` and `portrait:` variants for orientation-based layouts
+    function ({ addVariant }) {
+      addVariant('landscape', '@media (orientation: landscape)');
+      addVariant('portrait', '@media (orientation: portrait)');
+    },
+  ],
 }
