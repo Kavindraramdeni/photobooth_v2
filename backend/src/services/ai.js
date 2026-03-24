@@ -225,9 +225,7 @@ async function generateWithGemini(imageBuffer, styleKey) {
 
   // Try models in order — gemini-2.0-flash-exp is confirmed working with SDK
   const MODEL_NAMES = [
-    'gemini-2.5-flash-image',
-    'gemini-2.0-flash-preview-image-generation',
-    'gemini-2.5-flash-preview-04-17',
+    'gemini-3.1-flash-image-preview',
   ];
 
   for (const modelName of MODEL_NAMES) {
