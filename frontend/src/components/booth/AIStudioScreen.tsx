@@ -13,7 +13,6 @@
  * Style images: /assets/styles/{key}.jpg loaded from public folder
  * Falls back to gradient card if image missing
  */
-
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Wand2, Share2, ImagePlus, ChevronRight } from 'lucide-react';
@@ -146,28 +145,28 @@ function StyleCard({
       whileTap={{ scale: 0.95 }}
       onClick={onSelect}
       disabled={disabled}
-      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all"
+      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all h-32 landscape:h-36"       
       style={{
         borderColor: isSelected ? style.color : 'rgba(255,255,255,0.08)',
         boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',
-        aspectRatio: '3/4',
       }}
-    >
-      {/* Preview image or gradient fallback */}
+     > 
+      {/* Always keep a visible colorful base so cards never look blank */}
+      <div className="absolute inset-0" style={{ background: style.gradient }} />
+
+      
       {!imgError ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imgSrc}
           alt={style.name}
-          className="absolute inset-0 w-full h-full object-cover"
+           className="absolute inset-0 w-full h-full object-cover opacity-55"
           onError={() => setImgError(true)}
         />
-      ) : (
-        <div className="absolute inset-0" style={{ background: style.gradient }} />
-      )}
+      ) : null}
 
       {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+     <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
 
       {/* Selected glow border overlay */}
       {isSelected && (
