@@ -15,9 +15,9 @@ async function applyBrandingOverlay(photoBuffer, branding = {}) {
     primaryColor = '#ffffff',
     secondaryColor = '#000000',
     footerText = '',
-    eventName = 'SnapBooth',
     showDate = true,
-    template = 'classic', // classic | strip | polaroid
+    template = 'classic', // classic | polaroid (strip is handled by createStrip)
+    eventName = 'SnapBooth',
   } = branding;
 
   const photo = sharp(photoBuffer);
@@ -26,29 +26,54 @@ async function applyBrandingOverlay(photoBuffer, branding = {}) {
 
   const overlays = [];
 
-  // ── Polaroid template: add white border + caption ─────────────────────────
+  // ── Polaroid template: white border + handwritten-style caption ────────────
   if (template === 'polaroid') {
     const borderSide = Math.round(width * 0.05);
-    const borderBottom = Math.round(width * 0.18);
+    const borderBottom = Math.round(width * 0.22);  // bigger bottom for caption
     const captionText = footerText || eventName || 'SnapBooth';
-    const newWidth = width + borderSide * 2;
+    const newWidth  = width  + borderSide * 2;
     const newHeight = height + borderSide + borderBottom;
 
-    const svgPolaroid = `<svg width="${newWidth}" height="${newHeight}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${newWidth}" height="${newHeight}" fill="white" rx="4"/>
-      <rect x="1" y="1" width="${newWidth - 2}" height="${newHeight - 2}" fill="none" stroke="#ddd" stroke-width="1" rx="4"/>
-      <text x="${newWidth / 2}" y="${height + borderSide + borderBottom * 0.6}"
-        text-anchor="middle" dominant-baseline="middle"
-        font-family="'Courier New', monospace" font-size="${Math.round(borderBottom * 0.28)}px"
-        fill="#333">${escapeXml(captionText)}</text>
-    </svg>`;
-
-    // Place original photo on polaroid background
-    const base = await sharp(Buffer.from(svgPolaroid))
+    // Step 1: extend canvas with white polaroid border
+    const withBorder = await sharp({
+      create: {
+        width: newWidth,
+        height: newHeight,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      }
+    })
       .composite([{ input: photoBuffer, top: borderSide, left: borderSide }])
+      .png()
+      .toBuffer();
+
+    // Step 2: overlay the caption text as SVG
+    const svgCaption = Buffer.from(`<svg width="${newWidth}" height="${newHeight}" xmlns="http://www.w3.org/2000/svg">
+      <text
+        x="${newWidth / 2}"
+        y="${height + borderSide + Math.round(borderBottom * 0.55)}"
+        text-anchor="middle" dominant-baseline="middle"
+        font-family="Georgia, serif"
+        font-style="italic"
+        font-size="${Math.round(borderBottom * 0.25)}px"
+        fill="#444"
+      >${escapeXml(captionText)}</text>
+      <text
+        x="${newWidth / 2}"
+        y="${height + borderSide + Math.round(borderBottom * 0.78)}"
+        text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial, sans-serif"
+        font-size="${Math.round(borderBottom * 0.16)}px"
+        fill="#aaa"
+      >${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</text>
+    </svg>`);
+
+    const final = await sharp(withBorder)
+      .composite([{ input: svgCaption, top: 0, left: 0 }])
       .jpeg({ quality: 95 })
       .toBuffer();
-    return base;
+
+    return final;
   }
 
   // Footer bar overlay (classic template)
