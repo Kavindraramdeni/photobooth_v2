@@ -80,7 +80,12 @@ export function PreviewScreen() {
   const [showLeadModal, setShowLeadModal] = useState(false);
   const isDemo = useIsDemo();
 
-  if (!currentPhoto) { setScreen('idle'); return null; }
+  // Guard: redirect safely via effect, never during render
+  useEffect(() => {
+    if (!currentPhoto) setScreen('idle');
+  }, [currentPhoto, setScreen]);
+
+  if (!currentPhoto) return null;
   const photo = currentPhoto;
 
   const settings = event?.settings;
