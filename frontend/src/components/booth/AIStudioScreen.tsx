@@ -307,6 +307,16 @@ export function AIStudioScreen() {
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-white/10 text-xs">No photo</div>
             )}
+            
+            {step === 'select' && (
+              <button
+                onClick={() => setScreen('countdown')}
+                className="absolute left-1/2 -translate-x-1/2 bottom-2 z-20 px-3 py-2 rounded-full bg-black/65 border border-white/15 text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-black/75 active:scale-95 transition-all"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Retake
+              </button>
+            )}
           </div>
         </div>
 
