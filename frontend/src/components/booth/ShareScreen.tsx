@@ -10,13 +10,8 @@ import toast from 'react-hot-toast';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-function openWhatsApp(photoUrl: string, eventName: string) {
-  const text = encodeURIComponent('📸 ' + eventName + ' — tap to view & save your photo: ' + photoUrl);
-  window.open('https://wa.me/?text=' + text, '_blank');
-}
-
 // ── Print fix — single page, no blank pages ───────────────────────────────────
-function printPhotoOnly(photoUrl: string, eventName: string) {
+function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   const existing = document.getElementById('__snapbooth_print_frame');
   if (existing) existing.remove();
   const iframe = document.createElement('iframe');
@@ -43,7 +38,10 @@ function printPhotoOnly(photoUrl: string, eventName: string) {
   ].join(' ');
   doc.head.appendChild(style);
   const wrap = doc.createElement('div'); wrap.className = 'wrap';
+  const safeScale = Number.isFinite(scale) ? Math.max(70, Math.min(110, scale)) : 98;
   const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
+   img.style.width = `${safeScale}%`;
+  img.style.margin = '0 auto';
   wrap.appendChild(img);
   const nameEl = doc.createElement('p'); nameEl.className = 'event-name'; nameEl.textContent = eventName;
   wrap.appendChild(nameEl);
@@ -96,6 +94,7 @@ function InputModal({ icon, title, placeholder, inputType, onSubmit, onClose, se
 export function ShareScreen() {
   const { currentPhoto, event, setScreen, resetSession } = useBoothStore();
   const [modal, setModal] = useState<'email' | 'sms' | null>(null);
+  const [showWhatsAppQR, setShowWhatsAppQR] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<Set<string>>(new Set());
 
@@ -113,7 +112,8 @@ export function ShareScreen() {
   const allowEmail = (event?.settings?.allowEmailShare as boolean) !== false;
   const allowSMS = (event?.settings?.allowSMSShare as boolean) === true;
   const allowPrint = event?.settings?.allowPrint !== false;
-
+  const printScale = (event?.settings?.printScale as number) || 98;
+  
   // ── Share screen auto-timeout ───────────────────────────────────────────────
   const timeoutSecs = (event?.settings?.shareScreenTimeout as number) || 0; // 0 = disabled
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,14 +170,7 @@ export function ShareScreen() {
 
   async function handleWhatsApp() {
     if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: photo.id });
-    if (whatsappCountryCode) {
-      // Pre-fill phone number with country code
-      const phone = whatsappCountryCode.replace(/\D/g, '');
-      const text = encodeURIComponent('📸 ' + eventName + ' — tap to view & save your photo: ' + photoUrl);
-      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-    } else {
-      openWhatsApp(photoUrl, eventName);
-    }
+     setShowWhatsAppQR(true);
   }
 
   async function handleNativeShare() {
@@ -193,7 +186,7 @@ export function ShareScreen() {
   async function handlePrint() {
     if (!event) return;
     try {
-      printPhotoOnly(photo.url, eventName);
+      printPhotoOnly(photo.url, eventName, printScale);
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer!');
     } catch { toast.error('Print failed'); }
@@ -388,6 +381,52 @@ export function ShareScreen() {
 
       {/* Modals */}
       <AnimatePresence>
+        {showWhatsAppQR && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
+            onClick={() => setShowWhatsAppQR(false)}
+          >
+            <motion.div
+              initial={{ y: 16, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 16, opacity: 0.7 }}
+              className="w-full max-w-sm bg-[#12121a] border border-white/10 rounded-3xl p-5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-bold">Send on WhatsApp</h3>
+                <button onClick={() => setShowWhatsAppQR(false)} className="text-white/40 hover:text-white p-1">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {(() => {
+                const phone = whatsappCountryCode.replace(/\D/g, '');
+                const text = encodeURIComponent('📸 ' + eventName + ' — tap to view & save your photo: ' + photoUrl);
+                const waUrl = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
+                return (
+                  <>
+                    <div className="bg-white rounded-2xl p-3 mx-auto w-fit">
+                      <QRCodeSVG value={waUrl} size={180} level="H" fgColor="#000000" bgColor="#ffffff" />
+                    </div>
+                    <p className="text-white/70 text-sm text-center mt-3">
+                      Scan this QR from your phone to open WhatsApp.
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(waUrl).then(
+                          () => toast.success('WhatsApp link copied'),
+                          () => toast.error('Could not copy link'),
+                        );
+                      }}
+                      className="mt-4 w-full py-3 rounded-xl font-bold text-white bg-[#25D366]"
+                    >
+                      Copy WhatsApp Link
+                    </button>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </motion.div>
+        )}
         {modal === 'email' && (
           <InputModal icon={<Mail className="w-5 h-5 text-red-400" />} title="Send to Email"
             placeholder="guest@example.com" inputType="email" sending={sending}
