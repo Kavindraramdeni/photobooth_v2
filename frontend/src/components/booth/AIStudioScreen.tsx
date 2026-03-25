@@ -16,7 +16,7 @@
 
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Wand2, Share2, ImagePlus, ChevronRight } from 'lucide-react';
+import { Sparkles, Wand2, Share2, ImagePlus, ChevronRight, RefreshCw } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
