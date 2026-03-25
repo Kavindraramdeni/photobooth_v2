@@ -35,7 +35,10 @@ function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   ].join(' ');
   doc.head.appendChild(style);
   const wrap = doc.createElement('div'); wrap.className = 'wrap';
+  const safeScale = Number.isFinite(scale) ? Math.max(70, Math.min(110, scale)) : 98;
   const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
+  img.style.width = `${safeScale}%`;
+  img.style.margin = '0 auto';
   wrap.appendChild(img);
   const en = doc.createElement('p'); en.className = 'en'; en.textContent = eventName; wrap.appendChild(en);
   const ft = doc.createElement('p'); ft.className = 'footer';
