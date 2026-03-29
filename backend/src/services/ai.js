@@ -49,20 +49,23 @@ CINEMATIC QUALITY: Lighting from upper-left with gentle fill from right and a su
     strength: 0.78,
   },
 
-  cyberpunk: {
+ cyberpunk: {
     name: 'Cyberpunk',
     emoji: '🌆',
-    prompt: `Based on the provided image, generate a cinematic cyberpunk portrait maintaining the exact facial identity, structure, eyes, skin tone, and hair of the young Indian man. He remains leaning on the graffiti wall (now cyberpunk-themed) in the rainy urban tunnel, which is transformed into a dense megacity at night with towering skyscrapers, holographic ads, flying vehicle trails, and rain catching the light. All people present are transformed into a cyberpunk style while retaining their individual looks.
+    prompt: `Based on the provided image, generate an eye-level, half-body cinematic photo of the person as a confident cyberpunk protagonist.
 
-LIGHTING: Dramatic neon rim lighting from the left—electric cyan or cobalt blue tracing cheekbone, ear, and shoulder. Secondary magenta or deep violet fill from the right. Wet skin and clothing reflect neon signage, Chinese characters, corporate holograms, and rain droplets.
+FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's face must remain 100% recognisable. Preserve exact bone structure, eyes, skin tone, and hair. Do not alter anyone's identity.
 
-WARDROBE: He wears tactical cyberpunk jackets with chrome accents and embedded LED elements, replacing the colorblock windcheater and cargo pants, with hands in pockets.
+SCENE & SETTING: The subject is leaning on a Nike graffiti wall inside a rain-soaked urban tunnel at evening. A sleek black BMW Mi4 with glowing headlights is parked beside them. Water reflections on the ground catch the light. Behind them, the tunnel opens into a dense megacity with holographic ads and flying vehicle light trails.
 
-VEHICLE: The black BMW Mi4 with glowing headlights remains beside him, reflecting the complex neon environment and rain.
+LIGHTING: Dramatic neon rim lighting — electric cyan or cobalt blue tracing the cheekbone, ear, and shoulder. Secondary fill from the right in magenta or deep violet. Wet skin and clothing reflect neon signage, corporate holograms, and rain droplets catching light.
 
-COLOUR GRADE: Deep teal and amber shadows, electric blue and magenta highlights, desaturated noir midtones. Final image must look like a high-budget $200M science fiction film still, hyper-realistic, 8K, sharp focus on subject, bokeh background."
+WARDROBE: Subject is wearing a premium colorblock Nike techwear windcheater and cargo track pants, with hands in pockets.
+
+CINEMATIC QUALITY: Deep teal and amber in shadows, electric blue and magenta in highlights, midtones pushed to desaturated noir. Final image must look like a $200M science fiction film still. Hyper-realistic, 8K, sharp focus, beautiful bokeh background.`,
+    negativePrompt: 'daytime, natural sunlight, countryside, warm pastoral, flat lighting, anime style, painted, low contrast, cheerful, blurry, deformed, cartoon',
+    strength: 0.82,
   },
-
   vintage: {
     name: 'Vintage Film',
     emoji: '📷',
