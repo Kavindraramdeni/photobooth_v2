@@ -52,19 +52,15 @@ CINEMATIC QUALITY: Lighting from upper-left with gentle fill from right and a su
   cyberpunk: {
     name: 'Cyberpunk',
     emoji: '🌆',
-    prompt: `Transform this into a cinematic cyberpunk portrait in the visual language of Blade Runner 2049, Ghost in the Shell, and Cyberpunk 2077.
+    prompt: `Based on the provided image, generate a cinematic cyberpunk portrait maintaining the exact facial identity, structure, eyes, skin tone, and hair of the young Indian man. He remains leaning on the graffiti wall (now cyberpunk-themed) in the rainy urban tunnel, which is transformed into a dense megacity at night with towering skyscrapers, holographic ads, flying vehicle trails, and rain catching the light. All people present are transformed into a cyberpunk style while retaining their individual looks.
 
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's face must remain completely recognisable. Preserve exact facial structure, eyes, skin tone, hair. Do not alter anyone's identity.
+LIGHTING: Dramatic neon rim lighting from the left—electric cyan or cobalt blue tracing cheekbone, ear, and shoulder. Secondary magenta or deep violet fill from the right. Wet skin and clothing reflect neon signage, Chinese characters, corporate holograms, and rain droplets.
 
-LIGHTING: Dramatic neon rim light from the left — electric cyan or cobalt blue tracing the cheekbone, ear, and shoulder. Secondary fill from the right in magenta or deep violet. Wet surfaces on skin and clothing reflect neon signage — Chinese characters, corporate holograms, rain droplets catching light.
+WARDROBE: He wears tactical cyberpunk jackets with chrome accents and embedded LED elements, replacing the colorblock windcheater and cargo pants, with hands in pockets.
 
-ENVIRONMENT: Dense rain-soaked megacity at night behind the subjects. Towering skyscrapers with thousands of lit windows receding into atmospheric haze. Holographic advertisements floating in mid-air. Flying vehicle light trails streaking through the frame.
+VEHICLE: The black BMW Mi4 with glowing headlights remains beside him, reflecting the complex neon environment and rain.
 
-MULTI-PERSON: Transform ALL people present. Each person gets full cyberpunk treatment — tactical jackets, chrome accents, embedded LED elements — while maintaining their individual look and relationship to each other.
-
-COLOUR GRADE: Deep teal and amber in shadows, electric blue and magenta in highlights, midtones pushed to desaturated noir. Final image feels like a $200M science fiction film still.`,
-    negativePrompt: 'daytime, natural sunlight, countryside, warm pastoral, flat lighting, anime style, painted, low contrast, cheerful',
-    strength: 0.82,
+COLOUR GRADE: Deep teal and amber shadows, electric blue and magenta highlights, desaturated noir midtones. Final image must look like a high-budget $200M science fiction film still, hyper-realistic, 8K, sharp focus on subject, bokeh background."
   },
 
   vintage: {
