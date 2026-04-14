@@ -10,7 +10,7 @@ import { useIsDemo } from '@/app/booth/BoothPageClient';
 import toast from 'react-hot-toast';
 
 // ── Print — single page, no blank pages ───────────────────────────────────────
-function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
+function printPhotoOnly(photoUrl: string, eventName: string, scale = 98, silent = false) {
   const existing = document.getElementById('__snapbooth_print_frame');
   if (existing) existing.remove();
   const iframe = document.createElement('iframe');
@@ -35,17 +35,22 @@ function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   ].join(' ');
   doc.head.appendChild(style);
   const wrap = doc.createElement('div'); wrap.className = 'wrap';
-  const safeScale = Number.isFinite(scale) ? Math.max(70, Math.min(110, scale)) : 98;
   const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
-  img.style.width = `${safeScale}%`;
-  img.style.margin = '0 auto';
   wrap.appendChild(img);
   const en = doc.createElement('p'); en.className = 'en'; en.textContent = eventName; wrap.appendChild(en);
   const ft = doc.createElement('p'); ft.className = 'footer';
   ft.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   wrap.appendChild(ft);
   doc.body.appendChild(wrap);
-  function doPrint() { win!.focus(); win!.print(); }
+  function doPrint() {
+    win!.focus();
+    if (silent) {
+      // Auto-print attempt: some browsers honour this without dialog when a printer is paired
+      try { (win as any).print(); } catch { win!.print(); }
+    } else {
+      win!.print(); // Manual: always show dialog so guest can choose printer
+    }
+  }
   if (img.complete) { setTimeout(doPrint, 400); } else { img.onload = () => setTimeout(doPrint, 400); }
   setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
 }
@@ -78,10 +83,33 @@ function ActionBtn({
   );
 }
 
+
+// ── AutoPrint: isolated component so useEffect isn't after a conditional return ──
+function AutoPrint({ photoUrl, eventId, photoId, eventName, scale }: {
+  photoUrl: string; eventId: string; photoId: string; eventName: string; scale: number;
+}) {
+  const fired = useRef(false);
+  useEffect(() => {
+    if (fired.current) return;
+    fired.current = true;
+    setTimeout(() => {
+      printPhotoOnly(photoUrl, eventName, scale, true);
+      trackAction(eventId, 'photo_printed', { photoId, auto: true });
+      toast.success('🖨️ Auto-printing...', { duration: 2000 });
+    }, 800);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 export function PreviewScreen() {
   const { currentPhoto, event, mode, setScreen, resetSession } = useBoothStore();
   const [showLeadModal, setShowLeadModal] = useState(false);
   const isDemo = useIsDemo();
+
+  // ── All hooks declared before any conditional return ───────────────────────
+  const autoPrinted = useRef(false);
+  const [showEffects, setShowEffects] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('none');
 
   // Guard: redirect safely via effect, never during render
   useEffect(() => {
@@ -104,6 +132,8 @@ export function PreviewScreen() {
 
   const printScale = (event?.settings?.printScale as number) || 98;
 
+  // Auto-print handled by AutoPrint component below (avoids hook-after-return rule)
+
   async function handlePrint() {
     if (!event) return;
     try {
@@ -112,11 +142,6 @@ export function PreviewScreen() {
       toast.success('Sent to printer!');
     } catch { toast.error('Print failed — try again'); }
   }
-
-  // ── Auto-print: fires once on mount if operator enabled it ─────────────────
-  const autoPrinted = useRef(false);
-  const [showEffects, setShowEffects] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('none');
 
   // CSS filters applied live on the preview image
   const EFFECTS = [
@@ -130,18 +155,7 @@ export function PreviewScreen() {
     { key: 'golden',     label: 'Golden',     style: 'sepia(80%) hue-rotate(-20deg) saturate(160%) brightness(108%)' },
   ];
   const currentFilter = EFFECTS.find(e => e.key === activeFilter)?.style || 'none';
-  useEffect(() => {
-    const autoPrint = event?.settings?.autoPrint as boolean | undefined;
-    if (autoPrint && !autoPrinted.current && photo?.url && event) {
-      autoPrinted.current = true;
-      // Small delay so the photo renders first
-      setTimeout(() => {
-        printPhotoOnly(photo.url, eventName, printScale);
-        trackAction(event.id, 'photo_printed', { photoId: photo.id, auto: true });
-        toast.success('🖨️ Auto-printing...', { duration: 2000 });
-      }, 800);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // auto-print useEffect is placed after constants are derived below (after return guard)
 
   // Build action list dynamically
   const actions = [
@@ -163,6 +177,8 @@ export function PreviewScreen() {
       color: undefined, onClick: () => setScreen('countdown'),
     }] : []),
   ];
+
+  const shouldAutoPrint = (event?.settings?.autoPrint as boolean) && !!photo?.url;
 
   return (
     <div className="w-full h-full flex flex-col bg-[#080810] select-none overflow-hidden">
