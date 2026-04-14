@@ -27,31 +27,19 @@ function openWhatsApp(photoUrl: string, eventName: string) {
   // Never use window.open for WhatsApp — it exits the kiosk session
 }
 
-// ── Print — supports scale, copies, silent (auto) vs dialog ──────────────────
+// ── Print helper — opens print dialog with correct paper size and scale ────────
 function printPhotoOnly(
   photoUrl: string,
   eventName: string,
-  options: { scale?: number; copies?: number; silent?: boolean; paperSize?: string } = {}
+  scale = 98,
+  silent = false,
+  copies = 1,
+  paperSize = '4x6'
 ) {
-  const { scale = 98, copies = 1, silent = false, paperSize = '4x6' } = options;
-
-  // Paper size map
-  const paperDims: Record<string, string> = {
+  const paperMap: Record<string, string> = {
     '4x6': '4in 6in', '5x7': '5in 7in', 'a5': '148mm 210mm', 'a4': '210mm 297mm',
   };
-  const paper = paperDims[paperSize] || '4in 6in';
-
-  function doPrint(win: Window) {
-    win.focus();
-    if (silent && (win as any).print) {
-      // Auto-print: trigger silently — no dialog on some browsers
-      try { (win as any).print(); } catch { win.print(); }
-    } else {
-      win.print();
-    }
-  }
-
-  // For multiple copies, open the frame multiple times sequentially
+  const paper = paperMap[paperSize] || '4in 6in';
   const totalCopies = Math.max(1, Math.min(copies, 10));
 
   for (let i = 0; i < totalCopies; i++) {
@@ -67,32 +55,29 @@ function printPhotoOnly(
       if (!doc || !win) return;
       doc.open(); doc.close();
       const style = doc.createElement('style');
-  style.textContent = [
-    '* { margin:0; padding:0; box-sizing:border-box; }',
-    'html, body { width:100%; height:100%; overflow:hidden; background:#fff; }',
-    '@page { margin:0; size:4in 6in portrait; }',
-    '@media print { html, body { height:auto; overflow:hidden; }',
-    '  * { page-break-after:avoid !important; page-break-before:avoid !important; page-break-inside:avoid !important; }',
-    '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
-    '.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start;',
-    '        width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; }',
-    'img { width:100%; height:auto; max-height:5.4in; object-fit:contain; display:block; }',
-    '.footer { font-size:8pt; color:#555; text-align:center; }',
-    '.event-name { font-size:9pt; font-weight:bold; color:#333; }',
-  ].join(' ');
-  doc.head.appendChild(style);
-  const wrap = doc.createElement('div'); wrap.className = 'wrap';
-  const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
-  wrap.appendChild(img);
-  const nameEl = doc.createElement('p'); nameEl.className = 'event-name'; nameEl.textContent = eventName;
-  wrap.appendChild(nameEl);
-  const footer = doc.createElement('p'); footer.className = 'footer';
-  footer.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  wrap.appendChild(footer);
-  doc.body.appendChild(wrap);
-  function doPrint() { win!.focus(); win!.print(); }
-  if (img.complete) { setTimeout(doPrint, 400); } else { img.onload = () => setTimeout(doPrint, 400); }
-  setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
+      style.textContent = [
+        `@page { size: ${paper}; margin: 0; }`,
+        '* { margin:0; padding:0; box-sizing:border-box; }',
+        'html, body { width:100%; height:100%; overflow:hidden; background:#fff; display:flex; align-items:center; justify-content:center; flex-direction:column; }',
+        '@media print { html, body { height:auto; } * { page-break-after:avoid !important; } img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
+        `img { display:block; width:${scale}%; height:auto; max-height:90vh; object-fit:contain; }`,
+        '.en { font-size:9pt; font-weight:bold; color:#333; margin-top:4pt; }',
+        '.ft { font-size:7pt; color:#888; margin-top:2pt; }',
+      ].join(' ');
+      doc.head.appendChild(style);
+      const img = doc.createElement('img');
+      img.src = photoUrl; img.alt = 'photo';
+      doc.body.appendChild(img);
+      const en = doc.createElement('p'); en.className = 'en'; en.textContent = eventName;
+      doc.body.appendChild(en);
+      const ft = doc.createElement('p'); ft.className = 'ft';
+      ft.textContent = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      doc.body.appendChild(ft);
+      const fire = () => setTimeout(() => { win!.focus(); win!.print(); }, 500);
+      if (img.complete) fire(); else { img.onload = fire; }
+      setTimeout(() => { document.getElementById(id)?.remove(); }, 30000);
+    }, i * 1500);
+  }
 }
 
 // ── Input modal ───────────────────────────────────────────────────────────────
