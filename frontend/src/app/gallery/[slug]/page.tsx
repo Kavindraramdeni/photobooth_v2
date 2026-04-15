@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode } from 'lucide-react';
 
@@ -50,6 +50,8 @@ async function iosDownload(url: string, filename: string) {
 
 export default function GalleryPage() {
   const { slug } = useParams() as { slug: string };
+  const searchParams = useSearchParams();
+  const photoParamId = searchParams?.get('photo');
 
   const [event,   setEvent]   = useState<Event | null>(null);
   const [photos,  setPhotos]  = useState<Photo[]>([]);
@@ -90,13 +92,31 @@ export default function GalleryPage() {
       // Load photos
       const pRes   = await fetch(`${API_BASE}/api/photos/event/${ev.id}?limit=200`);
       const pData  = await pRes.json();
-      setPhotos(pData.photos || []);
+      const allPhotos: Photo[] = pData.photos || [];
+      setPhotos(allPhotos);
+
+      // If QR scan included a photo ID, auto-open that photo in lightbox
+      if (photoParamId) {
+        const target = allPhotos.find(p => p.id === photoParamId);
+        if (target) {
+          setLightbox(target);
+        } else {
+          // Photo not in list yet — fetch it directly
+          try {
+            const singleRes = await fetch(`${API_BASE}/api/gallery/photo/${photoParamId}`);
+            if (singleRes.ok) {
+              const singleData = await singleRes.json();
+              setLightbox(singleData.photo);
+            }
+          } catch { /* ignore */ }
+        }
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load gallery');
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, photoParamId]);
 
   useEffect(() => { loadGallery(); }, [loadGallery]);
 
