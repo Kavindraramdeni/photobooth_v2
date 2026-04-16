@@ -1,44 +1,49 @@
-const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+const express = require("express");
+const { v4: uuidv4 } = require("uuid");
 const router = express.Router();
-const supabase = require('../services/database');
+const supabase = require("../services/database");
 
-/**
- * Generate a URL-safe slug from event name
- */
 function generateSlug(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 50) + '-' + Date.now().toString(36);
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 50) +
+    "-" +
+    Date.now().toString(36)
+  );
 }
 
 async function resolveEventIdentifier(identifier) {
   const { data, error } = await supabase
-    .from('events')
-    .select('*')
+    .from("events")
+    .select("*")
     .or(`id.eq.${identifier},slug.eq.${identifier}`)
-    .single();
+    .maybeSingle();
 
   return { event: data, error };
 }
 
-/**
- * GET /api/events
- * List all events (admin)
- */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { data: events, error } = await supabase
-      .from('events')
-      .select(`
+    const { slug } = req.query;
+    let query = supabase
+      .from("events")
+      .select(
+        `
         id, name, slug, date, venue, status, created_at,
         photos(count)
-      `)
-      .order('date', { ascending: false });
+      `,
+      )
+      .order("date", { ascending: false });
 
+    if (slug) {
+      query = query.eq("slug", slug);
+    }
+
+    const { data: events, error } = await query;
     if (error) throw error;
     res.json({ events });
   } catch (error) {
@@ -46,25 +51,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-/**
- * GET /api/events/:id
- * Get single event details
- */
-router.get('/:id', async (req, res) => {
+router.get("/:idOrSlug", async (req, res) => {
   try {
-    const { event, error } = await resolveEventIdentifier(req.params.id);
-    if (error || !event) return res.status(404).json({ error: 'Event not found' });
+    const { event, error } = await resolveEventIdentifier(req.params.idOrSlug);
+    if (error || !event)
+      return res.status(404).json({ error: "Event not found" });
     res.json({ event });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * POST /api/events
- * Create a new event
- */
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const {
       name,
@@ -77,7 +75,7 @@ router.post('/', async (req, res) => {
     } = req.body;
 
     if (!name || !date) {
-      return res.status(400).json({ error: 'Name and date are required' });
+      return res.status(400).json({ error: "Name and date are required" });
     }
 
     const eventId = uuidv4();
@@ -85,12 +83,12 @@ router.post('/', async (req, res) => {
 
     const defaultBranding = {
       eventName: name,
-      primaryColor: '#1a1a2e',
-      secondaryColor: '#ffffff',
+      primaryColor: "#1a1a2e",
+      secondaryColor: "#ffffff",
       footerText: name,
-      overlayText: '',
+      overlayText: "",
       showDate: true,
-      template: 'classic',
+      template: "classic",
       logoUrl: null,
       ...branding,
     };
@@ -104,25 +102,32 @@ router.post('/', async (req, res) => {
       allowBoomerang: true,
       allowPrint: true,
       printCopies: 1,
-      aiStyles: ['anime', 'vintage', 'watercolor', 'cyberpunk', 'oilpainting', 'comic'],
+      aiStyles: [
+        "anime",
+        "vintage",
+        "watercolor",
+        "cyberpunk",
+        "oilpainting",
+        "comic",
+      ],
       sessionTimeout: 60,
-      operatorPin: '1234',
+      operatorPin: "1234",
       ...settings,
     };
 
     const { data: event, error } = await supabase
-      .from('events')
+      .from("events")
       .insert({
         id: eventId,
         name,
         slug,
         date,
-        venue: venue || '',
-        client_name: clientName || '',
-        client_email: clientEmail || '',
+        venue: venue || "",
+        client_name: clientName || "",
+        client_email: clientEmail || "",
         branding: defaultBranding,
         settings: defaultSettings,
-        status: 'active',
+        status: "active",
         created_at: new Date().toISOString(),
       })
       .select()
@@ -132,26 +137,23 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ success: true, event });
   } catch (error) {
-    console.error('Event creation error:', error);
+    console.error("Event creation error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * PUT /api/events/:id
- * Update event (branding, settings, etc.)
- */
-router.put('/:id', async (req, res) => {
+router.put("/:idOrSlug", async (req, res) => {
   try {
-    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
-    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
-
-    const updates = req.body;
+    const { event, error: lookupError } = await resolveEventIdentifier(
+      req.params.idOrSlug,
+    );
+    if (lookupError || !event)
+      return res.status(404).json({ error: "Event not found" });
 
     const { data: updatedEvent, error } = await supabase
-      .from('events')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', event.id)
+      .from("events")
+      .update({ ...req.body, updated_at: new Date().toISOString() })
+      .eq("id", event.id)
       .select()
       .single();
 
@@ -162,19 +164,18 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-/**
- * DELETE /api/events/:id
- * Archive an event (soft delete)
- */
-router.delete('/:id', async (req, res) => {
+router.delete("/:idOrSlug", async (req, res) => {
   try {
-    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
-    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
+    const { event, error: lookupError } = await resolveEventIdentifier(
+      req.params.idOrSlug,
+    );
+    if (lookupError || !event)
+      return res.status(404).json({ error: "Event not found" });
 
     const { error } = await supabase
-      .from('events')
-      .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', event.id);
+      .from("events")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", event.id);
 
     if (error) throw error;
     res.json({ success: true });
@@ -183,18 +184,23 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-/**
- * GET /api/events/:id/stats
- * Get analytics summary for an event
- */
-router.get('/:id/stats', async (req, res) => {
+router.get("/:idOrSlug/stats", async (req, res) => {
   try {
-    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
-    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
+    const { event, error: lookupError } = await resolveEventIdentifier(
+      req.params.idOrSlug,
+    );
+    if (lookupError || !event)
+      return res.status(404).json({ error: "Event not found" });
 
     const [photosResult, analyticsResult] = await Promise.all([
-      supabase.from('photos').select('mode, created_at, session_id').eq('event_id', event.id),
-      supabase.from('analytics').select('action, created_at').eq('event_id', event.id),
+      supabase
+        .from("photos")
+        .select("mode, created_at, session_id")
+        .eq("event_id", event.id),
+      supabase
+        .from("analytics")
+        .select("action, created_at")
+        .eq("event_id", event.id),
     ]);
 
     const photos = photosResult.data || [];
@@ -202,13 +208,15 @@ router.get('/:id/stats', async (req, res) => {
 
     const stats = {
       totalPhotos: photos.length,
-      totalGIFs: photos.filter((p) => p.mode === 'gif').length,
-      totalBoomerangs: photos.filter((p) => p.mode === 'boomerang').length,
-      totalStrips: photos.filter((p) => p.mode === 'strip').length,
-      totalAIGenerated: analytics.filter((a) => a.action === 'ai_generated').length,
-      totalShares: analytics.filter((a) => a.action === 'photo_shared').length,
-      totalPrints: analytics.filter((a) => a.action === 'photo_printed').length,
-      totalSessions: new Set(photos.map((p) => p.session_id).filter(Boolean)).size,
+      totalGIFs: photos.filter((p) => p.mode === "gif").length,
+      totalBoomerangs: photos.filter((p) => p.mode === "boomerang").length,
+      totalStrips: photos.filter((p) => p.mode === "strip").length,
+      totalAIGenerated: analytics.filter((a) => a.action === "ai_generated")
+        .length,
+      totalShares: analytics.filter((a) => a.action === "photo_shared").length,
+      totalPrints: analytics.filter((a) => a.action === "photo_printed").length,
+      totalSessions: new Set(photos.map((p) => p.session_id).filter(Boolean))
+        .size,
     };
 
     res.json({ stats });
