@@ -19,17 +19,190 @@ try {
 
 const supabase = require('../services/database');
 const { v4: uuidv4 } = require('uuid');
+const requireAuth = require('../middleware/requireAuth');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 /**
  * GET /api/ai/styles
  */
-router.get('/styles', (req, res) => {
-  const styles = Object.entries(AI_STYLES).map(([key, value]) => ({
-    key, name: value.name, emoji: value.emoji,
-  }));
-  res.json({ styles });
+router.get('/styles', async (req, res) => {
+  try {
+    const baseStyles = Object.entries(AI_STYLES).map(([key, value]) => ({
+      key,
+      name: value.name,
+      emoji: value.emoji,
+      previewImageUrl: null,
+      source: 'default',
+    }));
+
+    const { eventId } = req.query;
+    if (!eventId) return res.json({ styles: baseStyles });
+
+    const { data: customStyles, error } = await supabase
+      .from('event_styles')
+      .select('id, style_key, name, emoji, preview_image_url')
+      .eq('event_id', eventId)
+      .eq('enabled', true)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    const custom = (customStyles || []).map((s) => ({
+      id: s.id,
+      key: s.style_key,
+      name: s.name,
+      emoji: s.emoji || '✨',
+      previewImageUrl: s.preview_image_url || null,
+      source: 'custom',
+    }));
+
+    res.json({ styles: [...baseStyles, ...custom] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/ai/event/:eventId/styles
+ * Admin list of all custom styles for an event
+ */
+router.get('/event/:eventId/styles', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('owner_id', req.user.id)
+      .single();
+    if (eventErr || !event) return res.status(404).json({ error: 'Event not found' });
+
+    const { data, error } = await supabase
+      .from('event_styles')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ styles: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/ai/event/:eventId/styles
+ * Admin create custom style
+ */
+router.post('/event/:eventId/styles', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { name, emoji, prompt, negativePrompt, strength, previewImageUrl, enabled } = req.body;
+    if (!name || !prompt) return res.status(400).json({ error: 'name and prompt are required' });
+
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('owner_id', req.user.id)
+      .single();
+    if (eventErr || !event) return res.status(404).json({ error: 'Event not found' });
+
+    const styleKey = `custom_${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}_${Date.now().toString(36)}`;
+    const row = {
+      id: uuidv4(),
+      event_id: eventId,
+      style_key: styleKey,
+      name: String(name).trim(),
+      emoji: emoji || '✨',
+      prompt: String(prompt).trim(),
+      negative_prompt: (negativePrompt || '').trim(),
+      strength: Number.isFinite(Number(strength)) ? Number(strength) : 0.75,
+      preview_image_url: previewImageUrl || null,
+      enabled: enabled !== false,
+      created_by: req.user.id,
+    };
+
+    const { data, error } = await supabase
+      .from('event_styles')
+      .insert(row)
+      .select()
+      .single();
+    if (error) throw error;
+    res.status(201).json({ style: data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/ai/event/:eventId/styles/:styleId
+ * Admin update style
+ */
+router.put('/event/:eventId/styles/:styleId', requireAuth, async (req, res) => {
+  try {
+    const { eventId, styleId } = req.params;
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('owner_id', req.user.id)
+      .single();
+    if (eventErr || !event) return res.status(404).json({ error: 'Event not found' });
+
+    const updates = {};
+    if (typeof req.body.name === 'string') updates.name = req.body.name.trim();
+    if (typeof req.body.emoji === 'string') updates.emoji = req.body.emoji.trim() || '✨';
+    if (typeof req.body.prompt === 'string') updates.prompt = req.body.prompt.trim();
+    if (typeof req.body.negativePrompt === 'string') updates.negative_prompt = req.body.negativePrompt.trim();
+    if (typeof req.body.previewImageUrl === 'string') updates.preview_image_url = req.body.previewImageUrl.trim() || null;
+    if (typeof req.body.enabled === 'boolean') updates.enabled = req.body.enabled;
+    if (req.body.strength !== undefined) {
+      const parsed = Number(req.body.strength);
+      if (!Number.isFinite(parsed)) return res.status(400).json({ error: 'strength must be a number' });
+      updates.strength = parsed;
+    }
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('event_styles')
+      .update(updates)
+      .eq('id', styleId)
+      .eq('event_id', eventId)
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ style: data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/ai/event/:eventId/styles/:styleId
+ * Admin delete style
+ */
+router.delete('/event/:eventId/styles/:styleId', requireAuth, async (req, res) => {
+  try {
+    const { eventId, styleId } = req.params;
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('owner_id', req.user.id)
+      .single();
+    if (eventErr || !event) return res.status(404).json({ error: 'Event not found' });
+
+    const { error } = await supabase
+      .from('event_styles')
+      .delete()
+      .eq('id', styleId)
+      .eq('event_id', eventId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
@@ -102,13 +275,32 @@ router.post('/generate', upload.single('photo'), async (req, res) => {
       return res.status(400).json({ error: 'Photo file or photoId required' });
     }
 
+     let promptOverride = customPrompt;
+    let styleNameOverride = null;
+    let styleEmojiOverride = null;
+
+    if (eventId && styleKey && !AI_STYLES[styleKey]) {
+      const { data: customStyle } = await supabase
+        .from('event_styles')
+        .select('name, emoji, prompt')
+        .eq('event_id', eventId)
+        .eq('style_key', styleKey)
+        .eq('enabled', true)
+        .single();
+      if (customStyle?.prompt) {
+        promptOverride = customStyle.prompt;
+        styleNameOverride = customStyle.name || 'Custom';
+        styleEmojiOverride = customStyle.emoji || '✨';
+      }
+    }
+
     let result;
     let retryCount = 0;
     const maxRetries = 3;
 
     while (retryCount < maxRetries) {
       try {
-        result = await generateAIImage(imageBuffer, styleKey, customPrompt);
+           result = await generateAIImage(imageBuffer, styleKey, promptOverride, styleNameOverride);
         break;
       } catch (err) {
         if (err.message.startsWith('MODEL_LOADING:')) {
@@ -145,7 +337,7 @@ router.post('/generate', upload.single('photo'), async (req, res) => {
       });
     }
 
-    res.json({ success: true, ai: { id: aiId, url: aiUrl, style: result.style, styleKey, galleryUrl, qrCode: qrDataUrl } });
+   res.json({ success: true, ai: { id: aiId, url: aiUrl, style: result.style, styleKey, emoji: styleEmojiOverride, galleryUrl, qrCode: qrDataUrl } });
   } catch (error) {
     console.error('AI generate error:', error);
     res.status(500).json({ error: error.message });
