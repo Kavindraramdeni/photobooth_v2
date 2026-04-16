@@ -3,14 +3,13 @@
 import { useEffect, useState, createContext, useContext } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBoothStore } from '@/lib/store';
-import { getEvent } from '@/lib/api';
+import { getEvent, getEventById } from '@/lib/api';
 import { BoothMain } from '@/components/booth/BoothMain';
 import { BoothGuard } from '@/components/booth/BoothGuard';
 import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary';
 import { motion } from 'framer-motion';
 import { Camera, Sparkles } from 'lucide-react';
 
-// Demo context — lets PreviewScreen know to show the trial CTA
 export const DemoContext = createContext(false);
 export const useIsDemo = () => useContext(DemoContext);
 
@@ -21,7 +20,7 @@ interface BoothPageClientProps {
 }
 
 export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
-  const { event, setEvent } = useBoothStore();
+  const { setEvent } = useBoothStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -30,16 +29,31 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
 
   useEffect(() => {
     async function loadEvent() {
-      // No slug at all → redirect to the live demo event
-      if (!eventSlug) {
-        router.replace(`/booth?event=${DEMO_EVENT_SLUG}`);
-        return;
-      }
+      const target = eventSlug || DEMO_EVENT_SLUG;
       try {
-        const eventData = await getEvent(eventSlug);
+        const eventSummary = await getEvent(target);
+        if (!eventSummary) throw new Error('Event not found');
+        const eventData = await getEventById(eventSummary.id);
+        if (!eventData) throw new Error('Event not found');
         setEvent(eventData);
+        setError(null);
       } catch {
-        setError('Event not found. Please check your event link.');
+        if (target !== DEMO_EVENT_SLUG) {
+          try {
+            const demoSummary = await getEvent(DEMO_EVENT_SLUG);
+            if (!demoSummary) throw new Error('Event not found');
+            const demoEvent = await getEventById(demoSummary.id);
+            if (!demoEvent) throw new Error('Event not found');
+            setEvent(demoEvent);
+            router.replace(`/booth?event=${DEMO_EVENT_SLUG}`);
+            setError(null);
+            return;
+          } catch {
+            setError('Event not found. Please check your event link.');
+          }
+        } else {
+          setError('Event not found. Please check your event link.');
+        }
       } finally {
         setLoading(false);
       }
@@ -47,15 +61,11 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
     loadEvent();
   }, [eventSlug, setEvent, router]);
 
-  // ── Always fullscreen when booth loads ────────────────────────────────────
   useEffect(() => {
     const el = document.documentElement;
-    // Request fullscreen — works when opened via window.open() from admin panel
-    // Safari on iPad requires user gesture but open-in-new-tab counts as one
     if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
 
-    // Re-request if user exits fullscreen accidentally
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
         setTimeout(() => {
@@ -65,7 +75,6 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
       }
     };
 
-    // Hide address bar on mobile
     window.scrollTo(0, 1);
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -74,7 +83,7 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
-  }, []); // runs once on mount
+  }, []);
 
   if (loading) {
     return (
@@ -94,8 +103,7 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
           <Camera className="w-20 h-20 text-purple-400 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-white mb-3">Oops!</h2>
           <p className="text-white/60 mb-6">{error}</p>
-          <a href={`/booth?event=${DEMO_EVENT_SLUG}`}
-            className="inline-block mt-2 px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold hover:bg-purple-500 transition">
+          <a href={`/booth?event=${DEMO_EVENT_SLUG}`} className="inline-block mt-2 px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold hover:bg-purple-500 transition">
             Try the Demo Instead →
           </a>
         </div>
