@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/database');
-const { trackAction } = require('../services/analytics');
+const { trackAction } = require('./analytics');
 
 // ─── GET /api/gallery/:slug ───────────────────────────────────────────────────
 // Returns event info + paginated photos for public gallery
