@@ -263,10 +263,20 @@ PHOTOREALISM: The aging must be completely photorealistic — not cartoonish or 
 };
 
 
+
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
 // Uses @google/genai SDK with gemini-2.0-flash-exp model
 // Same approach as gembooth — SDK handles the image modality correctly
-async function generateWithGemini(imageBuffer, styleKey) {
+function resolveStyleMeta(styleKey, customPrompt = null, customStyleName = null) {
+  const fallbackStyle = AI_STYLES[styleKey] || AI_STYLES.anime;
+  return {
+    fallbackStyle,
+    styleName: customStyleName || fallbackStyle.name,
+    prompt: customPrompt || fallbackStyle.prompt || 'Transform in an artistic style.',
+  };
+}
+
+async function generateWithGemini(imageBuffer, styleKey, customPrompt = null, customStyleName = null) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return null;
 
@@ -281,8 +291,8 @@ async function generateWithGemini(imageBuffer, styleKey) {
     return null;
   }
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
-
+ const { styleName, prompt } = resolveStyleMeta(styleKey, customPrompt, customStyleName);
+  
   const resized = await sharp(imageBuffer)
     .resize(1024, 1024, { fit: 'cover', position: 'center' })
     .jpeg({ quality: 90 })
@@ -291,8 +301,8 @@ async function generateWithGemini(imageBuffer, styleKey) {
   const base64Image = resized.toString('base64');
 
   const faceInstruction = `CRITICAL: Preserve the person's exact face, identity, and features. Only the artistic style should change. `;
-  const prompt = faceInstruction + (style.prompt || 'Transform in an artistic style.');
-
+  const finalPrompt = faceInstruction + prompt;
+  
   const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
 
   // Try models in order — gemini-2.0-flash-exp is confirmed working with SDK
@@ -318,7 +328,7 @@ async function generateWithGemini(imageBuffer, styleKey) {
                 mimeType: 'image/jpeg',
               },
             },
-            { text: prompt },
+             { text: finalPrompt },
           ],
         }],
       });
@@ -334,8 +344,8 @@ async function generateWithGemini(imageBuffer, styleKey) {
 
       console.log(`[Gemini] ✅ Generated via ${modelName}`);
       const outputBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-      return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
-
+            return { buffer: outputBuffer, style: styleName, styleKey, tier: 'gemini' };
+    
     } catch (err) {
       console.warn(`[Gemini] ${modelName} error:`, err.message?.slice(0, 150));
       continue;
@@ -369,9 +379,9 @@ async function generateWithFal(imageBuffer, styleKey) {
     },
     body: JSON.stringify({
       image_url: base64Image,
-      prompt: style.prompt,
-      negative_prompt: style.negativePrompt,
-      strength: style.strength,
+     prompt,
+      negative_prompt: fallbackStyle.negativePrompt,
+      strength: fallbackStyle.strength,
       num_inference_steps: 4,
       guidance_scale: 3.5,
       num_images: 1,
@@ -398,17 +408,17 @@ async function generateWithFal(imageBuffer, styleKey) {
     .jpeg({ quality: 92 })
     .toBuffer();
 
-  return { buffer: outputBuffer, style: style.name, styleKey, tier: 'fal' };
+    return { buffer: outputBuffer, style: styleName, styleKey, tier: 'fal' };
 }
 
 // ─── TIER 2: Cloudflare Workers AI — img2img (free, good quality) ─────────────
 // Uses SD v1-5 img2img which takes the ACTUAL guest photo and transforms it.
 // This is the correct model for photobooth use — the person's face is preserved.
-async function generateWithCloudflare(imageBuffer, styleKey) {
+async function generateWithCloudflare(imageBuffer, styleKey, customPrompt = null, customStyleName = null) {
   const { CF_ACCOUNT_ID, CF_AI_TOKEN } = process.env;
   if (!CF_ACCOUNT_ID || !CF_AI_TOKEN) return null;
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  const { fallbackStyle, styleName, prompt } = resolveStyleMeta(styleKey, customPrompt, customStyleName);
 
   // Resize to 512x512 — SD v1-5 native resolution, use JPEG to keep payload small
   const resized = await sharp(imageBuffer)
@@ -428,9 +438,9 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      prompt: (style.prompt || 'artistic style transfer').slice(0, 500),
-      negative_prompt: style.negativePrompt || 'blurry, low quality',
-      strength: style.strength || 0.75,
+       prompt: prompt.slice(0, 500),
+      negative_prompt: fallbackStyle.negativePrompt || 'blurry, low quality',
+      strength: fallbackStyle.strength || 0.75,
       num_steps: 20,
       guidance: 7.5,
       image: imageArray,
@@ -450,7 +460,7 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
     .jpeg({ quality: 92 })
     .toBuffer();
 
-  return { buffer: outputBuffer, style: style.name, styleKey, tier: 'cloudflare' };
+ return { buffer: outputBuffer, style: styleName, styleKey, tier: 'cloudflare' };
 }
 
 // ─── TIER 3: HuggingFace — text-to-image fallback ──────────────────────────────
@@ -465,14 +475,14 @@ const HF_MODELS = {
   comic:       'black-forest-labs/FLUX.1-schnell',
 };
 
-async function generateWithHuggingFace(imageBuffer, styleKey) {
+async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = null, customStyleName = null) {
   const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
   if (!HF_TOKEN) return null;
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  const { styleName, prompt } = resolveStyleMeta(styleKey, customPrompt, customStyleName);
   const model = HF_MODELS[styleKey] || HF_MODELS.anime;
-  const prompt = `${style.prompt}, photobooth photo, high quality, one person`;
-
+ const fullPrompt = `${prompt}, photobooth photo, high quality, one person`;
+  
   const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
     method: 'POST',
     headers: {
@@ -480,7 +490,7 @@ async function generateWithHuggingFace(imageBuffer, styleKey) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: prompt,
+      inputs: fullPrompt,
       parameters: { num_inference_steps: 4, width: 512, height: 512 },
     }),
     signal: AbortSignal.timeout(90000),
@@ -504,15 +514,15 @@ async function generateWithHuggingFace(imageBuffer, styleKey) {
     .toBuffer();
 
   // Mark as text2img so frontend can show a note if desired
-  return { buffer: outputBuffer, style: style.name, styleKey, tier: 'huggingface', isText2Image: true };
+ return { buffer: outputBuffer, style: styleName, styleKey, tier: 'huggingface', isText2Image: true };
 }
 
 // ─── TIER 4: Local Sharp filters — instant fallback, always works ───────────────
 // This IS img2img — it applies real colour grading to the ACTUAL guest photo.
 // Much better than HuggingFace for keeping the person's face.
-async function generateWithSharp(imageBuffer, styleKey) {
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
-  if (!sharp) return { buffer: imageBuffer, style: style.name, styleKey, tier: 'passthrough' };
+async function generateWithSharp(imageBuffer, styleKey, customPrompt = null, customStyleName = null) {
+  const { styleName } = resolveStyleMeta(styleKey, customPrompt, customStyleName);
+  if (!sharp) return { buffer: imageBuffer, style: styleName, styleKey, tier: 'passthrough' };
 
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
 
@@ -559,29 +569,29 @@ async function generateWithSharp(imageBuffer, styleKey) {
   }
 
   const buffer = await img.jpeg({ quality: 92 }).toBuffer();
-  return { buffer, style: style.name, styleKey, tier: 'local' };
+  return { buffer, style: styleName, styleKey, tier: 'local' };
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
-async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = null) {
+async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = null, customStyleName = null) { 
   let result;
 
   // Tier 1: Gemini — highest quality, face preserved, style transfer
-  result = await generateWithGemini(imageBuffer, styleKey).catch(err => {
+  result = await generateWithGemini(imageBuffer, styleKey, customPrompt, customStyleName).catch(err => {
     console.warn('[AI] Gemini failed:', err.message);
     return null;
   });
   if (result) { console.log('[AI] ✅ Generated via Gemini (cinematic quality)'); return result; }
 
   // Tier 2: Fal.ai FLUX img2img — cinematic quality, face preserved
-  result = await generateWithFal(imageBuffer, styleKey).catch(err => {
+  result = await generateWithFal(imageBuffer, styleKey, customPrompt, customStyleName).catch(err => {
     console.warn('[AI] Fal.ai failed:', err.message);
     return null;
   });
   if (result) { console.log('[AI] ✅ Generated via Fal.ai FLUX'); return result; }
 
   // Tier 3: Cloudflare img2img — free, good quality, preserves face
-  result = await generateWithCloudflare(imageBuffer, styleKey).catch(err => {
+  result = await generateWithCloudflare(imageBuffer, styleKey, customPrompt, customStyleName).catch(err => {
     console.warn('[AI] Cloudflare failed:', err.message);
     return null;
   });
@@ -591,7 +601,7 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   // NOTE: HuggingFace FLUX is text-to-image only — it ignores the guest photo entirely
   // and generates a random styled person. Sharp is better for a photobooth until
   // Cloudflare img2img is configured (set CF_ACCOUNT_ID + CF_AI_TOKEN on Render).
-  result = await generateWithSharp(imageBuffer, styleKey);
+  result = await generateWithSharp(imageBuffer, styleKey, customPrompt, customStyleName);
   console.log('[AI] ✅ Generated via local Sharp filters (face preserved)');
   return result;
 
