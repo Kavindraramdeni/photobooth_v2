@@ -40,6 +40,24 @@ CREATE TABLE IF NOT EXISTS analytics (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+- ─── EVENT STYLES TABLE (per-event custom AI prompts) ───────────────────────
+CREATE TABLE IF NOT EXISTS event_styles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  style_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  emoji TEXT DEFAULT '✨',
+  prompt TEXT NOT NULL,
+  negative_prompt TEXT DEFAULT '',
+  strength NUMERIC(4,3) DEFAULT 0.75,
+  preview_image_url TEXT,
+  enabled BOOLEAN DEFAULT true,
+  created_by UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(event_id, style_key)
+);
+
 -- ─── INDEXES ──────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_photos_event_id ON photos(event_id);
 CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos(created_at DESC);
