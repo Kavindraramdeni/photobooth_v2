@@ -16,7 +16,7 @@ import {
   getEvent, updateEvent, getEventPhotos, getEventStats, deletePhoto,
   downloadPhotosZip, pingBackend, hidePhoto, unhidePhoto, getEventLeads,
   exportLeadsCSV, getEventPhotosWithHidden, testWebhook, exportAnalyticsCSV,
-  getEventAnalytics
+  getEventAnalytics, getEventAIStyles, createEventAIStyle, updateEventAIStyle, deleteEventAIStyle
 } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { LiveDashboard } from '@/components/admin/LiveDashboard';
@@ -24,7 +24,7 @@ import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type Tab = 'overview' | 'branding' | 'capture' | 'sharing' | 'print' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
+type Tab = 'overview' | 'branding' | 'capture' | 'aistyles' | 'sharing' | 'print' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
 
 interface EventData {
   id: string; name: string; slug: string; date: string; venue: string; status: string;
@@ -42,6 +42,18 @@ interface Photo {
 interface Lead {
   id: string; email?: string; name?: string; phone?: string;
   consented: boolean; created_at: string; photo_id?: string;
+}
+
+interface EventAIStyleRow {
+  id: string;
+  style_key: string;
+  name: string;
+  emoji?: string;
+  prompt: string;
+  negative_prompt?: string;
+  strength?: number;
+  preview_image_url?: string | null;
+  enabled: boolean;
 }
 
 // ── Premium Toggle ────────────────────────────────────────────────────────────
@@ -291,7 +303,17 @@ export default function EventManagePage() {
   const [moderatingId, setModeratingId] = useState<string | null>(null);
   const [webhookTesting, setWebhookTesting] = useState(false);
   const [webhookResult, setWebhookResult] = useState<'ok' | 'fail' | null>(null);
-
+  const [aiStyles, setAIStyles] = useState<EventAIStyleRow[]>([]);
+  const [aiStylesLoading, setAIStylesLoading] = useState(false);
+  const [newAIStyle, setNewAIStyle] = useState({
+    name: '',
+    emoji: '✨',
+    prompt: '',
+    negativePrompt: '',
+    previewImageUrl: '',
+    strength: 0.75,
+  });
+  
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingIdle, setUploadingIdle] = useState(false);
   const [uploadingFrame, setUploadingFrame] = useState(false);
@@ -311,6 +333,11 @@ export default function EventManagePage() {
 
   useEffect(() => {
     if (tab === 'leads' && event && leads.length === 0 && !leadsLoading) handleLoadLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, event?.id]);
+
+    useEffect(() => {
+    if (tab === 'aistyles' && event && aiStyles.length === 0 && !aiStylesLoading) loadAIStyles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, event?.id]);
 
@@ -368,6 +395,64 @@ export default function EventManagePage() {
     finally { setLeadsLoading(false); }
   }
 
+  async function loadAIStyles() {
+    if (!event || aiStylesLoading) return;
+    setAIStylesLoading(true);
+    try {
+      const rows = await getEventAIStyles(event.id);
+      setAIStyles(rows as EventAIStyleRow[]);
+    } catch {
+      toast.error('Could not load AI styles');
+    } finally {
+      setAIStylesLoading(false);
+    }
+  }
+
+  async function handleAddAIStyle() {
+    if (!event) return;
+    if (!newAIStyle.name.trim() || !newAIStyle.prompt.trim()) {
+      toast.error('Style name and prompt are required');
+      return;
+    }
+    try {
+      const created = await createEventAIStyle(event.id, {
+        name: newAIStyle.name.trim(),
+        emoji: newAIStyle.emoji || '✨',
+        prompt: newAIStyle.prompt.trim(),
+        negativePrompt: newAIStyle.negativePrompt.trim(),
+        previewImageUrl: newAIStyle.previewImageUrl.trim(),
+        strength: Number(newAIStyle.strength),
+      });
+      setAIStyles(prev => [created as EventAIStyleRow, ...prev]);
+      setNewAIStyle({ name: '', emoji: '✨', prompt: '', negativePrompt: '', previewImageUrl: '', strength: 0.75 });
+      toast.success('Custom AI style added');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not add style');
+    }
+  }
+
+  async function handleToggleAIStyle(style: EventAIStyleRow) {
+    if (!event) return;
+    try {
+      const updated = await updateEventAIStyle(event.id, style.id, { enabled: !style.enabled });
+      setAIStyles(prev => prev.map(s => (s.id === style.id ? (updated as EventAIStyleRow) : s)));
+    } catch {
+      toast.error('Could not update style');
+    }
+  }
+
+  async function handleDeleteAIStyle(styleId: string) {
+    if (!event) return;
+    if (!confirm('Delete this custom style?')) return;
+    try {
+      await deleteEventAIStyle(event.id, styleId);
+      setAIStyles(prev => prev.filter(s => s.id !== styleId));
+      toast.success('Style deleted');
+    } catch {
+      toast.error('Could not delete style');
+    }
+  }
+  
   const boothUrl = event ? `${typeof window !== 'undefined' ? window.location.origin : ''}/booth?event=${event.slug}` : '';
   const primaryColor = (event?.branding?.primaryColor as string) || '#7c3aed';
 
@@ -387,7 +472,10 @@ export default function EventManagePage() {
   const NAV: { section: string; icon: React.ComponentType<{ className?: string }>; tabs: { key: Tab; label: string; badge?: number }[] }[] = [
     { section: 'Event',   icon: LayoutDashboard, tabs: [{ key: 'overview', label: 'Overview' }] },
     { section: 'Design',  icon: Palette,         tabs: [{ key: 'branding', label: 'Branding' }] },
-    { section: 'Booth',   icon: Camera,          tabs: [{ key: 'capture',  label: 'Capture & Modes' }] },
+    { section: 'Booth',   icon: Camera,          tabs: [
+    { key: 'capture',  label: 'Capture & Modes' },
+    { key: 'aistyles', label: 'AI Styles', badge: aiStyles.length || undefined },
+    ] },
     { section: 'Share',   icon: Share2,          tabs: [{ key: 'sharing',  label: 'Sharing & Email' }] },
     { section: 'Print',   icon: Printer,         tabs: [{ key: 'print',    label: 'Print Setup' }] },
     { section: 'Gallery', icon: ImageIcon,       tabs: [
@@ -843,6 +931,95 @@ export default function EventManagePage() {
                         <div><FieldLabel>Max Photos</FieldLabel>
                           <Input value={String((event.settings?.photoLimit as number) || '')} onChange={v => updateSettings('photoLimit', v ? Number(v) : null)} placeholder="Unlimited" /></div>
                       </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* ══ AI STYLES ══ */}
+                {tab === 'aistyles' && (
+                  <div className="space-y-5">
+                    <Card title="Add Custom AI Style" subtitle="Create event-specific prompts like Mughal Emperor, Rajasthan Miniature, Cyberpunk CEO." icon={Sparkles}>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel>Style Name</FieldLabel>
+                          <Input value={newAIStyle.name} onChange={v => setNewAIStyle(prev => ({ ...prev, name: v }))} placeholder="Mughal Emperor" />
+                        </div>
+                        <div>
+                          <FieldLabel>Emoji</FieldLabel>
+                          <Input value={newAIStyle.emoji} onChange={v => setNewAIStyle(prev => ({ ...prev, emoji: v.slice(0, 2) }))} placeholder="👑" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <FieldLabel>Prompt</FieldLabel>
+                          <textarea
+                            value={newAIStyle.prompt}
+                            onChange={e => setNewAIStyle(prev => ({ ...prev, prompt: e.target.value }))}
+                            rows={5}
+                            placeholder="Describe the style in detail. Identity preservation, lighting, clothing, background..."
+                            className="w-full bg-zinc-950/50 border border-zinc-800 rounded-xl px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-violet-500 transition-colors"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <FieldLabel>Negative Prompt (optional)</FieldLabel>
+                          <Input value={newAIStyle.negativePrompt} onChange={v => setNewAIStyle(prev => ({ ...prev, negativePrompt: v }))} placeholder="blurry, low quality, extra limbs..." />
+                        </div>
+                        <div>
+                          <FieldLabel>Preview Image URL (optional)</FieldLabel>
+                          <Input value={newAIStyle.previewImageUrl} onChange={v => setNewAIStyle(prev => ({ ...prev, previewImageUrl: v }))} placeholder="https://.../mughal-emperor.jpg" />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <FieldLabel>Strength</FieldLabel>
+                            <span className="text-violet-300 font-bold text-sm">{Number(newAIStyle.strength).toFixed(2)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.40"
+                            max="0.95"
+                            step="0.01"
+                            value={newAIStyle.strength}
+                            onChange={e => setNewAIStyle(prev => ({ ...prev, strength: Number(e.target.value) }))}
+                            className="w-full accent-violet-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-end">
+                        <button onClick={handleAddAIStyle}
+                          className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold">
+                          Add Custom Style
+                        </button>
+                      </div>
+                    </Card>
+
+                    <Card title="Event AI Styles" subtitle="These styles appear in the booth AI Studio for this event only." icon={Sparkles}>
+                      {aiStylesLoading ? (
+                        <p className="text-zinc-500 text-sm">Loading styles...</p>
+                      ) : aiStyles.length === 0 ? (
+                        <p className="text-zinc-500 text-sm">No custom styles yet.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {aiStyles.map(style => (
+                            <div key={style.id} className="border border-zinc-800 rounded-xl p-4 bg-zinc-950/40">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-white font-semibold text-sm">{style.emoji || '✨'} {style.name}</p>
+                                  <p className="text-zinc-500 text-xs mt-0.5">{style.style_key}</p>
+                                  <p className="text-zinc-400 text-xs mt-2 line-clamp-2">{style.prompt}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => handleToggleAIStyle(style)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${style.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>
+                                    {style.enabled ? 'Enabled' : 'Disabled'}
+                                  </button>
+                                  <button onClick={() => handleDeleteAIStyle(style.id)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 text-red-300">
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </Card>
                   </div>
                 )}
