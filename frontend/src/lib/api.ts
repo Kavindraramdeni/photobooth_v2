@@ -122,8 +122,8 @@ export async function getAIStyles() {
 }
 
 export async function getEvent(idOrSlug: string) {
-  const res = await api.get(`/events/${idOrSlug}`);
-  return res.data.event;
+  const res = await api.get(`/events`, { params: { slug: idOrSlug } });
+  return res.data.events?.[0] || null;
 }
 
 export async function getEvents() {
