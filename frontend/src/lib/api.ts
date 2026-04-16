@@ -123,7 +123,9 @@ export async function getAIStyles() {
 
 export async function getEvent(idOrSlug: string) {
   const res = await api.get(`/events`, { params: { slug: idOrSlug } });
-  return res.data.events?.[0] || null;
+ const event = res.data.events?.[0] || null;
+  if (!event) return null;
+  return event;
 }
 
 export async function getEventById(id: string) {
