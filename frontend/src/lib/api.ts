@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || window.location.origin;
 
 export const api = axios.create({
   baseURL: `${API_BASE}/api`,
@@ -124,6 +124,11 @@ export async function getAIStyles() {
 export async function getEvent(idOrSlug: string) {
   const res = await api.get(`/events`, { params: { slug: idOrSlug } });
   return res.data.events?.[0] || null;
+}
+
+export async function getEventById(id: string) {
+  const res = await api.get(`/events/${id}`);
+  return res.data.event || null;
 }
 
 export async function getEvents() {
