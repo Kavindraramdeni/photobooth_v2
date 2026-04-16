@@ -14,16 +14,27 @@
  * Falls back to gradient card if image missing
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Wand2, Share2, ImagePlus, ChevronRight, RefreshCw } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import toast from 'react-hot-toast';
+import { getAIStyles } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 // ── All 12 styles — images served from /assets/styles/{key}.jpg ──────────────
-const ALL_STYLES = [
+type StyleDef = {
+  key: string;
+  name: string;
+  emoji: string;
+  color: string;
+  gradient: string;
+  desc: string;
+  previewImageUrl?: string;
+};
+
+const DEFAULT_STYLES: StyleDef[] = [
   {
     key: 'anime',
     name: 'Anime',
@@ -131,14 +142,14 @@ function StyleCard({
   onSelect,
   disabled,
 }: {
-  style: typeof ALL_STYLES[0];
+  style: StyleDef;
   isSelected: boolean;
   onSelect: () => void;
   disabled: boolean;
 }) {
   const [imgError, setImgError] = useState(false);
-  const imgSrc = `/assets/styles/${style.key}.jpg`;
-
+   const imgSrc = (style.previewImageUrl as string) || `/assets/styles/${style.key}.jpg`;
+  
   return (
     <motion.button
       initial={{ opacity: 0, scale: 0.92 }}
@@ -205,12 +216,38 @@ export function AIStudioScreen() {
   } = useBoothStore();
 
   const [step, setStep] = useState<Step>('select');
+  const [styles, setStyles] = useState(DEFAULT_STYLES);
   const [selected, setSelected] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
 
-  const selectedStyle = ALL_STYLES.find(s => s.key === selected);
+  const selectedStyle = styles.find(s => s.key === selected);
 
+  useEffect(() => {
+    if (!event?.id) return;
+    getAIStyles(event.id)
+      .then((fetched) => {
+        if (!Array.isArray(fetched) || fetched.length === 0) return;
+        const merged = fetched.map((style: Record<string, unknown>) => {
+          const key = String(style.key || '');
+          const base = DEFAULT_STYLES.find((s) => s.key === key);
+          return {
+            key,
+            name: String(style.name || base?.name || 'Custom Style'),
+            emoji: String(style.emoji || base?.emoji || '✨'),
+            color: base?.color || '#7c3aed',
+            gradient: base?.gradient || 'linear-gradient(135deg,#7c3aed,#a855f7)',
+            desc: base?.desc || 'Custom prompt',
+            previewImageUrl: style.previewImageUrl ? String(style.previewImageUrl) : undefined,
+          };
+        });
+        setStyles(merged);
+      })
+      .catch(() => {
+        // keep local defaults if API fails
+      });
+  }, [event?.id]);
+  
   async function handleGenerate() {
     if (!selected || !currentPhoto?.id || !event?.id || aiGenerating) return;
     setStep('generating');
@@ -334,7 +371,7 @@ export function AIStudioScreen() {
                   : 'Choose a style'}
             </p>
             {step === 'select' && (
-              <span className="text-white/20 text-[10px]">{ALL_STYLES.length} styles</span>
+               <span className="text-white/20 text-[10px]">{styles.length} styles</span>
             )}
           </div>
 
@@ -343,7 +380,7 @@ export function AIStudioScreen() {
             <div className="flex-1 overflow-y-auto px-3 pb-2 scrollbar-none">
               {/* landscape: 4 cols, portrait: 3 cols */}
               <div className="booth-ai-grid gap-2">
-                {ALL_STYLES.map((style, i) => (
+                 {styles.map((style, i) => (
                   <motion.div
                     key={style.key}
                     className="relative w-full"
