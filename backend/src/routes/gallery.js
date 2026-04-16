@@ -1,219 +1,128 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const supabase = require('../services/database');
+const { trackAction } = require('./analytics');
 
-/**
- * Generate a URL-safe slug from event name
- */
-function generateSlug(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 50) + '-' + Date.now().toString(36);
-}
-
-async function resolveEventIdentifier(identifier) {
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .or(`id.eq.${identifier},slug.eq.${identifier}`)
-    .single();
-
-  return { event: data, error };
-}
-
-/**
- * GET /api/events
- * List all events (admin)
- */
-router.get('/', async (req, res) => {
+// ─── GET /api/gallery/:slug ───────────────────────────────────────────────────
+// Returns event info + paginated photos for public gallery
+router.get('/:slug', async (req, res) => {
   try {
-    const { data: events, error } = await supabase
-      .from('events')
-      .select(`
-        id, name, slug, date, venue, status, created_at,
-        photos(count)
-      `)
-      .order('date', { ascending: false });
-
-    if (error) throw error;
-    res.json({ events });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/events/:id
- * Get single event details
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { event, error } = await resolveEventIdentifier(req.params.id);
-    if (error || !event) return res.status(404).json({ error: 'Event not found' });
-    res.json({ event });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/events
- * Create a new event
- */
-router.post('/', async (req, res) => {
-  try {
-    const {
-      name,
-      date,
-      venue,
-      clientName,
-      clientEmail,
-      branding = {},
-      settings = {},
-    } = req.body;
-
-    if (!name || !date) {
-      return res.status(400).json({ error: 'Name and date are required' });
-    }
-
-    const eventId = uuidv4();
-    const slug = generateSlug(name);
-
-    const defaultBranding = {
-      eventName: name,
-      primaryColor: '#1a1a2e',
-      secondaryColor: '#ffffff',
-      footerText: name,
-      overlayText: '',
-      showDate: true,
-      template: 'classic',
-      logoUrl: null,
-      ...branding,
-    };
-
-    const defaultSettings = {
-      countdownSeconds: 3,
-      photosPerSession: 1,
-      allowRetakes: true,
-      allowAI: true,
-      allowGIF: true,
-      allowBoomerang: true,
-      allowPrint: true,
-      printCopies: 1,
-      aiStyles: ['anime', 'vintage', 'watercolor', 'cyberpunk', 'oilpainting', 'comic'],
-      sessionTimeout: 60,
-      operatorPin: '1234',
-      ...settings,
-    };
+    const { slug } = req.params;
+    const { page = 1, limit = 24, password } = req.query;
 
     const { data: event, error } = await supabase
       .from('events')
-      .insert({
-        id: eventId,
-        name,
-        slug,
-        date,
-        venue: venue || '',
-        client_name: clientName || '',
-        client_email: clientEmail || '',
-        branding: defaultBranding,
-        settings: defaultSettings,
-        status: 'active',
-        created_at: new Date().toISOString(),
-      })
-      .select()
+      .select('id, name, slug, date, venue, branding, settings, gallery_password, gallery_expires_at')
+      .or(`id.eq.${slug},slug.eq.${slug}`)
+      .eq('status', 'active')
       .single();
 
-    if (error) throw error;
+    if (error || !event) return res.status(404).json({ error: 'Gallery not found' });
 
-    res.status(201).json({ success: true, event });
+    // Check if gallery has expired
+    if (event.gallery_expires_at && new Date(event.gallery_expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Gallery has expired' });
+    }
+
+    // Password protection
+    if (event.gallery_password) {
+      if (!password) {
+        return res.status(401).json({ error: 'PASSWORD_REQUIRED', eventName: event.name });
+      }
+      if (password !== event.gallery_password) {
+        return res.status(403).json({ error: 'WRONG_PASSWORD' });
+      }
+    }
+
+    // Fetch photos
+    const offset = (Number(page) - 1) * Number(limit);
+    const { data: photos, count } = await supabase
+      .from('photos')
+      .select('id, url, thumb_url, gallery_url, mode, created_at', { count: 'exact' })
+      .eq('event_id', event.id)
+      .eq('is_hidden', false)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + Number(limit) - 1);
+
+    // Track gallery view
+    await supabase.from('analytics').insert({
+      event_id: event.id,
+      action: 'gallery_viewed',
+      metadata: { page },
+    });
+
+    res.json({
+      event: {
+        name: event.name,
+        slug: event.slug,
+        date: event.date,
+        venue: event.venue,
+        branding: event.branding,
+      },
+      photos: photos || [],
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / Number(limit)),
+      },
+    });
   } catch (error) {
-    console.error('Event creation error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * PUT /api/events/:id
- * Update event (branding, settings, etc.)
- */
-router.put('/:id', async (req, res) => {
+// ─── POST /api/gallery/:slug/verify-password ─────────────────────────────────
+router.post('/:slug/verify-password', async (req, res) => {
   try {
-    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
-    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
-
-    const updates = req.body;
-
-    const { data: updatedEvent, error } = await supabase
+    const { password } = req.body;
+    const { data: event } = await supabase
       .from('events')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', event.id)
-      .select()
+      .select('gallery_password, name')
+      .or(`id.eq.${req.params.slug},slug.eq.${req.params.slug}`)
       .single();
 
-    if (error) throw error;
-    res.json({ success: true, event: updatedEvent });
+    if (!event) return res.status(404).json({ error: 'Not found' });
+    if (password === event.gallery_password) {
+      res.json({ success: true });
+    } else {
+      res.status(403).json({ error: 'Wrong password' });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * DELETE /api/events/:id
- * Archive an event (soft delete)
- */
-router.delete('/:id', async (req, res) => {
+// ─── POST /api/gallery/track-download ────────────────────────────────────────
+router.post('/track-download', async (req, res) => {
   try {
-    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
-    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
-
-    const { error } = await supabase
-      .from('events')
-      .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', event.id);
-
-    if (error) throw error;
+    const { photoId, eventId } = req.body;
+    await supabase.from('analytics').insert({
+      event_id: eventId,
+      action: 'gallery_download',
+      metadata: { photoId },
+    });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.json({ success: false });
   }
 });
 
-/**
- * GET /api/events/:id/stats
- * Get analytics summary for an event
- */
-router.get('/:id/stats', async (req, res) => {
+// ─── GET /api/gallery/photo/:photoId ─────────────────────────────────────────
+// QR code scans to /gallery/:slug?photo=:photoId
+// This endpoint returns a single photo for the lightbox open on arrival
+router.get('/photo/:photoId', async (req, res) => {
   try {
-    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
-    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
+    const { data: photo, error } = await supabase
+      .from('photos')
+      .select('id, url, thumb_url, gallery_url, mode, created_at, events(name, slug, branding)')
+      .eq('id', req.params.photoId)
+      .single();
 
-    const [photosResult, analyticsResult] = await Promise.all([
-      supabase.from('photos').select('mode, created_at, session_id').eq('event_id', event.id),
-      supabase.from('analytics').select('action, created_at').eq('event_id', event.id),
-    ]);
-
-    const photos = photosResult.data || [];
-    const analytics = analyticsResult.data || [];
-
-    const stats = {
-      totalPhotos: photos.length,
-      totalGIFs: photos.filter((p) => p.mode === 'gif').length,
-      totalBoomerangs: photos.filter((p) => p.mode === 'boomerang').length,
-      totalStrips: photos.filter((p) => p.mode === 'strip').length,
-      totalAIGenerated: analytics.filter((a) => a.action === 'ai_generated').length,
-      totalShares: analytics.filter((a) => a.action === 'photo_shared').length,
-      totalPrints: analytics.filter((a) => a.action === 'photo_printed').length,
-      totalSessions: new Set(photos.map((p) => p.session_id).filter(Boolean)).size,
-    };
-
-    res.json({ stats });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    res.json({ photo });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
