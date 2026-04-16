@@ -7,7 +7,6 @@ export const api = axios.create({
   timeout: 120000,
 });
 
-// Attach auth token to every request automatically
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('sb_access_token');
@@ -16,7 +15,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 401 → clear session and redirect to login (only on protected pages)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -34,8 +32,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-// ─── Photos ────────────────────────────────────────────────────────────────
 
 export async function uploadPhoto(blob: Blob, eventId: string, sessionId: string, mode = 'single') {
   const form = new FormData();
@@ -102,8 +98,6 @@ export async function getPhotoCount(eventId: string): Promise<number> {
   return res.data.count ?? 0;
 }
 
-// ─── AI ────────────────────────────────────────────────────────────────────
-
 export async function generateAI(blob: Blob, styleKey: string, eventId: string, photoId?: string) {
   const form = new FormData();
   form.append('photo', blob, 'photo.jpg');
@@ -126,8 +120,6 @@ export async function getAIStyles() {
   const res = await api.get('/ai/styles');
   return res.data.styles;
 }
-
-// ─── Events ────────────────────────────────────────────────────────────────
 
 export async function getEvent(idOrSlug: string) {
   const res = await api.get(`/events/${idOrSlug}`);
@@ -159,10 +151,7 @@ export async function getEventQR(idOrSlug: string) {
   return res.data;
 }
 
-export async function testWebhook(
-  eventId: string,
-  webhookUrl: string
-): Promise<{ ok: boolean; status?: number; error?: string }> {
+export async function testWebhook(eventId: string, webhookUrl: string): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
     const res = await api.post(`/events/${eventId}/webhook-test`, { webhookUrl });
     return res.data;
@@ -172,8 +161,6 @@ export async function testWebhook(
   }
 }
 
-// ─── Gallery ───────────────────────────────────────────────────────────────
-
 export async function verifyGalleryPassword(eventId: string, password: string): Promise<boolean> {
   try {
     const res = await api.post(`/events/${eventId}/gallery-auth`, { password });
@@ -182,8 +169,6 @@ export async function verifyGalleryPassword(eventId: string, password: string): 
     return false;
   }
 }
-
-// ─── Analytics ─────────────────────────────────────────────────────────────
 
 export async function trackAction(eventId: string, action: string, metadata = {}) {
   try {
@@ -203,20 +188,10 @@ export async function getEventAnalytics(eventId: string, days = 30) {
   return res.data;
 }
 
-export function exportAnalyticsCSV(
-  rows: { action: string; metadata: Record<string, unknown>; created_at: string }[],
-  eventName: string
-) {
+export function exportAnalyticsCSV(rows: { action: string; metadata: Record<string, unknown>; created_at: string }[], eventName: string) {
   const headers = ['Action', 'Mode', 'Details', 'Date'];
-  const data = rows.map(r => [
-    r.action,
-    (r.metadata?.mode as string) || '',
-    JSON.stringify(r.metadata).replace(/"/g, "'"),
-    new Date(r.created_at).toLocaleString(),
-  ]);
-  const csv = [headers, ...data]
-    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
+  const data = rows.map(r => [r.action, (r.metadata?.mode as string) || '', JSON.stringify(r.metadata).replace(/"/g, "'"), new Date(r.created_at).toLocaleString()]);
+  const csv = [headers, ...data].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -227,8 +202,6 @@ export function exportAnalyticsCSV(
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
-// ─── Diagnostics ───────────────────────────────────────────────────────────
 
 export async function pingBackend(): Promise<{ ok: boolean; latencyMs: number; timestamp: string }> {
   const start = Date.now();
@@ -241,8 +214,6 @@ export async function pingBackend(): Promise<{ ok: boolean; latencyMs: number; t
     return { ok: false, latencyMs: Date.now() - start, timestamp: new Date().toISOString() };
   }
 }
-
-// ─── Moderation ────────────────────────────────────────────────────────────
 
 export async function hidePhoto(photoId: string, reason = '') {
   const res = await api.patch(`/photos/${photoId}/moderate`, { is_hidden: true, reason });
@@ -259,8 +230,6 @@ export async function getEventPhotosWithHidden(eventId: string) {
   return res.data;
 }
 
-// ─── Leads ─────────────────────────────────────────────────────────────────
-
 export async function submitLead(data: {
   eventId: string; photoId?: string;
   email?: string; phone?: string; name?: string; consented?: boolean;
@@ -274,10 +243,7 @@ export async function getEventLeads(eventId: string) {
   return res.data;
 }
 
-export function exportLeadsCSV(
-  leads: { email?: string; name?: string; phone?: string; created_at: string }[],
-  eventName: string
-) {
+export function exportLeadsCSV(leads: { email?: string; name?: string; phone?: string; created_at: string }[], eventName: string) {
   const rows = [
     ['Name', 'Email', 'Phone', 'Captured At'],
     ...leads.map(l => [l.name || '', l.email || '', l.phone || '', new Date(l.created_at).toLocaleString()]),
@@ -294,8 +260,6 @@ export function exportLeadsCSV(
   URL.revokeObjectURL(url);
 }
 
-// ─── Share ─────────────────────────────────────────────────────────────────
-
 export async function sharePhotoByEmail(photoId: string, email: string, eventId: string) {
   const res = await api.post('/photos/share/email', { photoId, email, eventId });
   return res.data;
@@ -305,8 +269,6 @@ export async function sharePhotoBySMS(photoId: string, phone: string, eventId: s
   const res = await api.post('/photos/share/sms', { photoId, phone, eventId });
   return res.data;
 }
-
-// ─── Billing / Plan ────────────────────────────────────────────────────────
 
 export async function getMyPlan() {
   const res = await api.get('/billing/my-plan');
