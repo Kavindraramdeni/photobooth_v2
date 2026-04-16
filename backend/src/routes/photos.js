@@ -513,7 +513,7 @@ router.get('/event/:eventId/zip', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+
 
 /**
  * POST /api/photos/burst
@@ -560,3 +560,5 @@ router.post('/burst', upload.fields([
     res.status(500).json({ error: error.message });
   }
 });
+
+module.exports = router;
