@@ -122,9 +122,52 @@ export async function generateSurpriseAI(blob: Blob, eventId: string) {
   return res.data;
 }
 
-export async function getAIStyles() {
-  const res = await api.get('/ai/styles');
+export async function getAIStyles(eventId?: string) {
+  const q = eventId ? `?eventId=${encodeURIComponent(eventId)}` : '';
+  const res = await api.get(`/ai/styles${q}`);
   return res.data.styles;
+}
+
+export interface EventAIStyle {
+  id: string;
+  event_id: string;
+  style_key: string;
+  name: string;
+  emoji?: string;
+  prompt: string;
+  negative_prompt?: string;
+  strength?: number;
+  preview_image_url?: string | null;
+  enabled: boolean;
+  created_at?: string;
+}
+
+export async function getEventAIStyles(eventId: string): Promise<EventAIStyle[]> {
+  const res = await api.get(`/ai/event/${eventId}/styles`);
+  return res.data.styles || [];
+}
+
+export async function createEventAIStyle(eventId: string, payload: {
+  name: string;
+  emoji?: string;
+  prompt: string;
+  negativePrompt?: string;
+  strength?: number;
+  previewImageUrl?: string;
+  enabled?: boolean;
+}) {
+  const res = await api.post(`/ai/event/${eventId}/styles`, payload);
+  return res.data.style as EventAIStyle;
+}
+
+export async function updateEventAIStyle(eventId: string, styleId: string, payload: Record<string, unknown>) {
+  const res = await api.put(`/ai/event/${eventId}/styles/${styleId}`, payload);
+  return res.data.style as EventAIStyle;
+}
+
+export async function deleteEventAIStyle(eventId: string, styleId: string) {
+  const res = await api.delete(`/ai/event/${eventId}/styles/${styleId}`);
+  return res.data;
 }
 
 // ─── Events ────────────────────────────────────────────────────────────────
