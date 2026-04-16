@@ -15,6 +15,16 @@ function generateSlug(name) {
     .slice(0, 50) + '-' + Date.now().toString(36);
 }
 
+async function resolveEventIdentifier(identifier) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .or(`id.eq.${identifier},slug.eq.${identifier}`)
+    .single();
+
+  return { event: data, error };
+}
+
 /**
  * GET /api/events
  * List all events (admin)
@@ -42,12 +52,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('*')
-      .or(`id.eq.${req.params.id},slug.eq.${req.params.id}`)
-      .single();
-
+    const { event, error } = await resolveEventIdentifier(req.params.id);
     if (error || !event) return res.status(404).json({ error: 'Event not found' });
     res.json({ event });
   } catch (error) {
@@ -78,7 +83,6 @@ router.post('/', async (req, res) => {
     const eventId = uuidv4();
     const slug = generateSlug(name);
 
-    // Default branding
     const defaultBranding = {
       eventName: name,
       primaryColor: '#1a1a2e',
@@ -91,7 +95,6 @@ router.post('/', async (req, res) => {
       ...branding,
     };
 
-    // Default settings
     const defaultSettings = {
       countdownSeconds: 3,
       photosPerSession: 1,
@@ -102,7 +105,7 @@ router.post('/', async (req, res) => {
       allowPrint: true,
       printCopies: 1,
       aiStyles: ['anime', 'vintage', 'watercolor', 'cyberpunk', 'oilpainting', 'comic'],
-      sessionTimeout: 60, // seconds before reset
+      sessionTimeout: 60,
       operatorPin: '1234',
       ...settings,
     };
@@ -140,18 +143,20 @@ router.post('/', async (req, res) => {
  */
 router.put('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
+    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
+
     const updates = req.body;
 
-    const { data: event, error } = await supabase
+    const { data: updatedEvent, error } = await supabase
       .from('events')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
+      .eq('id', event.id)
       .select()
       .single();
 
     if (error) throw error;
-    res.json({ success: true, event });
+    res.json({ success: true, event: updatedEvent });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -163,10 +168,13 @@ router.put('/:id', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
+    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
+    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
+
     const { error } = await supabase
       .from('events')
       .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', req.params.id);
+      .eq('id', event.id);
 
     if (error) throw error;
     res.json({ success: true });
@@ -181,25 +189,26 @@ router.delete('/:id', async (req, res) => {
  */
 router.get('/:id/stats', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { event, error: lookupError } = await resolveEventIdentifier(req.params.id);
+    if (lookupError || !event) return res.status(404).json({ error: 'Event not found' });
 
     const [photosResult, analyticsResult] = await Promise.all([
-      supabase.from('photos').select('mode, created_at').eq('event_id', id),
-      supabase.from('analytics').select('action, created_at').eq('event_id', id),
+      supabase.from('photos').select('mode, created_at, session_id').eq('event_id', event.id),
+      supabase.from('analytics').select('action, created_at').eq('event_id', event.id),
     ]);
 
     const photos = photosResult.data || [];
     const analytics = analyticsResult.data || [];
 
     const stats = {
-      totalPhotos: photos.length, // all photos regardless of mode
+      totalPhotos: photos.length,
       totalGIFs: photos.filter((p) => p.mode === 'gif').length,
       totalBoomerangs: photos.filter((p) => p.mode === 'boomerang').length,
       totalStrips: photos.filter((p) => p.mode === 'strip').length,
       totalAIGenerated: analytics.filter((a) => a.action === 'ai_generated').length,
       totalShares: analytics.filter((a) => a.action === 'photo_shared').length,
       totalPrints: analytics.filter((a) => a.action === 'photo_printed').length,
-      totalSessions: new Set(photos.map((p) => p.session_id)).size,
+      totalSessions: new Set(photos.map((p) => p.session_id).filter(Boolean)).size,
     };
 
     res.json({ stats });
