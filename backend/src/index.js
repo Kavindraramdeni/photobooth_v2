@@ -12,7 +12,7 @@ const httpServer = createServer(app);
 app.set('trust proxy', 1);
 
 // ── CORS origins ──────────────────────────────────────────────────────────────
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://photobooth-v2-xi.vercel.app')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://instaboothv1.vercel.app')
   .split(',').map(o => o.trim()).filter(Boolean);
 
 const io = new Server(httpServer, {
