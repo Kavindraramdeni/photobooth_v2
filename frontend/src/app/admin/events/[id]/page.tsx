@@ -472,6 +472,7 @@ export default function EventManagePage() {
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Upload failed'); }
     finally { setUploadingPreview(null); }
   }
+}
 
   async function handleZip() {
     if (!event) return; setZipLoading(true);
