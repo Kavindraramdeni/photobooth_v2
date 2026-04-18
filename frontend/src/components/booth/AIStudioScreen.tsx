@@ -48,22 +48,27 @@ function StyleCard({ style, isSelected, onSelect, disabled }: {
       whileTap={{ scale: 0.95 }}
       onClick={onSelect}
       disabled={disabled}
-      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all"
+className="relative flex flex-col rounded-2xl overflow-hidden border-2 border-white/10 transition-all"
       style={{
         borderColor: isSelected ? style.color : 'rgba(255,255,255,0.08)',
         boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',
         aspectRatio: '3/4',
       }}>
       {/* Image or gradient */}
-      {style.preview_image_url && !imgError ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={style.preview_image_url} alt={style.name}
-          className="absolute inset-0 w-full h-full object-cover"
-          onError={() => setImgError(true)} />
-      ) : (
-        <div className="absolute inset-0" style={{ background: style.gradient }} />
-      )}
-
+     {style.preview_image_url ? (
+  <img
+    src={style.preview_image_url}
+    alt={style.name}
+    className="absolute inset-0 w-full h-full object-cover"
+    onLoad={() => console.log("loaded:", style.name)}
+    onError={(e) => {
+      console.log("image failed:", style.preview_image_url);
+      (e.target as HTMLImageElement).style.display = "none";
+    }}
+  />
+) : (
+  <div className="absolute inset-0" style={{ background: style.gradient }} />
+)}
       {/* Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
@@ -108,38 +113,52 @@ export function AIStudioScreen() {
 
   // ── Fetch event-specific styles or fall back to defaults ──────────────────
   useEffect(() => {
-    if (!event?.id) return;
-    fetch(`${API_BASE}/api/events/${event.id}/styles`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.styles && data.styles.length > 0) {
-          // Map API styles → display styles (add color/gradient from defaults)
-          const mapped: Style[] = data.styles.map((s: {
-            style_key: string; name: string; emoji: string; preview_image_url?: string;
-          }) => {
-            const def = DEFAULT_STYLES.find(d => d.key === s.style_key);
-            return {
-              key: s.style_key,
-              name: s.name,
-              emoji: s.emoji,
-              color: def?.color || '#a78bfa',
-              gradient: def?.gradient || 'linear-gradient(135deg,#a78bfa,#7c3aed)',
-              preview_image_url: s.preview_image_url,
-            };
-          });
-          setStyles(mapped);
-        } else {
-          // No custom styles — use all 12 defaults
-          setStyles(DEFAULT_STYLES.map(d => ({ ...d, preview_image_url: `/assets/styles/${d.key}.jpg` })));
-        }
-      })
-      .catch(() => {
-        // API error — fall back to defaults
-        setStyles(DEFAULT_STYLES.map(d => ({ ...d, preview_image_url: `/assets/styles/${d.key}.jpg` })));
-      })
-      .finally(() => setStylesLoading(false));
-  }, [event?.id]);
+  if (!event?.id) return;
 
+  setStylesLoading(true);
+
+  fetch(`${API_BASE}/api/events/${event.id}/styles`)
+    .then(r => r.json())
+    .then(data => {
+      console.log("🔥 RAW STYLES:", data);
+
+      if (data.styles && data.styles.length > 0) {
+        const mapped: Style[] = data.styles.map((s: any) => {
+          const def = DEFAULT_STYLES.find(d => d.key === s.style_key);
+
+          return {
+            key: s.style_key,
+            name: s.name || s.style_key,
+            emoji: s.emoji || '✨',
+            color: def?.color ?? '#a78bfa',
+            gradient: def?.gradient ?? 'linear-gradient(135deg,#a78bfa,#7c3aed)',
+            preview_image_url: s.preview_image_url || null,
+          };
+        });
+
+        setStyles(mapped);
+      } else {
+        setStyles(
+          DEFAULT_STYLES.map(d => ({
+            ...d,
+            preview_image_url: `/assets/styles/${d.key}.jpg`,
+          }))
+        );
+      }
+    })
+    .catch((err) => {
+      console.log("STYLE FETCH ERROR:", err);
+
+      setStyles(
+        DEFAULT_STYLES.map(d => ({
+          ...d,
+          preview_image_url: `/assets/styles/${d.key}.jpg`,
+        }))
+      );
+    })
+    .finally(() => setStylesLoading(false));
+}, [event?.id]);
+  
   async function handleGenerate() {
     if (!selected || !currentPhoto?.id || !event?.id || aiGenerating) return;
     setStep('generating');
@@ -249,8 +268,8 @@ export function AIStudioScreen() {
                 ? <div className="flex items-center justify-center h-full">
                     <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
                   </div>
-                : <div className="booth-ai-grid gap-2">
-                    {styles.map((style, i) => (
+                  <div className="booth-ai-grid gap-2 border border-white/10">
+                {styles.map((style, i) => (
                       <motion.div key={style.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
                         <StyleCard style={style} isSelected={selected === style.key}
                           onSelect={() => setSelected(selected === style.key ? null : style.key)} disabled={aiGenerating} />
