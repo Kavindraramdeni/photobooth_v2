@@ -327,9 +327,7 @@ const upload = multer({
 
 router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     const processed = await sharp(req.file.buffer)
       .resize(400, 533, { fit: 'cover', position: 'entropy' })
@@ -339,6 +337,8 @@ router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res
     const key = `events/${req.params.id}/styles/preview_${req.params.styleId}.jpg`;
 
     const url = await uploadToStorage(processed, key, 'image/jpeg');
+
+    console.log("UPLOAD URL:", url); // 👈 ADD THIS
 
     const { error } = await supabase
       .from('event_styles')
