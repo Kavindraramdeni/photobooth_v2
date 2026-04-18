@@ -264,21 +264,33 @@ export function AIStudioScreen() {
           {/* SELECT */}
           {step === 'select' && (
             <div className="flex-1 overflow-y-auto px-3 pb-2 scrollbar-none">
-              {stylesLoading
-                ? <div className="flex items-center justify-center h-full">
-                    <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-                  </div>
-                  <div className="booth-ai-grid gap-2 border border-white/10">
-                {styles.map((style, i) => (
-                      <motion.div key={style.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                        <StyleCard style={style} isSelected={selected === style.key}
-                          onSelect={() => setSelected(selected === style.key ? null : style.key)} disabled={aiGenerating} />
-                      </motion.div>
-                    ))}
+              {stylesLoading ? (
+  <div className="flex items-center justify-center h-full">
+    <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+  </div>
+) : (
+  <div className="booth-ai-grid gap-2">
+    {styles.map((style, i) => (
+      <motion.div
+        key={style.key}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: i * 0.03 }}
+      >
+        <StyleCard
+          style={style}
+          isSelected={selected === style.key}
+          onSelect={() =>
+            setSelected(selected === style.key ? null : style.key)
+          }
+          disabled={aiGenerating}
+        />
+      </motion.div>
+    ))}
+  </div>
+)}
                   </div>
               }
-            </div>
-          )}
 
           {/* GENERATING */}
           {step === 'generating' && (
