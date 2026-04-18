@@ -321,7 +321,7 @@ router.post('/:id/styles/:styleId/image', _upload.single('file'), async (req, re
       .toBuffer();
 
     const key = `events/${req.params.id}/styles/${req.params.styleId}_preview.jpg`;
-    const url = await storage_service.uploadBuffer(processed, key, 'image/jpeg');
+    const url = await storage_service.uploadToStorage(processed, key, 'image/jpeg');
 
     const { error } = await supabase
       .from('event_styles')
