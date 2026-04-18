@@ -10,7 +10,7 @@ import {
   ChevronLeft, Copy, ExternalLink, Save, RefreshCw, Trash2, EyeOff, Eye,
   Download, Smartphone, AlertCircle, Clapperboard, Sparkles, Film, RotateCcw,
   Mail, MessageSquare, Wifi, Globe, Clock, Lock, Users, Activity,
-  CheckCircle, XCircle, Zap, FileText, Hash, Plus
+  CheckCircle, XCircle, Zap, FileText, Hash
 } from 'lucide-react';
 import {
   getEvent, updateEvent, getEventPhotos, getEventStats, deletePhoto,
@@ -231,7 +231,8 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
   const check = useCallback(async () => {
     setChecking(true);
     try {
-      const ok = await pingBackend(); setBackendOk(ok);
+      const result = await pingBackend();
+setBackendOk(result.ok);
       const token = localStorage.getItem('sb_access_token');
       const res = await fetch(`${API_BASE}/api/ai/status`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (res.ok) setAiStatus(await res.json());
@@ -329,7 +330,17 @@ export default function EventManagePage() {
   const [stylesSaving, setStylesSaving] = useState(false);
   const [editingStyle, setEditingStyle] = useState<EventStyle | null>(null);
   const [showNewStyle, setShowNewStyle] = useState(false);
-  const [newStyle, setNewStyle] = useState<{ name: string; prompt: string; style_key: string; emoji: string; preview: File | null }>({ name: '', emoji: '✨', prompt: '', style_key: '', preview: null });
+  const [newStyle, setNewStyle] = useState<{
+  name: string;
+  prompt: string;
+  style_key: string;
+  preview: File | null;
+}>({
+  name: '',
+  prompt: '',
+  style_key: '',
+  preview: null
+});
   const [uploadingPreview, setUploadingPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -406,72 +417,73 @@ export default function EventManagePage() {
     finally { setStylesLoading(false); }
   }
 
-  async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; preview?: File | null }) {
-    if (!event) return;
-    setStylesSaving(true);
-    try {
-      const token = localStorage.getItem('sb_access_token');
-      const authHeader: Record<string,string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const isNew = !style.id;
-      const { preview, ...styleData } = style as typeof style & { preview?: File | null };
+ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string, preview?: File | null }) {
+  if (!event) return;
 
-      const url = isNew
-        ? `${API_BASE}/api/events/${event.id}/styles`
-        : `${API_BASE}/api/events/${event.id}/styles/${style.id}`;
-      const body = JSON.stringify({
-        ...(isNew ? { style_key: styleData.style_key || styleData.name?.toLowerCase().replace(/[^a-z0-9]/g,'_') } : {}),
-        ...styleData,
-      });
-      const res = await fetch(url, {
-        method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-        body,
-      });
-      if (!res.ok) throw new Error('Save failed');
-      const saved = await res.json();
+  setStylesSaving(true);
 
-      // Upload preview image if a new file was selected
-      if (preview instanceof File && saved.style?.id) {
-        const fd = new FormData();
-        fd.append('file', preview);
-        await fetch(`${API_BASE}/api/events/${event.id}/styles/${saved.style.id}/image`, {
-          method: 'POST', headers: authHeader, body: fd,
-        });
-      }
+  try {
+    const token = localStorage.getItem('sb_access_token');
+    const isNew = !style.id;
 
-      toast.success(isNew ? 'Style added!' : 'Style updated!');
-      setShowNewStyle(false);
-      setEditingStyle(null);
-      setNewStyle({ name: '', emoji: '✨', prompt: '', style_key: '', preview: null });
-      await handleLoadStyles();
-    } catch { toast.error('Save failed'); }
-    finally { setStylesSaving(false); }
-  }) {
-    if (!event) return;
-    setStylesSaving(true);
-    try {
-      const token = localStorage.getItem('sb_access_token');
-      const isNew = !style.id;
-      const url = isNew
-        ? `${API_BASE}/api/events/${event.id}/styles`
-        : `${API_BASE}/api/events/${event.id}/styles/${style.id}`;
-      const method = isNew ? 'POST' : 'PUT';
-      const body = isNew
-        ? JSON.stringify({ style_key: style.style_key || style.name?.toLowerCase().replace(/\s+/g,'_'), ...style })
-        : JSON.stringify(style);
-      const res = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body,
+    // ── 1. CREATE / UPDATE STYLE ──
+    const url = isNew
+      ? `${API_BASE}/api/events/${event.id}/styles`
+      : `${API_BASE}/api/events/${event.id}/styles/${style.id}`;
+
+    const method = isNew ? 'POST' : 'PUT';
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        name: style.name,
+        prompt: style.prompt,
+        style_key: style.style_key || style.name?.toLowerCase().replace(/[^a-z0-9]/g, '_')
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error('Save failed');
+
+    const styleId = isNew ? data.id : style.id;
+
+    // ── 2. UPLOAD PREVIEW IMAGE ──
+    if (style.preview && styleId) {
+      const fd = new FormData();
+      fd.append('file', style.preview);
+
+      await fetch(`${API_BASE}/api/events/${event.id}/styles/${styleId}/image`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd
       });
-      if (!res.ok) throw new Error('Save failed');
-      toast.success(isNew ? 'Style added!' : 'Style updated!');
-      setShowNewStyle(false);
-      setEditingStyle(null);
-      setNewStyle({ name: '', emoji: '✨', prompt: '', style_key: '', preview: null });
-      await handleLoadStyles();
-    } catch { toast.error('Save failed'); }
-    finally { setStylesSaving(false); }
+    }
+
+    // ── 3. REFRESH UI ──
+    await handleLoadStyles();
+
+    // reset UI
+    setShowNewStyle(false);
+    setEditingStyle(null);
+    setNewStyle({
+      name: '',
+      prompt: '',
+      style_key: '',
+      preview: null
+    });
+
+    toast.success(isNew ? 'Style added!' : 'Style updated!');
+
+  } catch (err) {
+    toast.error('Save failed');
+  } finally {
+    setStylesSaving(false);
   }
+}
 
   async function handleDeleteStyle(styleId: string) {
     if (!confirm('Delete this style?')) return;
@@ -527,7 +539,10 @@ export default function EventManagePage() {
     finally { setLeadsLoading(false); }
   }
 
-  const boothUrl = event ? `${typeof window !== 'undefined' ? window.location.origin : ''}/booth?event=${event.slug}` : '';
+  let boothUrl = '';
+if (event && typeof window !== 'undefined') {
+  boothUrl = `${window.location.origin}/booth?event=${event.slug}`;
+}
   const primaryColor = (event?.branding?.primaryColor as string) || '#7c3aed';
 
   if (loading) return (
@@ -997,181 +1012,171 @@ export default function EventManagePage() {
                 )}
 
                 {/* ══ AI STYLES ══ */}
-                {tab === 'aistyles' && (
-                  <div className="space-y-6">
+{tab === 'aistyles' && (
+  <div className="space-y-6">
 
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-white font-semibold text-lg">AI Art Styles</h2>
-                        <p className="text-zinc-500 text-sm">
-                          {eventStyles.length > 0
-                            ? `${eventStyles.length} style${eventStyles.length !== 1 ? 's' : ''} — shown to guests in booth`
-                            : 'No custom styles — booth shows 12 defaults'}
-                        </p>
-                      </div>
-                      <button onClick={() => setShowNewStyle(v => !v)}
-                        className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                        <Plus className="w-4 h-4" /> Add Style
-                      </button>
-                    </div>
+    {/* Header */}
+    <div className="flex items-center justify-between">
+      <div>
+        <h2 className="text-white font-semibold text-lg">AI Art Styles</h2>
+        <p className="text-zinc-500 text-sm">
+          {eventStyles.length} styles — shown to guests in booth
+        </p>
+      </div>
 
-                    {/* Add Style inline form */}
-                    {showNewStyle && (
-                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                        {/* Preview image upload */}
-                        <div>
-                          <p className="text-xs text-zinc-500 mb-1">Preview Image — guests see this before generating</p>
-                          <label className="w-full h-40 border-2 border-dashed border-zinc-700 rounded-xl flex items-center justify-center cursor-pointer hover:border-violet-500 transition-colors overflow-hidden">
-                            {newStyle.preview ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={URL.createObjectURL(newStyle.preview)} className="w-full h-full object-cover" alt="preview" />
-                            ) : (
-                              <div className="text-center">
-                                <UploadCloud className="w-8 h-8 text-zinc-600 mx-auto mb-1" />
-                                <span className="text-zinc-500 text-sm">Click to upload preview image</span>
-                              </div>
-                            )}
-                            <input type="file" accept="image/*" className="hidden"
-                              onChange={e => { const f = e.target.files?.[0]; if (f) setNewStyle({...newStyle, preview: f}); }} />
-                          </label>
-                        </div>
-                        {/* Name */}
-                        <input placeholder="Style name (e.g. Mughal Emperor)" value={newStyle.name}
-                          onChange={e => setNewStyle({...newStyle, name: e.target.value, style_key: e.target.value.toLowerCase().replace(/[^a-z0-9]/g,'_')})}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500" />
-                        {/* Prompt */}
-                        <div>
-                          <textarea placeholder={"Transform into a Mughal emperor portrait with jewelled turban and palace backdrop. Preserve the person's facial identity."}
-                            value={newStyle.prompt} onChange={e => setNewStyle({...newStyle, prompt: e.target.value})}
-                            rows={3} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 resize-none" />
-                          <p className="text-zinc-600 text-xs mt-1">1–2 sentences. End with "Preserve the person's facial identity."</p>
-                        </div>
-                        {/* Actions */}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSaveStyle({ ...newStyle })}
-                            disabled={!newStyle.name || !newStyle.prompt || stylesSaving}
-                            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-colors">
-                            {stylesSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            {stylesSaving ? 'Saving...' : 'Save'}
-                          </button>
-                          <button onClick={() => { setShowNewStyle(false); setNewStyle({ name: '', emoji: '✨', prompt: '', style_key: '', preview: null }); }}
-                            className="text-zinc-400 hover:text-white text-sm px-4 transition-colors">Cancel</button>
-                        </div>
-                      </div>
-                    )}
+      <button
+        onClick={() => setShowNewStyle(v => !v)}
+        className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-sm font-semibold"
+      >
+        + Add Style
+      </button>
+    </div>
 
-                    {/* Empty state */}
-                    {eventStyles.length === 0 && !stylesLoading && !showNewStyle && (
-                      <div className="border-2 border-dashed border-zinc-800 rounded-2xl p-10 text-center">
-                        <Sparkles className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-                        <p className="text-zinc-400 text-sm font-medium">No custom styles yet</p>
-                        <p className="text-zinc-600 text-xs mt-1">Add styles to override the 12 defaults for this event.</p>
-                      </div>
-                    )}
+    {/* ADD STYLE (INLINE) */}
+    {showNewStyle && (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
 
-                    {stylesLoading && (
-                      <div className="flex justify-center py-10">
-                        <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-                      </div>
-                    )}
+        {/* IMAGE UPLOAD */}
+        <div>
+          <p className="text-xs text-zinc-500 mb-1">Preview Image (required)</p>
+          <label className="w-full h-40 border-2 border-dashed border-zinc-700 rounded-xl flex items-center justify-center cursor-pointer hover:border-violet-500 overflow-hidden">
+            {newStyle.preview ? (
+              <img
+                src={URL.createObjectURL(newStyle.preview)}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-zinc-500 text-sm">Click to upload preview image</span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) setNewStyle({ ...newStyle, preview: file });
+              }}
+            />
+          </label>
+        </div>
 
-                    {/* Styles grid — same card format as booth */}
-                    {eventStyles.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        {eventStyles.map(style => (
-                          <div key={style.id}
-                            className="relative group rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800"
-                            style={{ aspectRatio: '3/4' }}>
+        {/* NAME */}
+        <input
+          placeholder="Style name (e.g. Mughal Emperor)"
+          value={newStyle.name}
+          onChange={e => setNewStyle({ ...newStyle, name: e.target.value })}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+        />
 
-                            {/* Preview image */}
-                            {style.preview_image_url
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={style.preview_image_url} alt={style.name} className="absolute inset-0 w-full h-full object-cover" />
-                              : <div className="absolute inset-0 flex items-center justify-center">
-                                  <span className="text-3xl">{style.emoji || '✨'}</span>
-                                </div>
-                            }
+        {/* PROMPT */}
+        <textarea
+          placeholder="AI prompt..."
+          value={newStyle.prompt}
+          onChange={e => setNewStyle({ ...newStyle, prompt: e.target.value })}
+          rows={3}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+        />
 
-                            {/* Dark overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+        {/* ACTIONS */}
+        <div className="flex gap-2">
+          <button
+           onClick={() => handleSaveStyle({
+  ...newStyle,
+  preview: newStyle.preview
+})}
+            className="bg-violet-600 hover:bg-violet-500 px-5 py-2 rounded-lg text-white text-sm font-semibold"
+          >
+            Save
+          </button>
 
-                            {/* Name */}
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-2.5 py-2 font-semibold">
-                              {style.name}
-                            </div>
+          <button
+            onClick={() => {
+              setShowNewStyle(false);
+setNewStyle({
+  name: '',
+  prompt: '',
+  style_key: '',
+  preview: null
+});            }}
+            className="text-zinc-400 text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
 
-                            {/* Active toggle */}
-                            <button onClick={() => handleToggleStyle(style.id, !style.is_active)}
-                              className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                              title={style.is_active ? 'Visible — click to hide' : 'Hidden — click to show'}>
-                              {style.is_active ? '👁' : '🚫'}
-                            </button>
+    {/* STYLES GRID */}
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
 
-                            {/* Hover actions */}
-                            <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex flex-col items-center justify-center gap-2 p-3">
-                              <label className="w-full flex items-center justify-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-white cursor-pointer transition-colors">
-                                <UploadCloud className="w-3.5 h-3.5" />
-                                {uploadingPreview === style.id ? 'Uploading...' : 'Change Image'}
-                                <input type="file" accept="image/*" className="hidden"
-                                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadPreview(style.id, f); e.currentTarget.value = ''; }} />
-                              </label>
-                              <button onClick={() => setEditingStyle(style)}
-                                className="w-full flex items-center justify-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-white transition-colors">
-                                <Save className="w-3.5 h-3.5" /> Edit Prompt
-                              </button>
-                              <button onClick={() => handleDeleteStyle(style.id)}
-                                className="w-full flex items-center justify-center gap-1.5 text-xs bg-red-500/20 hover:bg-red-500/40 px-3 py-2 rounded-lg text-red-300 transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" /> Delete
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+      {eventStyles.map(style => (
+        <div
+          key={style.id}
+          className="relative group rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 aspect-[3/4]"
+        >
 
-                    {/* Edit prompt modal */}
-                    {editingStyle && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-                        onClick={e => { if (e.target === e.currentTarget) setEditingStyle(null); }}>
-                        <div className="bg-[#111118] border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4">
-                          <div className="flex items-center justify-between">
-                            <p className="text-white font-bold">Edit Style</p>
-                            <button onClick={() => setEditingStyle(null)} className="text-zinc-500 hover:text-white transition-colors">
-                              <X className="w-5 h-5" />
-                            </button>
-                          </div>
-                          <div className="flex gap-2">
-                            <input value={editingStyle.emoji}
-                              onChange={e => setEditingStyle({...editingStyle, emoji: e.target.value})}
-                              className="w-14 bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-2.5 text-white text-xl text-center focus:outline-none focus:border-violet-500" />
-                            <input value={editingStyle.name}
-                              onChange={e => setEditingStyle({...editingStyle, name: e.target.value})}
-                              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500"
-                              placeholder="Style name" />
-                          </div>
-                          <textarea value={editingStyle.prompt}
-                            onChange={e => setEditingStyle({...editingStyle, prompt: e.target.value})}
-                            rows={4}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 resize-none" />
-                          <p className="text-zinc-600 text-xs">End with "Preserve the person's facial identity." for best results.</p>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleSaveStyle(editingStyle)} disabled={stylesSaving}
-                              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-colors disabled:opacity-40">
-                              {stylesSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                              {stylesSaving ? 'Saving...' : 'Save Changes'}
-                            </button>
-                            <button onClick={() => setEditingStyle(null)}
-                              className="px-5 py-3 rounded-xl text-zinc-400 hover:text-white text-sm bg-zinc-900 transition-colors">Cancel</button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+          {/* IMAGE */}
+          {style.preview_image_url ? (
+            <img
+              src={style.preview_image_url}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-sm">
+              No Image
+            </div>
+          )}
 
-                  </div>
-                )}
+          {/* NAME */}
+          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-sm px-2 py-1">
+            {style.name}
+          </div>
 
+          {/* ACTIVE TOGGLE */}
+          <button
+            onClick={() => handleToggleStyle(style.id, !style.is_active)}
+            className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs text-white"
+          >
+            {style.is_active ? '👁' : '🚫'}
+          </button>
+
+          {/* HOVER ACTIONS */}
+          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition">
+
+            <label className="text-xs bg-white/10 px-3 py-1 rounded cursor-pointer">
+              Upload Image
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUploadPreview(style.id, f);
+                }}
+              />
+            </label>
+
+            <button
+              onClick={() => setEditingStyle(style)}
+              className="text-xs bg-white/10 px-3 py-1 rounded"
+            >
+              Edit
+            </button>
+
+            <button
+              onClick={() => handleDeleteStyle(style.id)}
+              className="text-xs bg-red-500/20 px-3 py-1 rounded text-red-300"
+            >
+              Delete
+            </button>
+
+          </div>
+        </div>
+      ))}
+
+    </div>
+
+  </div>
+)}
                 {/* ══ SHARING ══ */}
                 {tab === 'sharing' && (
                   <div className="space-y-5">
