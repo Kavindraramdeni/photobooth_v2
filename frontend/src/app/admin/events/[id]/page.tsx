@@ -453,7 +453,7 @@ export default function EventManagePage() {
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ is_active: enabled }),
       });
-      setEventStyles(prev => prev.map(s => s.id === styleId ? { ...s, enabled } : s));
+      setEventStyles(prev => prev.map(s => s.id === styleId ? { ...s, is_active: enabled } : s));
     } catch { toast.error('Update failed'); }
   }
 
