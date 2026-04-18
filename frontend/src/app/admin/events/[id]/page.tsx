@@ -50,9 +50,9 @@ interface EventStyle {
   name: string;
   emoji: string;
   prompt: string;
-  preview_url: string | null;
-  display_order: number;
-  enabled: boolean;
+  preview_image_url: string | null;
+  sort_order: number;
+  is_active: boolean;
 }
 
 // Global default styles (fallback when no event styles set)
@@ -966,7 +966,7 @@ export default function EventManagePage() {
                         <h2 className="text-white font-semibold">AI Art Styles</h2>
                         <p className="text-zinc-500 text-sm mt-0.5">
                           {eventStyles.length > 0
-                            ? `${eventStyles.filter(s => s.enabled).length} of ${eventStyles.length} styles active`
+                            ? `${eventStyles.filter(s => s.is_active).length} of ${eventStyles.length} styles active`
                             : 'Using 12 global defaults — add custom styles to override'}
                         </p>
                       </div>
@@ -1012,14 +1012,14 @@ export default function EventManagePage() {
                         {eventStyles.map((style, i) => (
                           <div key={style.id}
                             className={`bg-zinc-900/40 border rounded-2xl overflow-hidden transition-all ${
-                              style.enabled ? 'border-white/[0.06]' : 'border-zinc-800 opacity-60'
+                              style.is_active ? 'border-white/[0.06]' : 'border-zinc-800 opacity-60'
                             }`}>
                             <div className="flex items-center gap-4 p-4">
                               {/* Preview image or emoji */}
                               <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center relative group">
-                                {style.preview_url ? (
+                                {style.preview_image_url ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={style.preview_url} alt={style.name} className="w-full h-full object-cover" />
+                                  <img src={style.preview_image_url} alt={style.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <span className="text-2xl">{style.emoji}</span>
                                 )}
@@ -1069,7 +1069,7 @@ export default function EventManagePage() {
                               {/* Controls */}
                               {editingStyle?.id !== style.id && (
                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                  <PremiumToggle checked={style.enabled} onChange={v => handleToggleStyle(style.id, v)} />
+                                  <PremiumToggle checked={style.is_active} onChange={v => handleToggleStyle(style.id, v)} />
                                   <button onClick={() => setEditingStyle(style)}
                                     className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors">
                                     <Save className="w-3.5 h-3.5" />
