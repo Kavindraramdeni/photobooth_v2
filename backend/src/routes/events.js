@@ -316,22 +316,29 @@ router.delete('/:id/styles/:styleId', async (req, res) => {
  * Receives multipart/form-data with field 'file'
  * Resizes to portrait 3:4, stores in R2, updates DB
  */
-const _multer = require('multer');
-const _sharp  = require('sharp');
-const _store  = require('../services/storage');
-const _upload = _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const multer = require('multer');
+const sharp = require('sharp');
+const { uploadToStorage } = require('../services/storage');
 
-router.post('/:id/styles/:styleId/image', _upload.single('file'), async (req, res) => {
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
+
+router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
 
-    const processed = await _sharp(req.file.buffer)
+    const processed = await sharp(req.file.buffer)
       .resize(400, 533, { fit: 'cover', position: 'entropy' })
       .jpeg({ quality: 88 })
       .toBuffer();
 
     const key = `events/${req.params.id}/styles/preview_${req.params.styleId}.jpg`;
-    const url = await _store.uploadToStorage(processed, key, 'image/jpeg');
+
+    const url = await uploadToStorage(processed, key, 'image/jpeg');
 
     const { error } = await supabase
       .from('event_styles')
@@ -340,8 +347,11 @@ router.post('/:id/styles/:styleId/image', _upload.single('file'), async (req, re
       .eq('event_id', req.params.id);
 
     if (error) throw error;
+
     res.json({ success: true, url });
+
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
