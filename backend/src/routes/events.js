@@ -42,13 +42,24 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('*')
-      .or(`id.eq.${req.params.id},slug.eq.${req.params.id}`)
-      .single();
+    const param = req.params.id;
 
-    if (error || !event) return res.status(404).json({ error: 'Event not found' });
+    // Try by slug first, then by UUID — avoids PostgREST .or() parsing issues with hyphens
+    let event = null;
+
+    const bySlug = await supabase.from('events').select('*').eq('slug', param).maybeSingle();
+    if (bySlug.data) {
+      event = bySlug.data;
+    } else {
+      // Only try UUID lookup if it looks like a UUID
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param);
+      if (isUUID) {
+        const byId = await supabase.from('events').select('*').eq('id', param).maybeSingle();
+        if (byId.data) event = byId.data;
+      }
+    }
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json({ event });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -302,26 +313,12 @@ router.delete('/:id/styles/:styleId', async (req, res) => {
 
 /**
  * POST /api/events/:id/styles/:styleId/image
- * Upload preview image (multipart/form-data with 'file' field)
- * Resizes to 400x533, stores in R2/Supabase, updates DB
+ * Upload preview image — stores URL directly (base64 from frontend)
  */
-const multer = require('multer');
-const sharp = require('sharp');
-const storage_service = require('../services/storage');
-const _upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-
-router.post('/:id/styles/:styleId/image', _upload.single('file'), async (req, res) => {
+router.post('/:id/styles/:styleId/image', async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
-    // Resize to portrait 3:4 thumbnail
-    const processed = await sharp(req.file.buffer)
-      .resize(400, 533, { fit: 'cover', position: 'entropy' })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-
-    const key = `events/${req.params.id}/styles/${req.params.styleId}_preview.jpg`;
-    const url = await storage_service.uploadToStorage(processed, key, 'image/jpeg');
+    const { url } = req.body; // frontend uploads to R2 first, sends back URL
+    if (!url) return res.status(400).json({ error: 'url required' });
 
     const { error } = await supabase
       .from('event_styles')
