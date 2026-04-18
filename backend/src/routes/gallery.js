@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/database');
-const { trackAction } = require('../services/analytics');
 
 // ─── GET /api/gallery/:slug ───────────────────────────────────────────────────
 // Returns event info + paginated photos for public gallery
@@ -48,12 +47,12 @@ router.get('/:slug', async (req, res) => {
       .order('created_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1);
 
-    // Track gallery view
-    await supabase.from('analytics').insert({
+    // Track gallery view (fire and forget — don't block response)
+    supabase.from('analytics').insert({
       event_id: event.id,
       action: 'gallery_viewed',
       metadata: { page },
-    });
+    }).catch(() => {});
 
     res.json({
       event: {
@@ -101,11 +100,11 @@ router.post('/:slug/verify-password', async (req, res) => {
 router.post('/track-download', async (req, res) => {
   try {
     const { photoId, eventId } = req.body;
-    await supabase.from('analytics').insert({
+    supabase.from('analytics').insert({
       event_id: eventId,
       action: 'gallery_download',
       metadata: { photoId },
-    });
+    }).catch(() => {});
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false });
