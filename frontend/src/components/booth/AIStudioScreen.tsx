@@ -264,7 +264,7 @@ export function AIStudioScreen() {
           {/* SELECT */}
           {step === 'select' && (
             <div className="flex-1 overflow-y-auto px-3 pb-2 scrollbar-none">
-              {stylesLoading ? (
+            {stylesLoading ? (
   <div className="flex items-center justify-center h-full">
     <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
   </div>
@@ -289,8 +289,6 @@ export function AIStudioScreen() {
     ))}
   </div>
 )}
-                  </div>
-              }
 
           {/* GENERATING */}
           {step === 'generating' && (
