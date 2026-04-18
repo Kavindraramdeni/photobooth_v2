@@ -24,7 +24,7 @@ import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type Tab = 'overview' | 'branding' | 'capture' | 'sharing' | 'print' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
+type Tab = 'overview' | 'branding' | 'capture' | 'aistyles' | 'sharing' | 'print' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
 
 interface EventData {
   id: string; name: string; slug: string; date: string; venue: string; status: string;
@@ -43,6 +43,33 @@ interface Lead {
   id: string; email?: string; name?: string; phone?: string;
   consented: boolean; created_at: string; photo_id?: string;
 }
+
+interface EventStyle {
+  id: string;
+  style_key: string;
+  name: string;
+  emoji: string;
+  prompt: string;
+  preview_url: string | null;
+  display_order: number;
+  enabled: boolean;
+}
+
+// Global default styles (fallback when no event styles set)
+const DEFAULT_STYLES = [
+  { key: 'anime',        name: 'Anime',        emoji: '🎌' },
+  { key: 'cyberpunk',    name: 'Cyberpunk',     emoji: '🌆' },
+  { key: 'vintage',      name: 'Vintage Film',  emoji: '📷' },
+  { key: 'renaissance',  name: 'Renaissance',   emoji: '🎨' },
+  { key: 'comic',        name: 'Comic Book',    emoji: '💥' },
+  { key: 'statue',       name: 'Marble Statue', emoji: '🏛️' },
+  { key: 'eighties',     name: '80s Yearbook',  emoji: '✨' },
+  { key: 'psychedelic',  name: 'Psychedelic',   emoji: '🌈' },
+  { key: 'pixelart',     name: '8-bit Pixel',   emoji: '🎮' },
+  { key: 'daguerreotype',name: '19th Century',  emoji: '🎩' },
+  { key: 'oilpainting',  name: 'Oil Painting',  emoji: '🖼️' },
+  { key: 'old',          name: 'Aged',          emoji: '👴' },
+];
 
 // ── Premium Toggle ────────────────────────────────────────────────────────────
 function PremiumToggle({ checked, onChange, id }: { checked: boolean; onChange: (v: boolean) => void; id?: string }) {
@@ -204,7 +231,7 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
   const check = useCallback(async () => {
     setChecking(true);
     try {
-      const result = await pingBackend(); setBackendOk(result.ok);
+      const ok = await pingBackend(); setBackendOk(ok);
       const token = localStorage.getItem('sb_access_token');
       const res = await fetch(`${API_BASE}/api/ai/status`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (res.ok) setAiStatus(await res.json());
@@ -296,6 +323,15 @@ export default function EventManagePage() {
   const [uploadingIdle, setUploadingIdle] = useState(false);
   const [uploadingFrame, setUploadingFrame] = useState(false);
 
+  // AI Styles state
+  const [eventStyles, setEventStyles] = useState<EventStyle[]>([]);
+  const [stylesLoading, setStylesLoading] = useState(false);
+  const [stylesSaving, setStylesSaving] = useState(false);
+  const [editingStyle, setEditingStyle] = useState<EventStyle | null>(null);
+  const [showNewStyle, setShowNewStyle] = useState(false);
+  const [newStyle, setNewStyle] = useState({ name: '', emoji: '✨', prompt: '', style_key: '' });
+  const [uploadingPreview, setUploadingPreview] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       try {
@@ -311,6 +347,7 @@ export default function EventManagePage() {
 
   useEffect(() => {
     if (tab === 'leads' && event && leads.length === 0 && !leadsLoading) handleLoadLeads();
+    if (tab === 'aistyles' && event && eventStyles.length === 0 && !stylesLoading) handleLoadStyles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, event?.id]);
 
@@ -354,6 +391,88 @@ export default function EventManagePage() {
     finally { setModeratingId(null); }
   }
 
+  // ── AI Styles handlers ─────────────────────────────────────────────────────
+  async function handleLoadStyles() {
+    if (!event || stylesLoading) return;
+    setStylesLoading(true);
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      const res = await fetch(`${API_BASE}/api/events/${event.id}/styles`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      setEventStyles(data.styles || []);
+    } catch { toast.error('Could not load styles'); }
+    finally { setStylesLoading(false); }
+  }
+
+  async function handleSaveStyle(style: Partial<EventStyle> & { id?: string }) {
+    if (!event) return;
+    setStylesSaving(true);
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      const isNew = !style.id;
+      const url = isNew
+        ? `${API_BASE}/api/events/${event.id}/styles`
+        : `${API_BASE}/api/events/${event.id}/styles/${style.id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const body = isNew
+        ? JSON.stringify({ style_key: style.style_key || style.name?.toLowerCase().replace(/\s+/g,'_'), ...style })
+        : JSON.stringify(style);
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body,
+      });
+      if (!res.ok) throw new Error('Save failed');
+      toast.success(isNew ? 'Style added!' : 'Style updated!');
+      setShowNewStyle(false);
+      setEditingStyle(null);
+      setNewStyle({ name: '', emoji: '✨', prompt: '', style_key: '' });
+      await handleLoadStyles();
+    } catch { toast.error('Save failed'); }
+    finally { setStylesSaving(false); }
+  }
+
+  async function handleDeleteStyle(styleId: string) {
+    if (!confirm('Delete this style?')) return;
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      await fetch(`${API_BASE}/api/events/${event!.id}/styles/${styleId}`, {
+        method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      toast.success('Style deleted');
+      await handleLoadStyles();
+    } catch { toast.error('Delete failed'); }
+  }
+
+  async function handleToggleStyle(styleId: string, enabled: boolean) {
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      await fetch(`${API_BASE}/api/events/${event!.id}/styles/${styleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ is_active: enabled }),
+      });
+      setEventStyles(prev => prev.map(s => s.id === styleId ? { ...s, enabled } : s));
+    } catch { toast.error('Update failed'); }
+  }
+
+  async function handleUploadPreview(styleId: string, file: File) {
+    setUploadingPreview(styleId);
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      const fd = new FormData(); fd.append('file', file);
+      const res = await fetch(`${API_BASE}/api/events/${event!.id}/styles/${styleId}/image`, {
+        method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      toast.success('Preview image uploaded!');
+      await handleLoadStyles();
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Upload failed'); }
+    finally { setUploadingPreview(null); }
+  }
+
   async function handleZip() {
     if (!event) return; setZipLoading(true);
     try { await downloadPhotosZip(event.id, event.name); toast.success('Download started'); }
@@ -388,6 +507,7 @@ export default function EventManagePage() {
     { section: 'Event',   icon: LayoutDashboard, tabs: [{ key: 'overview', label: 'Overview' }] },
     { section: 'Design',  icon: Palette,         tabs: [{ key: 'branding', label: 'Branding' }] },
     { section: 'Booth',   icon: Camera,          tabs: [{ key: 'capture',  label: 'Capture & Modes' }] },
+    { section: 'AI',      icon: Sparkles,        tabs: [{ key: 'aistyles', label: 'AI Styles' }] },
     { section: 'Share',   icon: Share2,          tabs: [{ key: 'sharing',  label: 'Sharing & Email' }] },
     { section: 'Print',   icon: Printer,         tabs: [{ key: 'print',    label: 'Print Setup' }] },
     { section: 'Gallery', icon: ImageIcon,       tabs: [
@@ -426,7 +546,6 @@ export default function EventManagePage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {/* Stats pills */}
             {stats && (
               <div className="hidden lg:flex items-center gap-2">
                 {[
@@ -441,37 +560,14 @@ export default function EventManagePage() {
                 ))}
               </div>
             )}
-            {/* Copy URL */}
-            <button onClick={() => { navigator.clipboard.writeText(boothUrl); toast.success('URL copied!'); }}
+            <button onClick={() => { navigator.clipboard.writeText(boothUrl); toast.success('Copied!'); }}
               className="hidden sm:flex items-center gap-2 text-xs bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 px-3 py-2 rounded-lg transition-colors text-zinc-300">
-              <Copy className="w-3.5 h-3.5" /> Copy URL
+              <Copy className="w-3.5 h-3.5" /> Copy Link
             </button>
-            {/* Save — always visible, dims when clean */}
-            <button onClick={handleSave} disabled={saving}
-              className={`flex items-center gap-2 text-xs px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-50 ${
-                isDirty
-                  ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/30'
-                  : 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300'
-              }`}>
-              {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              {saving ? 'Saving...' : isDirty ? 'Save Changes' : 'Saved'}
-            </button>
-            {/* Open Booth — fullscreen */}
-            <button
-              onClick={() => {
-                const url = `/booth?event=${event.slug}`;
-                const w = window.open(url, '_blank');
-                if (w) {
-                  w.addEventListener('load', () => {
-                    const el = w.document.documentElement;
-                    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-                    else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
-                  });
-                }
-              }}
-              className="flex items-center gap-2 text-xs bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg transition-colors font-semibold shadow-lg shadow-violet-500/20">
-              <ExternalLink className="w-3.5 h-3.5" /> Open Booth
-            </button>
+            <Link href={`/booth?event=${event.slug}`} target="_blank"
+              className="flex items-center gap-2 text-xs bg-violet-600/10 hover:bg-violet-600/20 border border-violet-500/20 text-violet-300 px-4 py-2 rounded-lg transition-colors font-semibold">
+              <ExternalLink className="w-3.5 h-3.5" /> Launch Booth
+            </Link>
           </div>
         </div>
       </header>
@@ -506,7 +602,19 @@ export default function EventManagePage() {
             ))}
           </nav>
 
-
+          {/* Kiosk quick toggle */}
+          <div className="mt-4 pt-4 border-t border-white/[0.04]">
+            <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800 cursor-pointer hover:border-violet-500/30 transition-colors">
+              <div className="flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                <div>
+                  <p className="text-zinc-300 text-xs font-semibold">Kiosk Mode</p>
+                  <p className="text-zinc-600 text-[10px]">{(event.settings?.kioskMode as boolean) ? 'Active' : 'Off'}</p>
+                </div>
+              </div>
+              <PremiumToggle checked={(event.settings?.kioskMode as boolean) ?? false} onChange={v => updateSettings('kioskMode', v)} />
+            </label>
+          </div>
         </aside>
 
         {/* ── Mobile tabs ── */}
@@ -817,7 +925,8 @@ export default function EventManagePage() {
                           <p className="text-zinc-600 text-xs mt-1.5">4–8 digits. Tap ⚙️ in booth to access operator controls.</p>
                         </div>
                         <div className="border-t border-zinc-800 pt-4 space-y-4">
-  
+                          <ToggleRow icon={Lock} label="Kiosk Mode" desc="Locks booth fullscreen — guests cannot exit or navigate away"
+                            checked={(event.settings?.kioskMode as boolean) ?? false} onChange={v => updateSettings('kioskMode', v)} />
                           <ToggleRow icon={Users} label="Lead Capture" desc="Ask guests for their email before seeing their photo"
                             checked={(event.settings?.leadCapture as boolean) ?? false} onChange={v => updateSettings('leadCapture', v)} />
                           {(event.settings?.leadCapture as boolean) && (
@@ -844,6 +953,194 @@ export default function EventManagePage() {
                           <Input value={String((event.settings?.photoLimit as number) || '')} onChange={v => updateSettings('photoLimit', v ? Number(v) : null)} placeholder="Unlimited" /></div>
                       </div>
                     </Card>
+                  </div>
+                )}
+
+                {/* ══ AI STYLES ══ */}
+                {tab === 'aistyles' && (
+                  <div className="space-y-5">
+
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-white font-semibold">AI Art Styles</h2>
+                        <p className="text-zinc-500 text-sm mt-0.5">
+                          {eventStyles.length > 0
+                            ? `${eventStyles.filter(s => s.enabled).length} of ${eventStyles.length} styles active`
+                            : 'Using 12 global defaults — add custom styles to override'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleLoadStyles} disabled={stylesLoading}
+                          className="flex items-center gap-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-2 rounded-lg transition-colors">
+                          <RefreshCw className={`w-3.5 h-3.5 ${stylesLoading ? 'animate-spin' : ''}`} /> Refresh
+                        </button>
+                        <button onClick={() => setShowNewStyle(true)}
+                          className="flex items-center gap-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+                          <Sparkles className="w-3.5 h-3.5" /> Add Style
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Info banner when using defaults */}
+                    {eventStyles.length === 0 && !stylesLoading && (
+                      <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4">
+                        <p className="text-violet-300 text-sm font-semibold mb-1">Using global defaults</p>
+                        <p className="text-violet-200/50 text-xs leading-relaxed">
+                          Guests will see all 12 default styles (Anime, Cyberpunk, Vintage etc.). Add custom styles below to override — perfect for themed events like weddings, corporate parties, or brand activations.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Default styles reference */}
+                    {eventStyles.length === 0 && (
+                      <Card title="Global defaults (active when no custom styles set)" icon={Sparkles}>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {DEFAULT_STYLES.map(s => (
+                            <div key={s.key} className="flex items-center gap-2 py-2 px-3 bg-zinc-900 rounded-xl border border-zinc-800">
+                              <span className="text-lg">{s.emoji}</span>
+                              <span className="text-zinc-300 text-xs font-medium">{s.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+
+                    {/* Custom styles list */}
+                    {eventStyles.length > 0 && (
+                      <div className="space-y-3">
+                        {eventStyles.map((style, i) => (
+                          <div key={style.id}
+                            className={`bg-zinc-900/40 border rounded-2xl overflow-hidden transition-all ${
+                              style.enabled ? 'border-white/[0.06]' : 'border-zinc-800 opacity-60'
+                            }`}>
+                            <div className="flex items-center gap-4 p-4">
+                              {/* Preview image or emoji */}
+                              <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 flex items-center justify-center relative group">
+                                {style.preview_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={style.preview_url} alt={style.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-2xl">{style.emoji}</span>
+                                )}
+                                {/* Upload overlay */}
+                                <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center">
+                                  <UploadCloud className="w-4 h-4 text-white" />
+                                  <input type="file" accept="image/*" className="hidden"
+                                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadPreview(style.id, f); }} />
+                                </label>
+                                {uploadingPreview === style.id && (
+                                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                                    <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Info */}
+                              <div className="flex-1 min-w-0">
+                                {editingStyle?.id === style.id ? (
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                      <input value={editingStyle.emoji} onChange={e => setEditingStyle({...editingStyle, emoji: e.target.value})}
+                                        className="w-14 bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:border-violet-500" />
+                                      <input value={editingStyle.name} onChange={e => setEditingStyle({...editingStyle, name: e.target.value})}
+                                        placeholder="Style name" className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-violet-500" />
+                                    </div>
+                                    <textarea value={editingStyle.prompt} onChange={e => setEditingStyle({...editingStyle, prompt: e.target.value})}
+                                      rows={2} placeholder="AI prompt — describe the transformation..."
+                                      className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-violet-500 resize-none" />
+                                    <div className="flex gap-2">
+                                      <button onClick={() => handleSaveStyle(editingStyle)} disabled={stylesSaving}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-colors disabled:opacity-50">
+                                        {stylesSaving ? '...' : 'Save'}
+                                      </button>
+                                      <button onClick={() => setEditingStyle(null)}
+                                        className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors">Cancel</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <p className="text-white font-semibold text-sm">{style.emoji} {style.name}</p>
+                                    <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2 leading-relaxed">{style.prompt}</p>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Controls */}
+                              {editingStyle?.id !== style.id && (
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <PremiumToggle checked={style.enabled} onChange={v => handleToggleStyle(style.id, v)} />
+                                  <button onClick={() => setEditingStyle(style)}
+                                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors">
+                                    <Save className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDeleteStyle(style.id)}
+                                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-900/40 text-zinc-500 hover:text-red-400 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add new style form */}
+                    {showNewStyle && (
+                      <Card title="Add new style" icon={Sparkles}>
+                        <div className="space-y-3">
+                          <div className="flex gap-2">
+                            <div>
+                              <FieldLabel>Emoji</FieldLabel>
+                              <input value={newStyle.emoji} onChange={e => setNewStyle({...newStyle, emoji: e.target.value})}
+                                className="w-16 bg-zinc-950/50 border border-zinc-800 rounded-xl px-2 py-2.5 text-white text-center text-lg focus:outline-none focus:border-violet-500 transition-colors" />
+                            </div>
+                            <div className="flex-1">
+                              <FieldLabel>Style Name</FieldLabel>
+                              <Input value={newStyle.name}
+                                onChange={v => setNewStyle({...newStyle, name: v, style_key: v.toLowerCase().replace(/[^a-z0-9]/g,'_')})}
+                                placeholder="e.g. Mughal Emperor" />
+                            </div>
+                          </div>
+                          <div>
+                            <FieldLabel>AI Prompt</FieldLabel>
+                            <textarea value={newStyle.prompt} onChange={e => setNewStyle({...newStyle, prompt: e.target.value})}
+                              rows={3} placeholder="Transform this into a Mughal emperor portrait with ornate jewellery, royal robes, and a palace backdrop. Preserve the person's facial identity."
+                              className="w-full bg-zinc-950/50 border border-zinc-800 rounded-xl px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-violet-500 transition-colors resize-none" />
+                            <p className="text-zinc-600 text-xs mt-1">Keep it 1–2 sentences. End with "Preserve the person's facial identity." for best results.</p>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={() => handleSaveStyle({ ...newStyle, style_key: newStyle.style_key || newStyle.name.toLowerCase().replace(/[^a-z0-9]/g,'_') })}
+                              disabled={!newStyle.name || !newStyle.prompt || stylesSaving}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-all disabled:opacity-40">
+                              {stylesSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                              {stylesSaving ? 'Adding...' : 'Add Style'}
+                            </button>
+                            <button onClick={() => { setShowNewStyle(false); setNewStyle({ name: '', emoji: '✨', prompt: '', style_key: '' }); }}
+                              className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-white text-sm transition-colors">Cancel</button>
+                          </div>
+                        </div>
+                      </Card>
+                    )}
+
+                    {/* Prompt tips */}
+                    <Card title="Writing good prompts" icon={Activity}>
+                      <div className="space-y-2 text-sm text-zinc-400 leading-relaxed">
+                        <p><span className="text-white font-medium">Keep it short.</span> 1–2 sentences. "Transform this into a watercolour portrait with soft pastel tones." works better than a 200-word description.</p>
+                        <p><span className="text-white font-medium">Name the aesthetic.</span> Reference real styles: "Mughal miniature painting", "1960s Bollywood poster", "Wes Anderson film still".</p>
+                        <p><span className="text-white font-medium">End every prompt with:</span> <code className="text-violet-300 bg-violet-500/10 px-1 rounded">Preserve the person's facial identity.</code></p>
+                        <p><span className="text-white font-medium">Example prompts:</span></p>
+                        {[
+                          '🎭 Mughal Emperor: "Transform into a Mughal emperor portrait with jewelled turban, ornate robes, and a palace backdrop. Preserve the person's facial identity."',
+                          '🚀 Astronaut: "Transform into an astronaut in a NASA spacesuit floating in orbit with Earth visible behind. Preserve the person's facial identity."',
+                          '🎬 Bollywood: "Transform into a classic 1970s Bollywood film poster style with vibrant colours, dramatic lighting, and ornate Indian costume. Preserve the person's facial identity."',
+                        ].map(ex => (
+                          <p key={ex} className="text-zinc-500 text-xs bg-zinc-900 px-3 py-2 rounded-xl leading-relaxed">{ex}</p>
+                        ))}
+                      </div>
+                    </Card>
+
                   </div>
                 )}
 
@@ -1214,6 +1511,36 @@ export default function EventManagePage() {
           </div>
         </main>
       </div>
+
+      {/* ── Unsaved Changes Bar ── */}
+      <AnimatePresence>
+        {isDirty && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-6 bg-zinc-900/90 backdrop-blur-xl border border-white/10 px-6 py-4 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.6)]"
+            style={{ width: 'min(520px, calc(100vw - 32px))' }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-white text-sm font-semibold">Unsaved changes</p>
+                <p className="text-zinc-400 text-xs">Save to update the live booth</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-l border-white/[0.08] pl-6 flex-shrink-0">
+              <button onClick={() => setIsDirty(false)} className="px-3 py-2 rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors">
+                Discard
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/25 transition-all disabled:opacity-50">
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
