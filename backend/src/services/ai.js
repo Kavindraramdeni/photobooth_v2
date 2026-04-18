@@ -25,238 +25,109 @@ try {
   console.error('[ai] sharp failed to load:', e.message);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PREMIUM AI_STYLES — ultra-quality prompts for Gemini
-// ══════════════════════════════════════════════════════════════════════════════
-
 const AI_STYLES = {
 
   anime: {
     name: 'Anime Art',
     emoji: '🎌',
-    prompt: `Transform this into a masterpiece anime portrait in the tradition of Studio Ghibli and premium Japanese animation.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's face must remain 100% recognisable. Preserve exact bone structure, eye shape, nose, lips, skin tone, hair colour and length. Identity must be unmistakable.
-
-STYLE DIRECTION: Apply luminous cel-shading with precise ink outlines. Eyes enlarged slightly with catchlight reflections and deep iris detail. Skin rendered in smooth porcelain gradients — warm highlights on brow, nose bridge, cheekbones; cool shadows under chin and jaw. Hair stylised into flowing sections with bold directional highlights and deep shadow separations.
-
-MULTI-PERSON: If multiple people are present, transform ALL of them with equal quality and care. Preserve each person's distinct features, skin tone, and identity. Capture the group dynamic and relationship between subjects.
-
-ENVIRONMENT: Background transformed into a painterly anime landscape — soft bokeh in warm pastels, distant architecture or nature suggested impressionistically. Rich golden-hour or twilight atmosphere.
-
-CINEMATIC QUALITY: Lighting from upper-left with gentle fill from right and a subtle violet rim light. Warm, saturated, harmonious colour palette. Final image should feel extracted from a ₹500 crore anime feature film.`,
-    negativePrompt: 'ugly, deformed, extra limbs, poorly drawn face, mutation, watermark, text, nsfw, bad anatomy, wrong proportions, duplicate faces, inconsistent art style',
-    strength: 0.78,
+    prompt: 'Transform this into a Studio Ghibli anime illustration with soft cel-shading, luminous eyes, and a painterly background.',
+    negativePrompt: 'ugly, deformed, watermark, text, nsfw',
+    strength: 0.80,
   },
 
- cyberpunk: {
-    name: 'Cyberpunk',
-    emoji: '🌆',
-    prompt: `Based on the provided image, generate an eye-level, half-body cinematic photo of the person as a confident cyberpunk protagonist.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's face must remain 100% recognisable. Preserve exact bone structure, eyes, skin tone, and hair. Do not alter anyone's identity.
-
-SCENE & SETTING: The subject is leaning on a Nike graffiti wall inside a rain-soaked urban tunnel at evening. A sleek black BMW Mi4 with glowing headlights is parked beside them. Water reflections on the ground catch the light. Behind them, the tunnel opens into a dense megacity with holographic ads and flying vehicle light trails.
-
-LIGHTING: Dramatic neon rim lighting — electric cyan or cobalt blue tracing the cheekbone, ear, and shoulder. Secondary fill from the right in magenta or deep violet. Wet skin and clothing reflect neon signage, corporate holograms, and rain droplets catching light.
-
-WARDROBE: Subject is wearing a premium colorblock Nike techwear windcheater and cargo track pants, with hands in pockets.
-
-CINEMATIC QUALITY: Deep teal and amber in shadows, electric blue and magenta in highlights, midtones pushed to desaturated noir. Final image must look like a $200M science fiction film still. Hyper-realistic, 8K, sharp focus, beautiful bokeh background.`,
-    negativePrompt: 'daytime, natural sunlight, countryside, warm pastoral, flat lighting, anime style, painted, low contrast, cheerful, blurry, deformed, cartoon',
-    strength: 0.82,
-  },
   vintage: {
     name: 'Vintage Film',
     emoji: '📷',
-    prompt: `Transform this into an authentic Kodachrome 64 portrait from the early 1970s.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's exact features, expression, skin tone, hair, and clothing must be fully preserved. Their identity must remain unmistakable.
-
-FILM CHARACTERISTICS: Introduce visible organic film grain across the entire frame — not digital noise, but genuine silver halide texture. Colour palette replicates Kodachrome: warm golden-amber midtones, milky lifted blacks, desaturated cool tones, rich warm skin rendition. Highlights bloom softly with halation around bright areas. Shadows have warm brownish-green cast.
-
-LENS CHARACTER: Slight vignette darkening the corners as if shot with a vintage 50mm lens. Very subtle chromatic aberration at the edges. Focus is sharp on faces but the background renders in warm, creamy bokeh.
-
-MULTI-PERSON: Apply identical film treatment to ALL people in the frame. Everyone gets the same warm, timeless Kodachrome grade. Capture the warmth of the group relationship — family, friends, the human moment.
-
-MOOD: Timeless, intimate, nostalgic. Like a treasured family photograph discovered in a 1972 album. Skin tones rich and sun-kissed. The overall mood deeply human and irreplaceable.`,
-    negativePrompt: 'modern digital look, HDR, oversaturated, cold tones, blue shadows, clean blacks, sharp digital edges, contemporary colour grading',
-    strength: 0.58,
+    prompt: 'Transform this into a warm Kodachrome 1970s film photograph with lifted shadows, grain, and amber colour cast.',
+    negativePrompt: 'modern, digital, HDR, cold tones',
+    strength: 0.60,
   },
 
-  renaissance: {
-    name: 'Renaissance',
+  watercolor: {
+    name: 'Watercolor',
     emoji: '🎨',
-    prompt: `Transform this into a masterwork Renaissance oil painting in the tradition of Leonardo da Vinci, Raphael, and Titian.
+    prompt: 'Transform this into a delicate watercolor portrait with soft washes, visible brushstrokes, and luminous white paper showing through.',
+    negativePrompt: 'digital, harsh lines, overworked',
+    strength: 0.75,
+  },
 
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's exact facial features, bone structure, eye shape, and likeness must be completely preserved and immediately recognisable.
+  cyberpunk: {
+    name: 'Cyberpunk',
+    emoji: '🌆',
+    prompt: 'Transform this into a Blade Runner cyberpunk portrait with electric neon rim lighting, rain-soaked megacity backdrop, and glowing holographic effects.',
+    negativePrompt: 'daytime, natural light, cartoon, anime',
+    strength: 0.82,
+  },
 
-PAINTING TECHNIQUE: Apply Leonardo's sfumato — imperceptible transitions between light and shadow with no harsh outlines. Skin modelled with translucent glazes, warm amber undertones in highlights, cool blue-grey in deep shadows. Eyes rendered with extraordinary precision — luminous, deep, revealing inner life as only Renaissance masters achieved.
-
-LIGHTING: Single warm light source from upper left at 45 degrees — the classic chiaroscuro of Renaissance portraiture. Rich amber-gold illumination on the lit side, deep warm shadows on the other. The light seems to emanate from within the painting.
-
-MULTI-PERSON: ALL people transformed into Renaissance subjects. Each person receives their own masterful portrait treatment. Clothing rendered in period-appropriate rich fabrics — velvet, silk, brocade — with remarkable textile detail. If it's a group, compose them as a Renaissance group portrait with natural dignity and hierarchy.
-
-BACKGROUND: Dark classical background typical of Flemish portraiture, or a distant Tuscan landscape with soft atmospheric perspective. Gold or dark walnut frame aesthetic implied by the composition.
-
-MUSEUM QUALITY: The final image should appear as a genuine masterwork hanging in the Uffizi or the Louvre. Luminous, technically flawless, deeply human.`,
-    negativePrompt: 'modern, digital, cartoon, flat colours, harsh lighting, photography style, contemporary clothing, selfie quality',
+  oilpainting: {
+    name: 'Oil Painting',
+    emoji: '🖼️',
+    prompt: 'Transform this into a Rembrandt-style oil painting with rich impasto texture, warm candlelight, and deep chiaroscuro shadows.',
+    negativePrompt: 'modern, digital, cartoon, flat',
     strength: 0.78,
   },
 
   comic: {
     name: 'Comic Book',
     emoji: '💥',
-    prompt: `Transform this into a premium comic book illustration in the style of Alex Ross's painted realism meets Jim Lee's dynamic linework.
+    prompt: 'Transform this into a Marvel comic book panel with bold ink outlines, flat cel-shaded colours, and Ben-Day halftone dots.',
+    negativePrompt: 'realistic, soft, painterly, anime',
+    strength: 0.82,
+  },
 
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's face must remain completely recognisable. Their expressions, features, and identity must be clearly preserved in comic style.
-
-LINEWORK: Bold, confident ink outlines varying from thick 3pt boundary lines around figures to delicate 0.5pt detail lines within. Outlines suggest form and movement — thicker where figures overlap background, lighter on interior detail.
-
-COLOUR AND SHADING: Flat colour fills as the base layer — clean, saturated, primary-leaning comic book palette. Cel-shaded shadows as flat geometric shapes — no photographic gradients, just sharp shadow forms that define anatomy. Bright flat highlight spots on highest points — skull, nose, cheekbones, shoulders.
-
-MULTI-PERSON: Transform ALL people into comic book characters. Each person gets their own heroic or characterful treatment. If it's a group, compose them as a dynamic team — Marvel Cinematic Universe ensemble energy, each character distinct and powerful.
-
-SPECIAL EFFECTS: Ben-Day halftone dots in midtone areas — classic printing heritage. Speed lines or energy effects around the composition to create dynamism. Bold action-oriented background.
-
-FINISH: This should look like the variant cover of a major Marvel or DC title — dramatic, powerful, technically impeccable, worth framing.`,
-    negativePrompt: 'realistic photograph, painterly gradients, soft edges, anime, manga, low detail, amateur art, muted colours',
-    strength: 0.80,
+  renaissance: {
+    name: 'Renaissance',
+    emoji: '🎨',
+    prompt: 'Transform this into a Leonardo da Vinci Renaissance oil portrait with sfumato shading, warm amber light, and a dark classical background.',
+    negativePrompt: 'modern, cartoon, digital, flat',
+    strength: 0.78,
   },
 
   statue: {
     name: 'Marble Statue',
     emoji: '🏛️',
-    prompt: `Transform every person in this photo into a classical white Carrara marble sculpture.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Despite the stone transformation, every person's exact facial features, bone structure, nose, lips, and overall likeness must remain completely recognisable in marble form.
-
-MARBLE QUALITY: The entire figure carved from brilliant white Carrara marble — the same stone as Michelangelo's David. Realistic stone texture with subtle grey veining running through the marble. The stone should feel heavy, permanent, cool to the touch.
-
-LIGHTING: Dramatic museum-quality studio lighting that reveals the three-dimensionality of the stone. Strong key light from above-left casting deep shadows in eye sockets, under the nose, and below the chin. Secondary fill light prevents total shadow loss. The marble luminosity is captured — it glows slightly from within.
-
-MULTI-PERSON: ALL people in the photo transformed into marble. If it's a group, render them as a classical multi-figure marble tableau — like the Laocoön group or a Bernini composition. Their relative positions and interactions preserved but eternalized in stone.
-
-SETTING: Place the statue(s) in a grand classical museum hall — marble floors, high ceilings with skylights, other classical sculptures visible in the background. Or against pure white for maximum drama.
-
-DETAIL: Clothing transformed into flowing marble-carved drapery with deep fold shadows. Hair carved in stone with remarkable detail — individual strands suggested by the chisel.`,
-    negativePrompt: 'color, painted, modern clothing, digital render, cartoon, blurry, low quality, gold or bronze material',
-    strength: 0.82,
+    prompt: 'Transform this person into a classical white Carrara marble sculpture with realistic stone texture, grey veining, and dramatic museum lighting.',
+    negativePrompt: 'color, painted, modern, cartoon',
+    strength: 0.85,
   },
 
   eighties: {
     name: '80s Yearbook',
     emoji: '✨',
-    prompt: `Transform this into an authentic 1980s high school or college portrait, exactly as if it were taken by the school photographer in 1986.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's exact face, features, expression, and likeness must be fully preserved. Only the styling and photography aesthetic changes.
-
-HAIR AND STYLING: Add period-appropriate 1980s hairstyles — big permed hair for women, feathered or side-parted hair for men, shoulder pads visible in clothing. Polo shirts, blazers with padded shoulders, or preppy sweaters typical of 1980s school portraits.
-
-PHOTOGRAPHY STYLE: The distinctive gradient blue-to-purple studio backdrop used by school photographers in the 1980s. Slightly overexposed skin tones typical of flash photography of the era. Warm, slightly orangey colour cast of 1980s portrait film. Soft-focus quality of a medium-format studio camera. Very subtle film grain.
-
-MULTI-PERSON: ALL people get the full 1980s treatment. If it's a group, render them as a class photo or group portrait — everyone in their 1980s styling, arranged naturally.
-
-AUTHENTICITY: Every detail should scream 1986 — the lighting, the backdrop, the film stock, the styling. This should be completely convincing as a genuine yearbook photo from that era.`,
-    negativePrompt: 'modern, 21st century, digital clean look, contemporary clothing, neutral background, HDR, oversaturated',
-    strength: 0.70,
+    prompt: 'Transform this into a 1986 high school yearbook portrait with big hair, period clothing, gradient blue studio backdrop, and warm flash photography.',
+    negativePrompt: 'modern, 21st century, digital clean',
+    strength: 0.72,
   },
 
   psychedelic: {
     name: 'Psychedelic',
     emoji: '🌈',
-    prompt: `Transform this into a breathtaking 1960s psychedelic concert poster illustration.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's face must remain recognisable despite the radical stylistic transformation. Preserve their features, expression, and identity in the illustration.
-
-STYLE: The visual language of Wes Wilson and Victor Moscoso — the masters of psychedelic poster art. Bold outline style with organic flowing forms. Every background element melting into swirling patterns and kaleidoscopic geometric shapes.
-
-COLOUR: Pure saturated electric colours pushed to maximum vibrancy — acid green, hot magenta, electric blue, solar orange, deep violet. Colours that seem to vibrate against each other. No muted tones, no greys, everything at full saturation and brightness.
-
-MULTI-PERSON: ALL people illustrated with equal psychedelic treatment. Their forms integrated into the swirling composition — figures becoming part of the larger pattern while remaining identifiable. Group compositions become a kaleidoscopic vision of interconnected humanity.
-
-DETAILS: Swirling Art Nouveau borders around the composition. Mandala-like geometric patterns in the background. Rainbow halos around figures. The human forms partially dissolving into and emerging from the psychedelic patterns. Flowers, stars, cosmic imagery integrated throughout.
-
-FINISH: No text. Pure image. Should look like an original 1967 Fillmore West poster — the ultimate psychedelic artefact.`,
-    negativePrompt: 'realistic, photographic, muted colours, grayscale, modern, text, words, digital clean, subtle',
+    prompt: 'Transform this into a 1967 psychedelic concert poster illustration with swirling rainbow patterns, acid colours at full saturation, and organic flowing shapes.',
+    negativePrompt: 'realistic, muted, grayscale, text',
     strength: 0.85,
   },
 
   pixelart: {
     name: '8-bit Pixel',
     emoji: '🎮',
-    prompt: `Transform this into adorable retro 8-bit pixel art in the style of a 1980s arcade or NES game.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person must remain recognisable as a pixel art character. Their distinctive features — hair colour, skin tone, and overall look — must be clearly represented in pixel form.
-
-PIXEL STYLE: Large, clearly visible square pixels — as if rendered on an 80×80 pixel grid then scaled up. Limited colour palette of 16–32 vivid colours maximum, typical of NES/Famicom hardware. Clean, flat colour fills within each pixel block — no antialiasing, no gradients.
-
-CHARACTER DESIGN: Each person becomes a charming pixel art game character with big expressive pixel eyes and a recognisable silhouette. Clothing simplified into bold colour blocks. Hair represented as coloured pixel shapes that capture the essence of the person's real hair.
-
-MULTI-PERSON: ALL people rendered as pixel characters. If it's a group, they become a party of RPG adventurers or a fighting game character select screen. Each person has their own distinct pixel sprite with different colours and silhouette.
-
-ENVIRONMENT: Bright, colourful pixel art background — a fantasy RPG town, a side-scrolling platformer level, a space shooter background, or an arcade game setting. Health bars, score counters, or other game UI elements optional but charming. Stars, ground tiles, and environmental elements all in matching pixel art style.`,
-    negativePrompt: 'smooth, antialiased, photorealistic, high resolution detail, blurry, modern 3D, vector art',
+    prompt: 'Transform this into a cute 8-bit pixel art character on a colourful retro game background with large visible pixels and a limited 16-colour palette.',
+    negativePrompt: 'smooth, antialiased, photorealistic, high detail',
     strength: 0.88,
   },
 
   daguerreotype: {
     name: '19th Century',
     emoji: '🎩',
-    prompt: `Transform this into an authentic mid-19th century daguerreotype portrait, as if captured by a French photographer in 1858.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's exact facial features must be preserved and recognisable. The daguerreotype treatment changes the aesthetic but not the identity.
-
-DAGUERREOTYPE CHARACTERISTICS: The characteristic silver-mirror surface of genuine daguerreotypes — the image appears to float in a metallic sheen that shifts from positive to negative depending on viewing angle. Slightly soft focus typical of early photographic lenses. Long exposure time implied by the stillness and formal pose.
-
-COLOUR AND TONE: Full monochrome with the distinctive warm sepia-silver tone of a daguerreotype — not standard black and white photography, but the specific warm grey-brown tones of silver iodide. Subtle brown oxidation around the edges. The metallic quality of the image surface.
-
-CLOTHING AND STYLING: Transform everyone into period-appropriate Victorian attire. Men in frock coats, cravats, high collars, top hats nearby. Women in Victorian dresses with corsets, high collars, and elaborate hair. Accessories like pocket watches, gloves, and period jewellery.
-
-MULTI-PERSON: ALL people transformed into Victorian subjects. A group becomes a formal Victorian family portrait — stiff, dignified, eternal. The formality and gravity of 19th century portrait photography applied to all subjects.
-
-SETTING: A Victorian portrait studio with draped fabric backdrops, ornate furniture, potted ferns. Or a period outdoor setting. The image should have slight physical imperfections — dust specks, edge vignetting, the occasional chemical irregularity authentic to the period.`,
-    negativePrompt: 'modern, colour, casual clothing, digital, sharp clean HDR, contemporary',
+    prompt: 'Transform this into an 1858 daguerreotype portrait in sepia silver tones with Victorian clothing, studio draping, and soft period lens focus.',
+    negativePrompt: 'modern, colour, casual clothing, digital',
     strength: 0.75,
-  },
-
-  oilpainting: {
-    name: 'Oil Painting',
-    emoji: '🖼️',
-    prompt: `Transform this into a magnificent Old Master oil painting in the tradition of Rembrandt van Rijn and Johannes Vermeer.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Every person's exact face, features, bone structure, and likeness must be preserved with complete fidelity. They must be immediately recognisable in the painting.
-
-PAINTING TECHNIQUE: Rembrandt's chiaroscuro — figures emerging from deep shadow into warm golden light. Rich, thick impasto texture on lit areas of skin — you can see the brushstrokes where the paint was built up. Thin glazes in shadow areas creating depth and translucency. The characteristic warm amber-brown-gold palette of Old Master painting.
-
-SKIN AND FLESH: Flesh tones built up in layers — cool grey underpainting, warm orange-red mid-layer, final warm golden highlights. The skin glows with inner warmth. Every pore, wrinkle, and expression line rendered with dignity and humanity.
-
-MULTI-PERSON: ALL people painted with equal Old Master quality. A group becomes a Dutch Golden Age group portrait — think The Night Watch. Each person fully realised, their individual characters captured in paint. Their clothing rendered with extraordinary textile detail — velvet, silk, linen, lace all distinguishable by brushstroke technique.
-
-LIGHTING: Single warm light source from upper left — the classic Rembrandt lighting. Deep warm shadows. The background almost entirely dark, with figures emerging from the darkness like they're stepping out of time itself.
-
-CANVAS TEXTURE: Visible canvas weave texture throughout. The painting should look genuinely old — craquelure (fine crack network) in the paint surface suggesting age and authenticity.`,
-    negativePrompt: 'modern, digital render, flat colours, cartoon, anime, contemporary photography, sharp clean lines',
-    strength: 0.82,
   },
 
   old: {
     name: 'Aged',
     emoji: '👴',
-    prompt: `Age every person in this photo to their 85–95 year old appearance while keeping them completely recognisable.
-
-FACE PRESERVATION — ABSOLUTE REQUIREMENT: Despite the aging, every person must remain immediately recognisable as themselves. Their essential facial structure, distinctive features, and personality must survive the decades.
-
-AGING DETAILS — SKIN: Deep horizontal furrows across the forehead. Pronounced crow's feet radiating from outer eye corners. Nasolabial folds (laugh lines) deeply carved from nose to mouth corners. Age spots (solar lentigines) scattered across cheeks, forehead, and hands. Vertical lip lines. Jowls developing along the jaw. The characteristic thinning and loosening of very aged skin.
-
-AGING DETAILS — FEATURES: Eyes slightly more deeply set, upper eyelids heavier. The nose slightly more pronounced. Ears slightly larger (they never stop growing). Lips thinner. The overall face slightly narrower as fat pads shrink.
-
-HAIR: Completely white or silver — pure white for most, steel grey for others. Thinning at the temples and crown. Women's hair in the white styles typical of elderly women. Men either white-haired or showing age-appropriate thinning. Eyebrows white and slightly more sparse.
-
-MULTI-PERSON: Age ALL people in the photo — every single person gets the same elderly transformation. A young couple becomes an elderly couple who have lived a full life together. A group of friends becomes a reunion of octogenarians. Apply consistent aging across all subjects.
-
-PHOTOREALISM: The aging must be completely photorealistic — not cartoonish or exaggerated. This should be convincing medical-quality age progression. The person's grandchildren would recognise them.`,
-    negativePrompt: 'young, smooth skin, dark hair, cartoon, animated, painted, unrealistic, exaggerated, artificial looking',
+    prompt: 'Age this person to 90 years old with deep wrinkles, liver spots, white hair, sagging skin — completely photorealistic age progression.',
+    negativePrompt: 'young, smooth, cartoon, painted',
     strength: 0.78,
   },
 
@@ -266,38 +137,47 @@ PHOTOREALISM: The aging must be completely photorealistic — not cartoonish or 
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
 // Uses @google/genai SDK with gemini-2.0-flash-exp model
 // Same approach as gembooth — SDK handles the image modality correctly
-async function generateWithGemini(imageBuffer, styleKey) {
+async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return null;
 
-  // Lazy-load SDK so server still starts if package isn't installed yet
+  // Load @google/genai SDK
   let GoogleGenAI, Modality;
   try {
     const sdk = require('@google/genai');
     GoogleGenAI = sdk.GoogleGenAI;
     Modality = sdk.Modality;
+    if (!GoogleGenAI) throw new Error('GoogleGenAI not found in SDK exports');
+    console.log('[Gemini] SDK loaded, Modality:', !!Modality);
   } catch (e) {
-    console.warn('[Gemini] @google/genai SDK not installed:', e.message);
+    console.warn('[Gemini] SDK load failed:', e.message);
+    console.warn('[Gemini] Install with: npm install @google/genai');
     return null;
   }
 
   const style = AI_STYLES[styleKey] || AI_STYLES.anime;
 
   const resized = await sharp(imageBuffer)
-    .resize(1024, 1024, { fit: 'cover', position: 'center' })
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 90 })
     .toBuffer();
 
   const base64Image = resized.toString('base64');
 
-  const faceInstruction = `CRITICAL: Preserve the person's exact face, identity, and features. Only the artistic style should change. `;
-  const prompt = faceInstruction + (style.prompt || 'Transform in an artistic style.');
+  // Use custom admin prompt if provided, otherwise use hardcoded style prompt
+  const basePrompt = customPrompt || style.prompt || 'Transform in an artistic style.';
+  const prompt = basePrompt.endsWith('facial identity.')
+    ? basePrompt  // already has the preservation instruction
+    : basePrompt + " Preserve the person's facial identity.";
 
   const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
+  console.log('[Gemini] Attempting generation, key length:', GEMINI_KEY.length);
 
-  // Try models in order — gemini-2.0-flash-exp is confirmed working with SDK
+  // Model confirmed working in gembooth (same SDK)
   const MODEL_NAMES = [
-    'gemini-3.1-flash-image-preview',
+    'gemini-2.5-flash-image',
+    'gemini-2.0-flash-exp',
+    'gemini-2.0-flash-preview-image-generation',
   ];
 
   for (const modelName of MODEL_NAMES) {
@@ -507,9 +387,8 @@ async function generateWithHuggingFace(imageBuffer, styleKey) {
   return { buffer: outputBuffer, style: style.name, styleKey, tier: 'huggingface', isText2Image: true };
 }
 
-// ─── TIER 4: Local Sharp filters — instant fallback, always works ───────────────
-// This IS img2img — it applies real colour grading to the ACTUAL guest photo.
-// Much better than HuggingFace for keeping the person's face.
+// ─── Sharp colour grading — professional per-style looks ─────────────────────
+// Each style applies a distinct cinematic grade. Face always preserved.
 async function generateWithSharp(imageBuffer, styleKey) {
   const style = AI_STYLES[styleKey] || AI_STYLES.anime;
   if (!sharp) return { buffer: imageBuffer, style: style.name, styleKey, tier: 'passthrough' };
@@ -518,47 +397,118 @@ async function generateWithSharp(imageBuffer, styleKey) {
 
   switch (styleKey) {
     case 'anime':
-      // Boost saturation + sharpen + slight warm tint = anime-like
-      img = img.modulate({ brightness: 1.05, saturation: 2.0 })
-               .sharpen({ sigma: 1.2, m1: 1.5, m2: 0.7 })
-               .tint({ r: 255, g: 245, b: 235 });
+      // Vivid pop: high saturation, clean whites, strong sharpen — anime cel feel
+      img = img
+        .modulate({ brightness: 1.08, saturation: 2.2, hue: 5 })
+        .sharpen({ sigma: 1.8, m1: 2.0, m2: 0.5 })
+        .tint({ r: 252, g: 240, b: 255 })
+        .gamma(0.92);
       break;
-    case 'vintage':
-      // Desaturate + warm tone + grain effect
-      img = img.modulate({ brightness: 1.1, saturation: 0.6 })
-               .tint({ r: 255, g: 230, b: 190 })
-               .gamma(1.2);
-      break;
-    case 'watercolor':
-      // Soften + pastel colours + slight blur
-      img = img.modulate({ brightness: 1.15, saturation: 1.4 })
-               .blur(0.8)
-               .sharpen({ sigma: 0.5 })
-               .tint({ r: 235, g: 240, b: 255 });
-      break;
+
     case 'cyberpunk':
-      // High contrast + cool blue/purple tint + punchy saturation
-      img = img.modulate({ brightness: 0.85, saturation: 2.5 })
-               .tint({ r: 160, g: 180, b: 255 })
-               .sharpen({ sigma: 1.5 });
+      // Dark neon: crushed blacks, electric blue-violet cast, hyper saturation
+      img = img
+        .modulate({ brightness: 0.78, saturation: 2.8, hue: -15 })
+        .tint({ r: 120, g: 160, b: 255 })
+        .sharpen({ sigma: 2.0, m1: 2.5, m2: 0.3 })
+        .gamma(0.75);
       break;
-    case 'oilpainting':
-      // Rich contrast + warm tones + strong sharpen
-      img = img.modulate({ brightness: 1.0, saturation: 1.6 })
-               .sharpen({ sigma: 2.5, m1: 2, m2: 0.5 })
-               .tint({ r: 255, g: 240, b: 210 });
+
+    case 'vintage':
+      // Kodachrome: lifted shadows, warm amber-orange cast, reduced saturation
+      img = img
+        .modulate({ brightness: 1.12, saturation: 0.55, hue: 10 })
+        .tint({ r: 255, g: 225, b: 175 })
+        .gamma(1.35)
+        .blur(0.4);
       break;
+
+    case 'renaissance':
+      // Old master: warm candlelight, rich deep shadows, soft highlights
+      img = img
+        .modulate({ brightness: 0.92, saturation: 0.85, hue: 8 })
+        .tint({ r: 255, g: 220, b: 165 })
+        .sharpen({ sigma: 1.0, m1: 1.2, m2: 0.8 })
+        .gamma(1.15);
+      break;
+
     case 'comic':
-      // Max saturation + hard sharpen + slight posterize effect
-      img = img.modulate({ brightness: 1.1, saturation: 3.0 })
-               .sharpen({ sigma: 3.0, m1: 3, m2: 0.2 })
-               .gamma(0.8);
+      // Bold pop art: extreme saturation, hard edges, punchy contrast
+      img = img
+        .modulate({ brightness: 1.15, saturation: 3.5, hue: 0 })
+        .sharpen({ sigma: 3.5, m1: 4.0, m2: 0.1 })
+        .gamma(0.78);
       break;
+
+    case 'statue':
+      // White marble: full desaturate, high key, cool white tone
+      img = img
+        .modulate({ brightness: 1.3, saturation: 0.0 })
+        .tint({ r: 240, g: 243, b: 255 })
+        .sharpen({ sigma: 1.5, m1: 1.8, m2: 0.6 })
+        .gamma(0.88);
+      break;
+
+    case 'eighties':
+      // 80s chrome: warm magenta-pink cast, slight overexposure, soft glow
+      img = img
+        .modulate({ brightness: 1.18, saturation: 1.6, hue: -8 })
+        .tint({ r: 255, g: 200, b: 220 })
+        .blur(0.5)
+        .sharpen({ sigma: 0.8 })
+        .gamma(0.95);
+      break;
+
+    case 'psychedelic':
+      // Acid trip: rotated hues, max saturation, high brightness
+      img = img
+        .modulate({ brightness: 1.2, saturation: 4.0, hue: 120 })
+        .sharpen({ sigma: 1.0 })
+        .gamma(0.85);
+      break;
+
+    case 'pixelart':
+      // 8-bit: posterize via resize trick, vivid flat colours
+      img = img
+        .resize(80, 80, { fit: 'cover', kernel: 'nearest' })
+        .resize(1024, 1024, { fit: 'cover', kernel: 'nearest' })
+        .modulate({ brightness: 1.1, saturation: 2.5 })
+        .sharpen({ sigma: 0.5 });
+      break;
+
+    case 'daguerreotype':
+      // 19th century: sepia, heavy vignette feel, low contrast matte
+      img = img
+        .modulate({ brightness: 0.95, saturation: 0.0 })
+        .tint({ r: 210, g: 175, b: 130 })
+        .gamma(1.4)
+        .blur(0.6);
+      break;
+
+    case 'oilpainting':
+      // Rich oil: deep warm tones, strong texture sharpen, lifted blacks
+      img = img
+        .modulate({ brightness: 1.02, saturation: 1.8, hue: 5 })
+        .sharpen({ sigma: 3.0, m1: 3.0, m2: 0.4 })
+        .tint({ r: 255, g: 238, b: 205 })
+        .gamma(1.1);
+      break;
+
+    case 'old':
+      // Aged face: desaturate, lower contrast, slight yellow skin cast
+      img = img
+        .modulate({ brightness: 0.96, saturation: 0.5 })
+        .tint({ r: 245, g: 225, b: 195 })
+        .blur(0.3)
+        .sharpen({ sigma: 0.6 })
+        .gamma(1.2);
+      break;
+
     default:
-      img = img.modulate({ brightness: 1.05, saturation: 1.5 });
+      img = img.modulate({ brightness: 1.05, saturation: 1.6 });
   }
 
-  const buffer = await img.jpeg({ quality: 92 }).toBuffer();
+  const buffer = await img.jpeg({ quality: 94 }).toBuffer();
   return { buffer, style: style.name, styleKey, tier: 'local' };
 }
 
@@ -567,7 +517,7 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   let result;
 
   // Tier 1: Gemini — highest quality, face preserved, style transfer
-  result = await generateWithGemini(imageBuffer, styleKey).catch(err => {
+  result = await generateWithGemini(imageBuffer, styleKey, customPrompt).catch(err => {
     console.warn('[AI] Gemini failed:', err.message);
     return null;
   });
@@ -580,17 +530,10 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   });
   if (result) { console.log('[AI] ✅ Generated via Fal.ai FLUX'); return result; }
 
-  // Tier 3: Cloudflare img2img — free, good quality, preserves face
-  result = await generateWithCloudflare(imageBuffer, styleKey).catch(err => {
-    console.warn('[AI] Cloudflare failed:', err.message);
-    return null;
-  });
-  if (result) { console.log('[AI] ✅ Generated via Cloudflare img2img'); return result; }
+  // Cloudflare SD v1.5 skipped — output quality too low for photobooth events
 
-  // Tier 3: Sharp local filters — instant, face preserved, colour grading
-  // NOTE: HuggingFace FLUX is text-to-image only — it ignores the guest photo entirely
-  // and generates a random styled person. Sharp is better for a photobooth until
-  // Cloudflare img2img is configured (set CF_ACCOUNT_ID + CF_AI_TOKEN on Render).
+  // Final fallback: Sharp local filters — instant, face always preserved
+  // Clean colour grading applied per style. Not "AI art" but professional quality.
   result = await generateWithSharp(imageBuffer, styleKey);
   console.log('[AI] ✅ Generated via local Sharp filters (face preserved)');
   return result;
@@ -610,3 +553,11 @@ async function applyAIFilter(imageBuffer, styleKey) {
 }
 
 module.exports = { generateAIImage, applyAIFilter, AI_STYLES };
+
+// ══ NOTE: Replace the AI_STYLES const at the top of this file ══
+// The full premium prompts are in ai_prompts_update.js
+// Key changes:
+// 1. All prompts now explicitly handle multi-person / group photos
+// 2. Face preservation instruction in every single prompt
+// 3. Much richer style descriptions for better Gemini output
+// 4. Group photo instructions for 2+ people
