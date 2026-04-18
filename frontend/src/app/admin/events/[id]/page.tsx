@@ -231,48 +231,67 @@ function DiagnosticsPanel({ eventId }: { eventId: string }) {
   const check = useCallback(async () => {
     setChecking(true);
     try {
-      const result = await pingBackend();
-      setBackendOk(result.ok);
+      const ok = await pingBackend(); setBackendOk(ok);
       const token = localStorage.getItem('sb_access_token');
       const res = await fetch(`${API_BASE}/api/ai/status`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (res.ok) setAiStatus(await res.json());
-    } catch { 
-      setBackendOk(false); 
-    } finally { 
-      setChecking(false); 
-    }
+    } catch { setBackendOk(false); }
+    finally { setChecking(false); }
   }, []);
 
   useEffect(() => { check(); }, [check]);
 
   function StatusRow({ label, ok, value, sub }: { label: string; ok: boolean | null; value: string; sub?: string }) {
     return (
-      <div className="flex items-start gap-2 py-1.5">
-        <div className={`flex-shrink-0 w-4 h-4 rounded-full mt-0.5 ${ok === true ? 'bg-green-500' : ok === false ? 'bg-red-500' : 'bg-yellow-500'}`} />
+      <div className="flex items-center justify-between py-3 border-b border-zinc-800 last:border-0">
         <div>
-          <div className="text-xs font-semibold text-zinc-100">{label}</div>
-          <div className="text-xs text-zinc-400">{value}</div>
-          {sub && <div className="text-xs text-zinc-500 mt-0.5">{sub}</div>}
+          <p className="text-zinc-200 text-sm font-medium">{label}</p>
+          {sub && <p className="text-zinc-500 text-xs mt-0.5">{sub}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-300 text-sm">{value}</span>
+          {ok === true && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+          {ok === false && <XCircle className="w-4 h-4 text-red-400" />}
+          {ok === null && <div className="w-4 h-4 border-2 border-zinc-600 border-t-violet-400 rounded-full animate-spin" />}
         </div>
       </div>
     );
   }
 
   return (
-    <Card title="Diagnostics" subtitle="Backend & AI service health" icon={Activity}>
-      <div className="space-y-4">
-        <button
-          onClick={check}
-          disabled={checking}
-          className="w-full px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-sm font-medium transition"
-        >
-          {checking ? 'Checking...' : 'Run Health Check'}
+    <div className="space-y-5">
+      <Card title="System Status" subtitle="Live connection check" icon={Activity}>
+        <div className="space-y-0">
+          <StatusRow label="Backend API" ok={backendOk} value={backendOk === null ? 'Checking...' : backendOk ? 'Connected' : 'Offline'} sub="Render.com backend service" />
+          <StatusRow label="AI Service" ok={aiStatus !== null} value={aiStatus ? (aiStatus.activeTier as string || 'Configured') : 'Checking...'} sub={aiStatus ? `Tier: ${aiStatus.tier || 'Sharp local filters'}` : 'Checking AI tier'} />
+        </div>
+        <button onClick={check} disabled={checking}
+          className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors disabled:opacity-50">
+          <RefreshCw className={`w-4 h-4 ${checking ? 'animate-spin' : ''}`} /> Refresh Status
         </button>
-        
-        <StatusRow label="Backend" ok={backendOk} value={backendOk === true ? 'OK' : backendOk === false ? 'Offline' : 'Unknown'} />
-        {aiStatus && <StatusRow label="AI Status" ok={true} value={JSON.stringify(aiStatus).substring(0, 50)} />}
-      </div>
-    </Card>
+      </Card>
+
+      <Card title="Test Print" subtitle="Send a test page to verify printer connection" icon={Printer}>
+        <p className="text-zinc-500 text-sm mb-4">Opens a print dialog to confirm your printer is detected and paper size is correct.</p>
+        <button onClick={() => {
+          const w = window.open('', '_blank', 'width=400,height=500');
+          if (w) {
+            w.document.write(`<!DOCTYPE html><html><head><title>SnapBooth Print Test</title><style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:4in;height:6in;overflow:hidden}@page{size:4in 6in portrait;margin:0}.p{position:absolute;top:0;left:0;width:4in;height:6in;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;font-family:Arial,sans-serif;gap:8px}.box{border:3px dashed #7c3aed;border-radius:12px;padding:24px;text-align:center}h1{color:#7c3aed;font-size:22px;margin-bottom:8px}p{color:#555;font-size:12px}</style></head><body><div class="p"><div class="box"><h1>SnapBooth AI</h1><p>Test print successful</p><p style="font-size:10px;color:#999;margin-top:12px">${new Date().toLocaleString()}</p></div></div><script>setTimeout(function(){window.print();window.close()},600)</script></body></html>`);
+            w.document.close();
+          }
+        }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 font-semibold text-sm hover:bg-violet-600/30 transition-colors">
+          <Printer className="w-4 h-4" /> Send Test Page
+        </button>
+      </Card>
+
+      <Card title="System Reset" icon={RefreshCw}>
+        <p className="text-zinc-500 text-sm mb-4">Clears all active streams and reloads the booth. Use if the camera or printer freezes.</p>
+        <button onClick={() => window.location.reload()}
+          className="w-full py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-semibold text-sm border border-red-500/20 transition-all">
+          Reload Booth
+        </button>
+      </Card>
+    </div>
   );
 }
 
@@ -542,7 +561,7 @@ export default function EventManagePage() {
               </div>
             )}
             <button onClick={() => { navigator.clipboard.writeText(boothUrl); toast.success('Copied!'); }}
-              className="hidden sm:flex items-center gap-2 text-xs bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 px-3 py-2 rounded-lg transition-colors">
+              className="hidden sm:flex items-center gap-2 text-xs bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 px-3 py-2 rounded-lg transition-colors text-zinc-300">
               <Copy className="w-3.5 h-3.5" /> Copy Link
             </button>
             <Link href={`/booth?event=${event.slug}`} target="_blank"
@@ -661,7 +680,7 @@ export default function EventManagePage() {
                             <div key={s.l} className="bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-center">
                               <div className="text-sm mb-0.5">{s.e}</div>
                               <div className="text-white font-bold text-base leading-none">{s.v ?? 0}</div>
-                              <div className="text-zinc-600 text-[9px] mt-0.5 uppercase tracking-wide">{s.l}</div>
+                              <div className="text-zinc-600 text-[9px] mt-0.5 uppercase">{s.l}</div>
                             </div>
                           ))}
                         </div>
@@ -1113,9 +1132,9 @@ export default function EventManagePage() {
                         <p><span className="text-white font-medium">End every prompt with:</span> <code className="text-violet-300 bg-violet-500/10 px-1 rounded">Preserve the person's facial identity.</code></p>
                         <p><span className="text-white font-medium">Example prompts:</span></p>
                         {[
-                          '🎭 Mughal Emperor: "Transform into a Mughal emperor portrait with jewelled turban, ornate robes, and a palace backdrop. Preserve the person\'s facial identity."',
-                          '🚀 Astronaut: "Transform into an astronaut in a NASA spacesuit floating in orbit with Earth visible behind. Preserve the person\'s facial identity."',
-                          '🎬 Bollywood: "Transform into a classic 1970s Bollywood film poster style with vibrant colours, dramatic lighting, and ornate Indian costume. Preserve the person\'s facial identity."',
+                          '🎭 Mughal Emperor: "Transform into a Mughal emperor portrait with jewelled turban, ornate robes, and a palace backdrop. Preserve the person's facial identity."',
+                          '🚀 Astronaut: "Transform into an astronaut in a NASA spacesuit floating in orbit with Earth visible behind. Preserve the person's facial identity."',
+                          '🎬 Bollywood: "Transform into a classic 1970s Bollywood film poster style with vibrant colours, dramatic lighting, and ornate Indian costume. Preserve the person's facial identity."',
                         ].map(ex => (
                           <p key={ex} className="text-zinc-500 text-xs bg-zinc-900 px-3 py-2 rounded-xl leading-relaxed">{ex}</p>
                         ))}
@@ -1240,7 +1259,7 @@ export default function EventManagePage() {
                           <button key={size.key} onClick={() => updateSettings('paperSize', size.key)}
                             className={`flex flex-col items-center p-3 rounded-xl border-2 text-sm transition-all ${
                               ((event.settings?.paperSize as string) || '4x6') === size.key
-                                ? 'border-violet-500 bg-violet-600 text-white'
+                                ? 'border-violet-500 bg-violet-500/10 text-violet-200'
                                 : 'border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-600'
                             }`}>
                             <span className="font-bold text-base">{size.label}</span>
