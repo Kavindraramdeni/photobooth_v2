@@ -313,12 +313,25 @@ router.delete('/:id/styles/:styleId', async (req, res) => {
 
 /**
  * POST /api/events/:id/styles/:styleId/image
- * Upload preview image — stores URL directly (base64 from frontend)
+ * Receives multipart/form-data with field 'file'
+ * Resizes to portrait 3:4, stores in R2, updates DB
  */
-router.post('/:id/styles/:styleId/image', async (req, res) => {
+const _multer = require('multer');
+const _sharp  = require('sharp');
+const _store  = require('../services/storage');
+const _upload = _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+
+router.post('/:id/styles/:styleId/image', _upload.single('file'), async (req, res) => {
   try {
-    const { url } = req.body; // frontend uploads to R2 first, sends back URL
-    if (!url) return res.status(400).json({ error: 'url required' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const processed = await _sharp(req.file.buffer)
+      .resize(400, 533, { fit: 'cover', position: 'entropy' })
+      .jpeg({ quality: 88 })
+      .toBuffer();
+
+    const key = `events/${req.params.id}/styles/preview_${req.params.styleId}.jpg`;
+    const url = await _store.uploadToStorage(processed, key, 'image/jpeg');
 
     const { error } = await supabase
       .from('event_styles')
