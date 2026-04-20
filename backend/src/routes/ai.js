@@ -292,8 +292,18 @@ router.post('/generate', upload.single('file'), async (req, res) => {
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
 
+    // Fetch event slug for proper gallery URL (slug not UUID)
+    let eventSlug = eventId;
+    if (eventId) {
+      try {
+        const { data: evRow } = await supabase
+          .from('events').select('slug').eq('id', eventId).maybeSingle();
+        if (evRow?.slug) eventSlug = evRow.slug;
+      } catch { /* use eventId as fallback */ }
+    }
+
     // Save to DB linked to original photo
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
+    const galleryUrl = eventId ? buildGalleryUrl(eventSlug, aiId) : aiUrl;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
 
     await supabase.from('photos').insert({
@@ -389,7 +399,15 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
 
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
+    let evSlugSurprise = eventId;
+    if (eventId) {
+      try {
+        const { data: evRowS } = await supabase
+          .from('events').select('slug').eq('id', eventId).maybeSingle();
+        if (evRowS?.slug) evSlugSurprise = evRowS.slug;
+      } catch { /* fallback */ }
+    }
+    const galleryUrl = eventId ? buildGalleryUrl(evSlugSurprise, aiId) : aiUrl;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
 
     res.json({
