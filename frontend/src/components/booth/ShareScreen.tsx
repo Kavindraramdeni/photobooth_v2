@@ -8,7 +8,7 @@ import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import toast from 'react-hot-toast';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 function openWhatsApp(photoUrl: string, eventName: string) {
   // On iPad in kiosk: use Web Share API so user stays in the booth session
