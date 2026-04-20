@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode } from 'lucide-react';
 
@@ -50,6 +50,8 @@ async function iosDownload(url: string, filename: string) {
 
 export default function GalleryPage() {
   const { slug } = useParams() as { slug: string };
+  const searchParams = useSearchParams();
+  const photoParamId = searchParams?.get('photo');
 
   const [event,   setEvent]   = useState<Event | null>(null);
   const [photos,  setPhotos]  = useState<Photo[]>([]);
@@ -87,16 +89,34 @@ export default function GalleryPage() {
         }
       }
 
-      // Load photos
+      // If QR scan — fetch that specific photo FIRST for instant display
+      if (photoParamId) {
+        try {
+          const singleRes = await fetch(`${API_BASE}/api/gallery/photo/${photoParamId}`);
+          if (singleRes.ok) {
+            const singleData = await singleRes.json();
+            if (singleData.photo) setLightbox(singleData.photo);
+          }
+        } catch { /* continue to full gallery load */ }
+      }
+
+      // Load all photos for the gallery grid
       const pRes   = await fetch(`${API_BASE}/api/photos/event/${ev.id}?limit=200`);
       const pData  = await pRes.json();
-      setPhotos(pData.photos || []);
+      const allPhotos: Photo[] = pData.photos || [];
+      setPhotos(allPhotos);
+
+      // If photo already opened from QR above, update it with full gallery data if found
+      if (photoParamId && allPhotos.length > 0) {
+        const target = allPhotos.find(p => p.id === photoParamId);
+        if (target) setLightbox(target);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load gallery');
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, photoParamId]);
 
   useEffect(() => { loadGallery(); }, [loadGallery]);
 
