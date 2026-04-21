@@ -4,7 +4,7 @@ const router = express.Router();
 
 const { generateAIImage, applyAIFilter, AI_STYLES } = require('../services/ai');
 const { uploadToStorage } = require('../services/storage');
-const { generateQRDataURL, buildGalleryUrl } = require('../services/sharing');
+const { generateQRDataURL, buildGalleryUrl, generateUniqueShortCode } = require('../services/sharing');
 const supabase = require('../services/database');
 const { v4: uuidv4 } = require('uuid');
 
@@ -292,7 +292,7 @@ router.post('/generate', upload.single('file'), async (req, res) => {
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
 
-    // Fetch event slug for proper gallery URL (slug not UUID)
+    // Fetch event slug for proper gallery URL
     let eventSlug = eventId;
     if (eventId) {
       try {
@@ -302,12 +302,14 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       } catch { /* use eventId as fallback */ }
     }
 
-    // Save to DB linked to original photo
-    const galleryUrl = eventId ? buildGalleryUrl(eventSlug, aiId) : aiUrl;
+    // Generate short code for QR
+    const aiShortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = eventId ? buildGalleryUrl(eventSlug, aiId, aiShortCode) : aiUrl;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
 
     await supabase.from('photos').insert({
       id: aiId,
+      short_code: aiShortCode,
       event_id: eventId,
       url: aiUrl,
       gallery_url: galleryUrl,
@@ -426,7 +428,6 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-  
 });
 
 module.exports = router;
