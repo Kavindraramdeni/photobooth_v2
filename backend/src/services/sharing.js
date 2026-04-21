@@ -1,223 +1,303 @@
-/**
- * backend/src/services/sharing.js  (FULL REPLACEMENT)
- *
- * Changes:
- *   - buildGalleryUrl now returns /gallery/[photoId] (per-photo, not event gallery)
- *   - Added generateShortCode() for /p/[6char] short URLs
- *   - Short URL resolves to /gallery/[photoId] server-side
- */
+const express = require('express');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+const sharp = require('sharp');
+const router = express.Router();
 
-const QRCode = require('qrcode');
-let sharp;
-try { sharp = require('sharp'); } catch(e) { console.error('[sharing] sharp load failed:', e.message); }
+const { uploadToStorage } = require('../services/storage');
+const { applyBrandingOverlay, createPhotoStrip, createPolaroid } = require('../services/imageProcessor');
+const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode } = require('../services/sharing');
+const { createGIF, createBoomerang } = require('../services/gif');
+const supabase = require('../services/database');
 
-// ─── URL builders ─────────────────────────────────────────────────────────────
-
-function frontendUrl() {
-  return (process.env.FRONTEND_URL || 'https://photobooth-v2-xi.vercel.app').replace(/\/$/, '');
-}
-
-/**
- * Per-photo gallery URL — unique to this guest's photo.
- * Format: /gallery/[photoId]
- * If photo has a short_code, returns /p/[short_code] instead (shorter = better QR)
- */
-function buildGalleryUrl(eventSlug, photoId, shortCode = null) {
-  if (shortCode) return `${frontendUrl()}/p/${shortCode}`;
-  return `${frontendUrl()}/gallery/${photoId}`;
-}
+// Multer: memory storage for direct processing
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files allowed'));
+    }
+  },
+});
 
 /**
- * Generate a 6-character alphanumeric short code.
- * Collision-safe: caller should check uniqueness in DB before using.
+ * POST /api/photos/upload
+ * Upload a photo, apply branding, generate QR
  */
-function generateShortCode(length = 6) {
-  const chars = 'abcdefghijkmnpqrstuvwxyz23456789'; // no 0/O/1/l confusion
-  let code = '';
-  for (let i = 0; i < length; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+router.post('/upload', upload.single('photo'), async (req, res) => {
+  try {
+    const { eventId, mode = 'single', sessionId } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'No photo provided' });
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
 
-/**
- * Generate a unique short code — retries up to 5 times if collision.
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- */
-async function generateUniqueShortCode(supabase, length = 6) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = generateShortCode(length);
-    const { data } = await supabase
+    // Get event branding from DB
+    const { data: event } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const photoId = uuidv4();
+    const timestamp = Date.now();
+    const storageKey = `events/${eventId}/photos/${photoId}_${timestamp}.jpg`;
+
+    // Process image: resize + apply branding template
+    let processedBuffer = await sharp(req.file.buffer)
+      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    if (event.branding) {
+      const template = event.branding.template || 'classic';
+      if (template === 'polaroid') {
+        // Polaroid: white border + caption below photo
+        const caption = event.branding.footerText || event.branding.eventName || '';
+        processedBuffer = await createPolaroid(processedBuffer, caption, event.branding);
+      } else {
+        // Classic (default): footer bar + overlay text watermark
+        processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding);
+      }
+    }
+
+    // Upload to R2
+    const photoUrl = await uploadToStorage(processedBuffer, storageKey, 'image/jpeg');
+
+    // Also create thumbnail
+    const thumbBuffer = await sharp(processedBuffer)
+      .resize(400, 400, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    const thumbKey = `events/${eventId}/thumbs/${photoId}_thumb.jpg`;
+    const thumbUrl = await uploadToStorage(thumbBuffer, thumbKey, 'image/jpeg');
+
+    // Build gallery URL and QR code using short code
+    const shortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = buildGalleryUrl(event.slug, photoId, shortCode);
+    const qrDataUrl = await generateQRDataURL(galleryUrl);
+    const whatsappUrl = buildWhatsAppUrl(photoUrl, event.name);
+
+    // Save to database
+    const { data: photo, error: dbError } = await supabase
       .from('photos')
-      .select('id')
-      .eq('short_code', code)
-      .maybeSingle();
-    if (!data) return code; // no collision
+      .insert({
+        id: photoId,
+        event_id: eventId,
+        session_id: sessionId,
+        url: photoUrl,
+        thumb_url: thumbUrl,
+        gallery_url: galleryUrl,
+        storage_key: storageKey,
+        short_code: shortCode,
+        mode,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (dbError) console.error('DB insert error:', dbError);
+
+    // Track analytics
+    await supabase.from('analytics').insert({
+      event_id: eventId,
+      action: 'photo_taken',
+      metadata: { mode, photoId },
+    });
+
+    // Emit via Socket.IO to admin dashboard
+    const io = req.app.get('io');
+    io.to(`event-${eventId}`).emit('photo-taken', {
+      photoId,
+      thumbUrl,
+      galleryUrl,
+      mode,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      photo: {
+        id: photoId,
+        url: photoUrl,
+        thumbUrl,
+        galleryUrl,
+        qrCode: qrDataUrl,
+        whatsappUrl,
+        downloadUrl: photoUrl,
+      },
+    });
+  } catch (error) {
+    console.error('Photo upload error:', error);
+    res.status(500).json({ error: error.message });
   }
-  // Fallback: use 8 chars if 6-char space exhausted
-  return generateShortCode(8);
-}
-
-// ─── WhatsApp ─────────────────────────────────────────────────────────────────
-
-function buildWhatsAppUrl(photoUrl, eventName = '') {
-  const message = encodeURIComponent(
-    `📸 My photo from ${eventName}!\n${photoUrl}`
-  );
-  return `https://wa.me/?text=${message}`;
-}
-
-// ─── QR Code generators ───────────────────────────────────────────────────────
-
-async function generateQRCode(url, options = {}) {
-  const {
-    size = 300,
-    color = { dark: '#000000', light: '#ffffff' },
-    margin = 2,
-  } = options;
-
-  return await QRCode.toBuffer(url, {
-    type: 'png',
-    width: size,
-    margin,
-    color,
-    errorCorrectionLevel: 'H',
-  });
-}
-
-async function generateQRDataURL(url, options = {}) {
-  // Always black QR — brand colours reduce scan reliability
-  return await QRCode.toDataURL(url, {
-    type: 'image/png',
-    width: options.size || 300,
-    margin: 2,
-    errorCorrectionLevel: 'H',
-    color: { dark: '#000000', light: '#ffffff' },
-  });
-}
+});
 
 /**
- * Generate QR code with optional logo overlay in center.
+ * POST /api/photos/gif
+ * Create GIF or Boomerang from multiple frames
  */
-async function generateBrandedQR(url, branding = {}) {
-  const { logoBuffer = null } = branding;
+router.post('/gif', upload.array('frames', 10), async (req, res) => {
+  try {
+    const { eventId, type = 'gif', sessionId } = req.body;
+    if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
 
-  const qrBuffer = await QRCode.toBuffer(url, {
-    type: 'png',
-    width: 400,
-    margin: 2,
-    errorCorrectionLevel: 'H',
-    color: { dark: '#000000', light: '#ffffff' }, // always B&W for scannability
-  });
+    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
 
-  if (!logoBuffer) return qrBuffer;
+    const frames = req.files.map((f) => f.buffer);
+    let gifBuffer;
 
-  const logoSize = Math.round(400 * 0.25);
-  const logoResized = await sharp(logoBuffer)
-    .resize(logoSize, logoSize, {
-      fit: 'contain',
-      background: { r: 255, g: 255, b: 255, alpha: 0 },
-    })
-    .png()
-    .toBuffer();
+    if (type === 'boomerang') {
+      gifBuffer = await createBoomerang(frames);
+    } else {
+      gifBuffer = await createGIF(frames);
+    }
 
-  const centerOffset = Math.round((400 - logoSize) / 2);
+    const gifId = uuidv4();
+    const storageKey = `events/${eventId}/gifs/${gifId}.gif`;
+    const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
 
-  return await sharp(qrBuffer)
-    .composite([{ input: logoResized, top: centerOffset, left: centerOffset }])
-    .png()
-    .toBuffer();
-}
+    const gifShortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = buildGalleryUrl(event?.slug || eventId, gifId, gifShortCode);
+    const qrDataUrl = await generateQRDataURL(galleryUrl);
+    const whatsappUrl = buildWhatsAppUrl(gifUrl, event?.name);
 
-// ─── Instagram Stories ────────────────────────────────────────────────────────
+    await supabase.from('photos').insert({
+      id: gifId,
+      event_id: eventId,
+      session_id: sessionId,
+      url: gifUrl,
+      gallery_url: galleryUrl,
+      short_code: gifShortCode,
+      storage_key: storageKey,
+      mode: type,
+    });
+
+    await supabase.from('analytics').insert({
+      event_id: eventId,
+      action: type === 'boomerang' ? 'boomerang_created' : 'gif_created',
+      metadata: { frameCount: frames.length },
+    });
+
+    res.json({
+      success: true,
+      gif: {
+        id: gifId,
+        url: gifUrl,
+        galleryUrl,
+        qrCode: qrDataUrl,
+        whatsappUrl,
+        type,
+      },
+    });
+  } catch (error) {
+    console.error('GIF creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
- * Generate a 9:16 Instagram Stories crop with event branding.
- * Returns a PNG buffer ready for download/share.
- *
- * @param {Buffer} photoBuffer  original photo
- * @param {Object} branding     { eventName, logoBuffer, primaryColor }
+ * POST /api/photos/strip
+ * Create a 4-photo strip
  */
-async function generateStoriesImage(photoBuffer, branding = {}) {
-  const { eventName = 'SnapBooth', primaryColor = '#7c3aed' } = branding;
+router.post('/strip', upload.array('photos', 4), async (req, res) => {
+  try {
+    const { eventId } = req.body;
+    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
 
-  const STORIES_W = 1080;
-  const STORIES_H = 1920;
+    const photos = req.files.map((f) => f.buffer);
+    const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
 
-  // Resize photo to fit inside 1080×1440 (leaving 480px at bottom for branding)
-  const photoResized = await sharp(photoBuffer)
-    .resize(STORIES_W, 1440, { fit: 'inside', withoutEnlargement: false })
-    .png()
-    .toBuffer();
+    const stripId = uuidv4();
+    const storageKey = `events/${eventId}/strips/${stripId}.jpg`;
+    const stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
 
-  const photoMeta = await sharp(photoResized).metadata();
-  const photoTop  = Math.round((1440 - (photoMeta.height || 1440)) / 2);
-  const photoLeft = Math.round((STORIES_W - (photoMeta.width || STORIES_W)) / 2);
+    const stripShortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = buildGalleryUrl(event?.slug || eventId, stripId, stripShortCode);
+    const qrDataUrl = await generateQRDataURL(galleryUrl);
 
-  // Parse hex colour to RGB
-  const hex = primaryColor.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
+    // Save strip to photos table so gallery/QR works
+    await supabase.from('photos').insert({
+      id: stripId,
+      event_id: eventId,
+      url: stripUrl,
+      thumb_url: stripUrl,
+      gallery_url: galleryUrl,
+      mode: 'strip',
+      short_code: stripShortCode,
+      session_id: req.body.sessionId || null,
+    });
 
-  // Create base canvas: gradient from dark top to branded bottom
-  const base = await sharp({
-    create: {
-      width: STORIES_W,
-      height: STORIES_H,
-      channels: 4,
-      background: { r: 10, g: 10, b: 15, alpha: 1 },
-    },
-  })
-  .png()
-  .toBuffer();
+    res.json({
+      success: true,
+      strip: { id: stripId, url: stripUrl, galleryUrl, qrCode: qrDataUrl },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-  // Bottom branding strip (SVG overlay)
-  const brandingSVG = Buffer.from(`
-<svg width="${STORIES_W}" height="480" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgb(10,10,15)" stop-opacity="0"/>
-      <stop offset="40%" stop-color="rgb(${r},${g},${b})" stop-opacity="0.85"/>
-      <stop offset="100%" stop-color="rgb(${r},${g},${b})" stop-opacity="1"/>
-    </linearGradient>
-  </defs>
-  <rect width="${STORIES_W}" height="480" fill="url(#bg)"/>
-  <text x="${STORIES_W / 2}" y="280"
-    font-family="Arial Black, Arial, sans-serif"
-    font-size="72" font-weight="900"
-    fill="white" text-anchor="middle"
-    opacity="0.95">
-    ${eventName.length > 20 ? eventName.substring(0, 20) + '…' : eventName}
-  </text>
-  <text x="${STORIES_W / 2}" y="360"
-    font-family="Arial, sans-serif"
-    font-size="40" fill="rgba(255,255,255,0.6)"
-    text-anchor="middle">
-    📸 SnapBooth AI
-  </text>
-</svg>`);
+/**
+ * GET /api/photos/event/:eventId
+ * Get all photos for an event (for gallery/admin)
+ */
+/**
+ * GET /api/photos/short/:code
+ * Resolve short code → photo data (used by /p/[code] frontend page)
+ */
+router.get('/short/:code', async (req, res) => {
+  try {
+    const { data: photo, error } = await supabase
+      .from('photos')
+      .select('*, events(name, branding)')
+      .eq('short_code', req.params.code)
+      .maybeSingle();
+    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    res.json({ photo });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  const result = await sharp(base)
-    .composite([
-      // Photo centered in top 1440px
-      { input: photoResized, top: photoTop, left: photoLeft },
-      // Branding strip at bottom
-      { input: brandingSVG, top: STORIES_H - 480, left: 0 },
-    ])
-    .jpeg({ quality: 92 })
-    .toBuffer();
+router.get('/event/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
 
-  return result;
-}
+    const { data: photos, error } = await supabase
+      .from('photos')
+      .select('id, url, thumb_url, gallery_url, mode, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
 
-module.exports = {
-  generateQRCode,
-  generateQRDataURL,
-  generateBrandedQR,
-  buildGalleryUrl,
-  buildWhatsAppUrl,
-  generateShortCode,
-  generateUniqueShortCode,
-  generateStoriesImage,
-};
+    if (error) throw error;
+    res.json({ photos, page: Number(page), limit: Number(limit) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/photos/:photoId
+ * Get a single photo (for gallery page)
+ */
+router.get('/:photoId', async (req, res) => {
+  try {
+    const { data: photo, error } = await supabase
+      .from('photos')
+      .select('*, events(name, branding)')
+      .eq('id', req.params.photoId)
+      .single();
+
+    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    res.json({ photo });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
