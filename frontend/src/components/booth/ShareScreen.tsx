@@ -211,9 +211,8 @@ export function ShareScreen() {
   const allowEmail = (event?.settings?.allowEmailShare as boolean) !== false;
   const allowSMS = (event?.settings?.allowSMSShare as boolean) === true;
   const allowPrint = event?.settings?.allowPrint !== false;
-  const allowInstagram = (event?.settings?.allowInstagram as boolean) !== false;
-  const allowAirDrop = (event?.settings?.allowAirDrop as boolean) !== false;
-
+ const allowInstagram = ((event?.settings as any)?.allowInstagram) !== false;
+const allowAirDrop = ((event?.settings as any)?.allowAirDrop) !== false;
   // ── WhatsApp with country code pre-fill ────────────────────────────────────
   const whatsappCountryCode = (event?.settings?.whatsappCountryCode as string) || '';
 
