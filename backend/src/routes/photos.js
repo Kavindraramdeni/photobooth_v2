@@ -6,7 +6,7 @@ const router = express.Router();
 
 const { uploadToStorage } = require('../services/storage');
 const { applyBrandingOverlay, createPhotoStrip, createPolaroid } = require('../services/imageProcessor');
-const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl } = require('../services/sharing');
+const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode } = require('../services/sharing');
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
 
@@ -75,8 +75,9 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
     const thumbKey = `events/${eventId}/thumbs/${photoId}_thumb.jpg`;
     const thumbUrl = await uploadToStorage(thumbBuffer, thumbKey, 'image/jpeg');
 
-    // Build gallery URL and QR code
-    const galleryUrl = buildGalleryUrl(event.slug, photoId);
+    // Build gallery URL and QR code using short code
+    const shortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = buildGalleryUrl(event.slug, photoId, shortCode);
     const qrDataUrl = await generateQRDataURL(galleryUrl);
     const whatsappUrl = buildWhatsAppUrl(photoUrl, event.name);
 
@@ -91,6 +92,7 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
         thumb_url: thumbUrl,
         gallery_url: galleryUrl,
         storage_key: storageKey,
+        short_code: shortCode,
         mode,
         created_at: new Date().toISOString(),
       })
@@ -158,7 +160,8 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
     const storageKey = `events/${eventId}/gifs/${gifId}.gif`;
     const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
 
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, gifId);
+    const gifShortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = buildGalleryUrl(event?.slug || eventId, gifId, gifShortCode);
     const qrDataUrl = await generateQRDataURL(galleryUrl);
     const whatsappUrl = buildWhatsAppUrl(gifUrl, event?.name);
 
@@ -168,6 +171,7 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
       session_id: sessionId,
       url: gifUrl,
       gallery_url: galleryUrl,
+      short_code: gifShortCode,
       storage_key: storageKey,
       mode: type,
     });
@@ -211,7 +215,8 @@ router.post('/strip', upload.array('photos', 4), async (req, res) => {
     const storageKey = `events/${eventId}/strips/${stripId}.jpg`;
     const stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
 
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, stripId);
+    const stripShortCode = await generateUniqueShortCode(supabase);
+    const galleryUrl = buildGalleryUrl(event?.slug || eventId, stripId, stripShortCode);
     const qrDataUrl = await generateQRDataURL(galleryUrl);
 
     // Save strip to photos table so gallery/QR works
@@ -222,6 +227,7 @@ router.post('/strip', upload.array('photos', 4), async (req, res) => {
       thumb_url: stripUrl,
       gallery_url: galleryUrl,
       mode: 'strip',
+      short_code: stripShortCode,
       session_id: req.body.sessionId || null,
     });
 
@@ -238,6 +244,24 @@ router.post('/strip', upload.array('photos', 4), async (req, res) => {
  * GET /api/photos/event/:eventId
  * Get all photos for an event (for gallery/admin)
  */
+/**
+ * GET /api/photos/short/:code
+ * Resolve short code → photo data (used by /p/[code] frontend page)
+ */
+router.get('/short/:code', async (req, res) => {
+  try {
+    const { data: photo, error } = await supabase
+      .from('photos')
+      .select('*, events(name, branding)')
+      .eq('short_code', req.params.code)
+      .maybeSingle();
+    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    res.json({ photo });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/event/:eventId', async (req, res) => {
   try {
     const { eventId } = req.params;
