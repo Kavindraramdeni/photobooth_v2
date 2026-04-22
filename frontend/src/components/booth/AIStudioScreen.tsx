@@ -103,6 +103,7 @@ export function AIStudioScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
+  const [aiGalleryUrl, setAiGalleryUrl] = useState<string | null>(null);
 
   const selectedStyle = styles.find(s => s.key === selected);
 
@@ -160,6 +161,7 @@ export function AIStudioScreen() {
       const data = await res.json();
       setGeneratedUrl(data.ai.url);
       setAiPhotoId(data.ai.id || null);
+      setAiGalleryUrl(data.ai.galleryUrl || null);
       setStep('result');
       toast.success(`${selectedStyle?.emoji} ${selectedStyle?.name} applied!`);
     } catch (err: unknown) {
@@ -173,7 +175,14 @@ export function AIStudioScreen() {
 
   function handleShareAI() {
     if (!generatedUrl || !currentPhoto) return;
-    setCurrentPhoto({ ...currentPhoto, url: generatedUrl, isAI: true, style: selected || '', id: aiPhotoId || currentPhoto.id });
+    setCurrentPhoto({
+      ...currentPhoto,
+      url: generatedUrl,
+      isAI: true,
+      style: selected || '',
+      id: aiPhotoId || currentPhoto.id,
+      galleryUrl: aiGalleryUrl || currentPhoto.galleryUrl,
+    });
     setScreen('share');
   }
 
