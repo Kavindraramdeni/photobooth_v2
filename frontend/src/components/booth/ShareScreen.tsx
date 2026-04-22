@@ -35,6 +35,7 @@ function printPhotoOnly(
 ) {
   const { scale = 98, copies = 1, silent = false, paperSize = '4x6' } = options;
 
+  // Paper size map
   const paperDims: Record<string, string> = {
     '4x6': '4in 6in', '5x7': '5in 7in', 'a5': '148mm 210mm', 'a4': '210mm 297mm',
   };
@@ -43,90 +44,57 @@ function printPhotoOnly(
   function doPrint(win: Window) {
     win.focus();
     if (silent && (win as any).print) {
+      // Auto-print: trigger silently — no dialog on some browsers
       try { (win as any).print(); } catch { win.print(); }
     } else {
       win.print();
     }
   }
 
+  // For multiple copies, open the frame multiple times sequentially
   const totalCopies = Math.max(1, Math.min(copies, 10));
 
   for (let i = 0; i < totalCopies; i++) {
     setTimeout(() => {
       const id = `__snapbooth_print_${i}`;
       document.getElementById(id)?.remove();
-
       const iframe = document.createElement('iframe');
       iframe.id = id;
       iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none;';
       document.body.appendChild(iframe);
-
       const win = iframe.contentWindow;
       const doc = iframe.contentDocument || win?.document;
       if (!doc || !win) return;
-
-      doc.open();
-      doc.close();
-
+      doc.open(); doc.close();
       const style = doc.createElement('style');
-      style.textContent = [
-        '* { margin:0; padding:0; box-sizing:border-box; }',
-        'html, body { width:100%; height:100%; overflow:hidden; background:#fff; }',
-        '@page { margin:0; size:4in 6in portrait; }',
-        '@media print { html, body { height:auto; overflow:hidden; }',
-        '  * { page-break-after:avoid !important; page-break-before:avoid !important; page-break-inside:avoid !important; }',
-        '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
-        '.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start;',
-        '        width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; }',
-        'img { width:100%; height:auto; max-height:5.4in; object-fit:contain; display:block; }',
-        '.footer { font-size:8pt; color:#555; text-align:center; }',
-        '.event-name { font-size:9pt; font-weight:bold; color:#333; }',
-      ].join(' ');
-      doc.head.appendChild(style);
-
-      const wrap = doc.createElement('div');
-      wrap.className = 'wrap';
-
-      const img = doc.createElement('img');
-      img.src = photoUrl;
-      img.alt = 'photo';
-      wrap.appendChild(img);
-
-      const nameEl = doc.createElement('p');
-      nameEl.className = 'event-name';
-      nameEl.textContent = eventName;
-      wrap.appendChild(nameEl);
-
-      const footer = doc.createElement('p');
-      footer.className = 'footer';
-      footer.textContent = new Date().toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-      });
-      wrap.appendChild(footer);
-
-      doc.body.appendChild(wrap);
-
-      function doPrintInner() {
-        win!.focus();
-        win!.print();
-      }
-
-      if (img.complete) {
-        setTimeout(doPrintInner, 400);
-      } else {
-        img.onload = () => setTimeout(doPrintInner, 400);
-      }
-
-      setTimeout(() => {
-        document.getElementById(id)?.remove();
-      }, 30000);
-
-    }, i * 300);
-  }
+  style.textContent = [
+    '* { margin:0; padding:0; box-sizing:border-box; }',
+    'html, body { width:100%; height:100%; overflow:hidden; background:#fff; }',
+    '@page { margin:0; size:4in 6in portrait; }',
+    '@media print { html, body { height:auto; overflow:hidden; }',
+    '  * { page-break-after:avoid !important; page-break-before:avoid !important; page-break-inside:avoid !important; }',
+    '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
+    '.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start;',
+    '        width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; }',
+    'img { width:100%; height:auto; max-height:5.4in; object-fit:contain; display:block; }',
+    '.footer { font-size:8pt; color:#555; text-align:center; }',
+    '.event-name { font-size:9pt; font-weight:bold; color:#333; }',
+  ].join(' ');
+  doc.head.appendChild(style);
+  const wrap = doc.createElement('div'); wrap.className = 'wrap';
+  const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
+  wrap.appendChild(img);
+  const nameEl = doc.createElement('p'); nameEl.className = 'event-name'; nameEl.textContent = eventName;
+  wrap.appendChild(nameEl);
+  const footer = doc.createElement('p'); footer.className = 'footer';
+  footer.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  wrap.appendChild(footer);
+  doc.body.appendChild(wrap);
+  function doPrint() { win!.focus(); win!.print(); }
+  if (img.complete) { setTimeout(doPrint, 400); } else { img.onload = () => setTimeout(doPrint, 400); }
+  setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
 }
+
 // ── Input modal ───────────────────────────────────────────────────────────────
 function InputModal({ icon, title, placeholder, inputType, onSubmit, onClose, sending }: {
   icon: React.ReactNode; title: string; placeholder: string; inputType: string;
@@ -205,14 +173,31 @@ export function ShareScreen() {
 
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
-  // Use the gallery URL built by the backend (contains the /p/shortcode short URL)
-  // Falls back to photo URL if gallery URL not available
-  const photoUrl = photo.galleryUrl || photo.url;
+  // Build share URL: take path from backend galleryUrl (has correct slug + photo ID)
+  // but force current window origin so domain changes never break QR codes
+  const photoUrl = (() => {
+    const base = photo.galleryUrl || '';
+    if (!base) return photo.url;
+    try {
+      const parsed = new URL(base);
+      if (typeof window !== 'undefined') {
+        return window.location.origin + parsed.pathname + parsed.search;
+      }
+      return base;
+    } catch {
+      // base is already a relative path like /p/abc123
+      if (base.startsWith('/') && typeof window !== 'undefined') {
+        return window.location.origin + base;
+      }
+      return base || photo.url;
+    }
+  })();
   const allowEmail = (event?.settings?.allowEmailShare as boolean) !== false;
   const allowSMS = (event?.settings?.allowSMSShare as boolean) === true;
   const allowPrint = event?.settings?.allowPrint !== false;
- const allowInstagram = ((event?.settings as any)?.allowInstagram) !== false;
-const allowAirDrop = ((event?.settings as any)?.allowAirDrop) !== false;
+  const allowInstagram = (event?.settings?.allowInstagram as boolean) !== false;
+  const allowAirDrop = (event?.settings?.allowAirDrop as boolean) !== false;
+
   // ── WhatsApp with country code pre-fill ────────────────────────────────────
   const whatsappCountryCode = (event?.settings?.whatsappCountryCode as string) || '';
 
