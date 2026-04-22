@@ -53,8 +53,7 @@ function printPhotoOnly(
 
   // For multiple copies, open the frame multiple times sequentially
   const totalCopies = Math.max(1, Math.min(copies, 10));
-
- for (let i = 0; i < totalCopies; i++) {
+for (let i = 0; i < totalCopies; i++) {
   setTimeout(() => {
     const id = `__snapbooth_print_${i}`;
     document.getElementById(id)?.remove();
@@ -72,39 +71,9 @@ function printPhotoOnly(
     doc.open();
     doc.close();
 
-    const style = doc.createElement('style');
-    style.textContent = `
-      * { margin:0; padding:0; box-sizing:border-box; }
-      html, body { width:100%; height:100%; overflow:hidden; background:#fff; }
-      @page { margin:0; size:4in 6in portrait; }
-      .wrap {
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:flex-start;
-        width:4in;
-        height:6in;
-        overflow:hidden;
-        padding:0.15in;
-        gap:0.08in;
-      }
-      img {
-        width:100%;
-        height:auto;
-        max-height:5.4in;
-        object-fit:contain;
-      }
-    `;
-    doc.head.appendChild(style);
-
-    const wrap = doc.createElement('div');
-    wrap.className = 'wrap';
-
     const img = doc.createElement('img');
     img.src = photoUrl;
-    wrap.appendChild(img);
-
-    doc.body.appendChild(wrap);
+    doc.body.appendChild(img);
 
     const doPrint = () => {
       win.focus();
@@ -117,8 +86,9 @@ function printPhotoOnly(
     setTimeout(() => {
       document.getElementById(id)?.remove();
     }, 30000);
-  }, i * 500);
-}
+
+  }, i * 500); // ✅ closes setTimeout properly
+} // ✅ closes for loop properly
 
 // ── Input modal ───────────────────────────────────────────────────────────────
 function InputModal({ icon, title, placeholder, inputType, onSubmit, onClose, sending }: {
