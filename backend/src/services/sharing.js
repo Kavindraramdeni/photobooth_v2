@@ -46,6 +46,7 @@ async function generateUniqueShortCode(supabase) {
   const chars8 = 'abcdefghjkmnpqrstuvwxyz23456789';
   for (let i = 0; i < 8; i++) code += chars8[Math.floor(Math.random() * chars8.length)];
   return code;
+  
 }
 
 /** Build WhatsApp share URL */
