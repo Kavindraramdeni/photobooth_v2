@@ -8,20 +8,7 @@ import toast from 'react-hot-toast';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-const DEFAULT_STYLES = [
-  { key: 'anime', name: 'Anime', emoji: '🎌', color: '#ff6b9d', gradient: 'linear-gradient(135deg,#ff6b9d,#c44dff)' },
-  { key: 'cyberpunk', name: 'Cyberpunk', emoji: '🌆', color: '#00d4ff', gradient: 'linear-gradient(135deg,#00d4ff,#7b2fff)' },
-  { key: 'vintage', name: 'Vintage Film', emoji: '📷', color: '#f7b733', gradient: 'linear-gradient(135deg,#f7b733,#fc4a1a)' },
-  { key: 'renaissance', name: 'Renaissance', emoji: '🎨', color: '#a78bfa', gradient: 'linear-gradient(135deg,#a78bfa,#7c3aed)' },
-  { key: 'comic', name: 'Comic Book', emoji: '💥', color: '#4facfe', gradient: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
-  { key: 'statue', name: 'Marble Statue', emoji: '🏛️', color: '#e2e8f0', gradient: 'linear-gradient(135deg,#e2e8f0,#94a3b8)' },
-  { key: 'eighties', name: '80s Yearbook', emoji: '✨', color: '#fb923c', gradient: 'linear-gradient(135deg,#fb923c,#f43f5e)' },
-  { key: 'psychedelic', name: 'Psychedelic', emoji: '🌈', color: '#a3e635', gradient: 'linear-gradient(135deg,#a3e635,#06b6d4)' },
-  { key: 'pixelart', name: '8-bit Pixel', emoji: '🎮', color: '#34d399', gradient: 'linear-gradient(135deg,#34d399,#059669)' },
-  { key: 'daguerreotype', name: '19th Century', emoji: '🎩', color: '#d4a574', gradient: 'linear-gradient(135deg,#d4a574,#92400e)' },
-  { key: 'oilpainting', name: 'Oil Painting', emoji: '🖼️', color: '#f093fb', gradient: 'linear-gradient(135deg,#f093fb,#f5576c)' },
-  { key: 'old', name: 'Aged', emoji: '👴', color: '#94a3b8', gradient: 'linear-gradient(135deg,#94a3b8,#475569)' },
-];
+const DEFAULT_STYLES: Style[] = [];
 
 interface Style {
   key: string;
@@ -130,21 +117,12 @@ export function AIStudioScreen() {
 
           setStyles(mapped);
         } else {
-          setStyles(
-            DEFAULT_STYLES.map((d) => ({
-              ...d,
-              preview_image_url: `/assets/styles/${d.key}.jpg`,
-            }))
-          );
+          // No custom styles uploaded yet - show empty state
+          setStyles([]);
         }
       })
       .catch(() => {
-        setStyles(
-          DEFAULT_STYLES.map((d) => ({
-            ...d,
-            preview_image_url: `/assets/styles/${d.key}.jpg`,
-          }))
-        );
+        setStyles([]);
       })
       .finally(() => setStylesLoading(false));
   }, [event?.id]);
