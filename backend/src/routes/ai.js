@@ -293,53 +293,67 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       event = data || null;
     }
 
-    // Upload AI image to storage
-    const aiId = uuidv4();
-    const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
-    const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
-    const shortCode = await generateUniqueShortCode(supabase);
+   // Upload AI image to storage
+const aiId = uuidv4();
+const storageKey = `events/${eventId}/ai/${aiId}.jpg`;
 
-    // Save to DB linked to original photo
-    const galleryUrl = eventId ? buildGalleryUrl(event?.slug || eventId, aiId, shortCode) : aiUrl;
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
+const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
 
-    await supabase.from('photos').insert({
-      id: aiId,
-      event_id: eventId,
-      url: aiUrl,
-      gallery_url: galleryUrl,
-      storage_key: storageKey,
-      mode: 'ai',
-      short_code: shortCode,
-      metadata: { style: styleKey, originalPhotoId: photoId },
-    });
+// ✅ ALWAYS require eventId
+if (!eventId) {
+  throw new Error("Event ID required for AI generation");
+}
 
-    // Track analytics
-    if (eventId) {
-      await supabase.from('analytics').insert({
-        event_id: eventId,
-        action: 'ai_generated',
-        metadata: { style: styleKey, aiId },
-      });
-    }
+// ✅ Generate short code
+const shortCode = await generateUniqueShortCode(supabase);
 
-    res.json({
-      success: true,
-      ai: {
-        id: aiId,
-        url: aiUrl,
-        style: result.style,
-        styleKey,
-        galleryUrl,
-        qrCode: qrDataUrl,
-      },
-    });
-  } catch (error) {
-    console.error('AI generation error:', error);
-    res.status(500).json({ error: error.message });
-  }
+// ✅ SINGLE SOURCE OF TRUTH (NO FALLBACKS)
+const galleryUrl = `https://photobooth-v2-ten.vercel.app/p/${shortCode}`;
+
+// 🚨 Safety check (prevents future bugs)
+if (galleryUrl.includes('/gallery/')) {
+  throw new Error("❌ Invalid gallery URL generated");
+}
+
+// Generate QR
+const qrDataUrl = await generateQRDataURL(galleryUrl);
+
+// ✅ Insert with error handling
+const { error: insertError } = await supabase.from('photos').insert({
+  id: aiId,
+  event_id: eventId,
+  url: aiUrl,
+  gallery_url: galleryUrl,
+  storage_key: storageKey,
+  mode: 'ai',
+  short_code: shortCode,
+  metadata: { style: styleKey, originalPhotoId: photoId },
 });
 
+if (insertError) {
+  console.error("❌ DB INSERT FAILED:", insertError);
+  throw new Error("Failed to save AI photo");
+}
+
+// Track analytics
+await supabase.from('analytics').insert({
+  event_id: eventId,
+  action: 'ai_generated',
+  metadata: { style: styleKey, aiId },
+});
+
+// Response
+res.json({
+  success: true,
+  ai: {
+    id: aiId,
+    url: aiUrl,
+    style: result.style,
+    styleKey,
+    galleryUrl,
+    qrCode: qrDataUrl,
+  },
+});
 /**
  * POST /api/ai/filter
  * Apply instant AI filter (Sharp-based, no API needed)
