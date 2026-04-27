@@ -1,5 +1,6 @@
 'use client';
 
+import { kioskController } from '@/components/booth/KioskController';
 import { useEffect, useState, createContext, useContext } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBoothStore } from '@/lib/store';
