@@ -256,24 +256,42 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
 router.post('/strip', upload.array('photos', 4), async (req, res) => {
   try {
     const { eventId, sessionId } = req.body;
+
+    console.log("📸 STRIP START:", { eventId });
+
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
     if (!req.files?.length) return res.status(400).json({ error: 'No photos provided' });
-    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      console.error("❌ EVENT FETCH FAILED:", eventError);
+      return res.status(404).json({ error: 'Event not found' });
+    }
 
     const photos = req.files.map((f) => f.buffer);
     const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
 
     const stripId = uuidv4();
     const storageKey = `events/${eventId}/strips/${stripId}.jpg`;
+
     const stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
+
+    // ✅ Always generate short code
     const shortCode = await generateUniqueShortCode(supabase);
 
-    const galleryUrl = buildGalleryUrl(event.slug, stripId, shortCode);
+    // ✅ FORCE correct URL (no fallback)
+    const galleryUrl = `${process.env.FRONTEND_URL}/p/${shortCode}`;
+
     const qrDataUrl = await generateQRDataURL(galleryUrl);
     const whatsappUrl = buildWhatsAppUrl(stripUrl, event.name);
 
-    await supabase.from('photos').insert({
+    // ✅ SAFE INSERT (with error handling)
+    const { data, error } = await supabase.from('photos').insert({
       id: stripId,
       event_id: eventId,
       session_id: sessionId,
@@ -282,7 +300,14 @@ router.post('/strip', upload.array('photos', 4), async (req, res) => {
       storage_key: storageKey,
       mode: 'strip',
       short_code: shortCode,
-    });
+    }).select().single();
+
+    if (error) {
+      console.error("❌ STRIP INSERT FAILED:", error);
+      return res.status(500).json({ error });
+    }
+
+    console.log("✅ STRIP SAVED:", data.id);
 
     await supabase.from('analytics').insert({
       event_id: eventId,
@@ -292,9 +317,18 @@ router.post('/strip', upload.array('photos', 4), async (req, res) => {
 
     res.json({
       success: true,
-      strip: { id: stripId, url: stripUrl, galleryUrl, qrCode: qrDataUrl, whatsappUrl, downloadUrl: stripUrl },
+      strip: {
+        id: stripId,
+        url: stripUrl,
+        galleryUrl,
+        qrCode: qrDataUrl,
+        whatsappUrl,
+        downloadUrl: stripUrl
+      },
     });
+
   } catch (error) {
+    console.error("❌ STRIP ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 });
