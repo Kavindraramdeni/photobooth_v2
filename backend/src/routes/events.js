@@ -357,3 +357,149 @@ router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res
 });
 
 module.exports = router;
+
+/**
+ * ═════════════════════════════════════════════════════════════════════════════
+ * FRAME OVERLAYS — store multiple PNG frames guests can apply during preview
+ * ═════════════════════════════════════════════════════════════════════════════
+ */
+const _multer = require('multer');
+const _upload = _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+/**
+ * GET /api/events/:id/frames
+ * Fetch all frames for an event
+ */
+router.get('/:id/frames', async (req, res) => {
+  try {
+    const { data: frames } = await supabase
+      .from('event_frames')
+      .select('*')
+      .eq('event_id', req.params.id)
+      .order('sort_order', { ascending: true });
+    res.json({ frames: frames || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/frames
+ * Add a new frame overlay
+ */
+router.post('/:id/frames', _upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Frame image required' });
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Frame name required' });
+
+    const frameId = require('crypto').randomUUID();
+    const key = `events/${req.params.id}/frames/${frameId}.png`;
+    const url = await uploadToStorage(req.file.buffer, key, 'image/png');
+
+    const { data: frame } = await supabase
+      .from('event_frames')
+      .insert({
+        id: frameId,
+        event_id: req.params.id,
+        name,
+        url,
+        is_active: true,
+        is_default: false,
+      })
+      .select()
+      .single();
+
+    res.json({ frame });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/events/:id/frames/:frameId
+ * Update frame (toggle active, set default, etc.)
+ */
+router.patch('/:id/frames/:frameId', async (req, res) => {
+  try {
+    const { isActive, isDefault } = req.body;
+    const update = {};
+    if (isActive !== undefined) update.is_active = isActive;
+    if (isDefault !== undefined) {
+      if (isDefault) {
+        // Set this as default, unset all others for this event
+        await supabase.from('event_frames')
+          .update({ is_default: false })
+          .eq('event_id', req.params.id);
+      }
+      update.is_default = isDefault;
+    }
+
+    const { data: frame } = await supabase
+      .from('event_frames')
+      .update(update)
+      .eq('id', req.params.frameId)
+      .eq('event_id', req.params.id)
+      .select()
+      .single();
+
+    res.json({ frame });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/frames/:frameId/default
+ * Set as default overlay
+ */
+router.post('/:id/frames/:frameId/default', async (req, res) => {
+  try {
+    await supabase.from('event_frames')
+      .update({ is_default: false })
+      .eq('event_id', req.params.id);
+
+    const { data: frame } = await supabase
+      .from('event_frames')
+      .update({ is_default: true })
+      .eq('id', req.params.frameId)
+      .eq('event_id', req.params.id)
+      .select()
+      .single();
+
+    res.json({ frame });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/events/:id/frames/:frameId
+ * Delete a frame overlay
+ */
+router.delete('/:id/frames/:frameId', async (req, res) => {
+  try {
+    const { data: frame } = await supabase
+      .from('event_frames')
+      .select('url')
+      .eq('id', req.params.frameId)
+      .eq('event_id', req.params.id)
+      .single();
+
+    if (frame?.url) {
+      try {
+        await deleteFromStorage(frame.url);
+      } catch { /* ignore storage errors */ }
+    }
+
+    await supabase
+      .from('event_frames')
+      .delete()
+      .eq('id', req.params.frameId)
+      .eq('event_id', req.params.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
