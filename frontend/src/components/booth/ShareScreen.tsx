@@ -108,7 +108,7 @@ export function ShareScreen() {
 
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
-  const photoUrl = photo?.galleryUrl || photo?.url || '';
+const photoUrl =   photo?.galleryUrl ||   (photo?.url?.startsWith('http')     ? photo.url     : `${API_BASE}${photo.url}`) ||   '';
   const settings = event?.settings as Record<string, unknown> | undefined;
   const allowEmail = (settings?.allowEmailShare as boolean) !== false;
   const allowInstagram = (settings?.allowInstagram as boolean) !== false;
