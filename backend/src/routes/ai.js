@@ -295,6 +295,7 @@ router.post('/generate', upload.single('file'), async (req, res) => {
     // Save to DB linked to original photo
     const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
+    const shortCode = require('nanoid').nanoid(6);
 
     await supabase.from('photos').insert({
       id: aiId,
@@ -303,6 +304,7 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       gallery_url: galleryUrl,
       storage_key: storageKey,
       mode: 'ai',
+      short_code: shortCode,
       metadata: { style: styleKey, originalPhotoId: photoId },
     });
 
