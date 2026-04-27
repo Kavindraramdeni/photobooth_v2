@@ -279,4 +279,38 @@ async function applyBeautyMode(photoBuffer, level = 5) {
     .toBuffer();
 }
 
-module.exports = { applyBrandingOverlay, createPhotoStrip, createPolaroid, applyBeautyMode };
+
+/**
+ * Apply frame/border PNG overlay on top of image
+ */
+async function applyFrameOverlay(photoBuffer, frameUrl) {
+  if (!frameUrl) return photoBuffer;
+  
+  try {
+    const fetch = require('node-fetch');
+    const sharp = require('sharp');
+    
+    // Download frame PNG
+    const frameRes = await fetch(frameUrl);
+    if (!frameRes.ok) return photoBuffer;
+    
+    const frameBuffer = await frameRes.buffer();
+    
+    // Get photo dimensions
+    const metadata = await sharp(photoBuffer).metadata();
+    
+    // Composite frame on top
+    return await sharp(photoBuffer)
+      .composite([{
+        input: frameBuffer,
+        top: 0,
+        left: 0
+      }])
+      .toBuffer();
+  } catch (err) {
+    console.error('Frame overlay failed:', err);
+    return photoBuffer; // Return original if frame fails
+  }
+}
+
+module.exports = { applyBrandingOverlay, applyFrameOverlay, createPhotoStrip, createPolaroid, applyBeautyMode };
