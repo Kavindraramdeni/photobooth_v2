@@ -191,9 +191,11 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
 router.post('/gif', upload.array('frames', 10), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
     if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
 
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
+    if (!event) return res.status(404).json({ error: 'Event not found' });
 
     const frames = req.files.map((f) => f.buffer);
     let gifBuffer;
@@ -207,10 +209,11 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
     const gifId = uuidv4();
     const storageKey = `events/${eventId}/gifs/${gifId}.gif`;
     const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
+    const shortCode = await generateUniqueShortCode(supabase);
 
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, gifId);
+    const galleryUrl = buildGalleryUrl(event.slug, gifId, shortCode);
     const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const whatsappUrl = buildWhatsAppUrl(gifUrl, event?.name);
+    const whatsappUrl = buildWhatsAppUrl(gifUrl, event.name);
 
     await supabase.from('photos').insert({
       id: gifId,
@@ -220,6 +223,7 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
       gallery_url: galleryUrl,
       storage_key: storageKey,
       mode: type,
+      short_code: shortCode,
     });
 
     await supabase.from('analytics').insert({
@@ -251,8 +255,11 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
  */
 router.post('/strip', upload.array('photos', 4), async (req, res) => {
   try {
-    const { eventId } = req.body;
+    const { eventId, sessionId } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
+    if (!req.files?.length) return res.status(400).json({ error: 'No photos provided' });
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
+    if (!event) return res.status(404).json({ error: 'Event not found' });
 
     const photos = req.files.map((f) => f.buffer);
     const stripBuffer = await createPhotoStrip(photos, event?.branding || {});
@@ -260,13 +267,32 @@ router.post('/strip', upload.array('photos', 4), async (req, res) => {
     const stripId = uuidv4();
     const storageKey = `events/${eventId}/strips/${stripId}.jpg`;
     const stripUrl = await uploadToStorage(stripBuffer, storageKey, 'image/jpeg');
+    const shortCode = await generateUniqueShortCode(supabase);
 
-    const galleryUrl = buildGalleryUrl(event?.slug || eventId, stripId);
+    const galleryUrl = buildGalleryUrl(event.slug, stripId, shortCode);
     const qrDataUrl = await generateQRDataURL(galleryUrl);
+    const whatsappUrl = buildWhatsAppUrl(stripUrl, event.name);
+
+    await supabase.from('photos').insert({
+      id: stripId,
+      event_id: eventId,
+      session_id: sessionId,
+      url: stripUrl,
+      gallery_url: galleryUrl,
+      storage_key: storageKey,
+      mode: 'strip',
+      short_code: shortCode,
+    });
+
+    await supabase.from('analytics').insert({
+      event_id: eventId,
+      action: 'strip_created',
+      metadata: { frameCount: photos.length },
+    });
 
     res.json({
       success: true,
-      strip: { id: stripId, url: stripUrl, galleryUrl, qrCode: qrDataUrl },
+      strip: { id: stripId, url: stripUrl, galleryUrl, qrCode: qrDataUrl, whatsappUrl, downloadUrl: stripUrl },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -513,12 +539,10 @@ router.get('/event/:eventId/zip', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
-
 /**
  * POST /api/photos/burst
  * Accept multiple burst frames, store them individually
- */
+*/
 router.post('/burst', upload.fields([
   { name: 'frame_0' }, { name: 'frame_1' }, { name: 'frame_2' },
   { name: 'frame_3' }, { name: 'frame_4' }, { name: 'frame_5' },
@@ -560,3 +584,5 @@ router.post('/burst', upload.fields([
     res.status(500).json({ error: error.message });
   }
 });
+
+module.exports = router;

@@ -2,7 +2,7 @@
  * backend/src/services/sharing.js  (FULL REPLACEMENT)
  *
  * Changes:
- *   - buildGalleryUrl now returns /gallery/[photoId] (per-photo, not event gallery)
+ *   - buildGalleryUrl now prefers /p/[short_code] and falls back to /gallery/[eventSlug]
  *   - Added generateShortCode() for /p/[6char] short URLs
  *   - Short URL resolves to /gallery/[photoId] server-side
  */
@@ -18,13 +18,14 @@ function frontendUrl() {
 }
 
 /**
- * Per-photo gallery URL — unique to this guest's photo.
- * Format: /gallery/[photoId]
- * If photo has a short_code, returns /p/[short_code] instead (shorter = better QR)
+ * Preferred URL for sharing.
+ * - If short_code exists: /p/[short_code]
+ * - Otherwise: /gallery/[eventSlug] (event gallery fallback)
  */
 function buildGalleryUrl(eventSlug, photoId, shortCode = null) {
   if (shortCode) return `${frontendUrl()}/p/${shortCode}`;
-  return `${frontendUrl()}/gallery/${photoId}`;
+  if (eventSlug) return `${frontendUrl()}/gallery/${eventSlug}`;
+  return `${frontendUrl()}/gallery`;
 }
 
 /**

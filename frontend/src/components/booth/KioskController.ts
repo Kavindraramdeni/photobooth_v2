@@ -39,9 +39,13 @@ export class KioskController {
     document.body.style.overflow = 'hidden';
 
     // Lock orientation if requested
-    if (options?.lockRotation && screen.orientation?.lock) {
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (orientation: 'portrait-primary' | 'portrait-secondary' | 'landscape-primary' | 'landscape-secondary' | 'any' | 'natural') => Promise<void>;
+    };
+
+    if (options?.lockRotation && typeof orientation.lock === 'function') {
       try {
-        await screen.orientation.lock('portrait-primary');
+        await orientation.lock('portrait-primary');
       } catch (err) {
         console.warn('Orientation lock not supported:', err);
       }

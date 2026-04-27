@@ -4,7 +4,7 @@ const router = express.Router();
 
 const { generateAIImage, applyAIFilter, AI_STYLES } = require('../services/ai');
 const { uploadToStorage } = require('../services/storage');
-const { generateQRDataURL, buildGalleryUrl } = require('../services/sharing');
+const { generateQRDataURL, buildGalleryUrl, generateUniqueShortCode } = require('../services/sharing');
 const supabase = require('../services/database');
 const { v4: uuidv4 } = require('uuid');
 
@@ -287,15 +287,21 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       }
     }
 
+    let event = null;
+    if (eventId) {
+      const { data } = await supabase.from('events').select('id, slug, name').eq('id', eventId).maybeSingle();
+      event = data || null;
+    }
+
     // Upload AI image to storage
     const aiId = uuidv4();
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
+    const shortCode = await generateUniqueShortCode(supabase);
 
     // Save to DB linked to original photo
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
+    const galleryUrl = eventId ? buildGalleryUrl(event?.slug || eventId, aiId, shortCode) : aiUrl;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const shortCode = require('nanoid').nanoid(6);
 
     await supabase.from('photos').insert({
       id: aiId,
@@ -390,9 +396,33 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
     const aiId = uuidv4();
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
+    const shortCode = await generateUniqueShortCode(supabase);
+    let event = null;
+    if (eventId) {
+      const { data } = await supabase.from('events').select('id, slug').eq('id', eventId).maybeSingle();
+      event = data || null;
+    }
 
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
+    const galleryUrl = eventId ? buildGalleryUrl(event?.slug || eventId, aiId, shortCode) : aiUrl;
     const qrDataUrl = await generateQRDataURL(galleryUrl);
+
+    if (eventId) {
+      await supabase.from('photos').insert({
+        id: aiId,
+        event_id: eventId,
+        url: aiUrl,
+        gallery_url: galleryUrl,
+        storage_key: storageKey,
+        mode: 'ai',
+        short_code: shortCode,
+        metadata: { style: randomStyle, surprise: true },
+      });
+      await supabase.from('analytics').insert({
+        event_id: eventId,
+        action: 'ai_generated',
+        metadata: { style: randomStyle, aiId, surprise: true },
+      });
+    }
 
     res.json({
       success: true,
