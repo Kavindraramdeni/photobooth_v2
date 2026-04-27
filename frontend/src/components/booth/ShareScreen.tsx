@@ -298,8 +298,8 @@ export function ShareScreen() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={photo.url}
-              alt="Your photo"
+  src={photoUrl}
+  alt="Your photo"
               className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
               style={{ maxHeight: 'calc(100dvh - 160px)' }}
               draggable={false}
