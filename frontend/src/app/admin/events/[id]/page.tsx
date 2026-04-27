@@ -12,6 +12,7 @@ import {
   Mail, MessageSquare, Wifi, Globe, Clock, Lock, Users, Activity,
   CheckCircle, XCircle, Zap, FileText, Hash, Plus
 } from 'lucide-react';
+import QRCode from 'qrcode.react';
 import {
   getEvent, updateEvent, getEventPhotos, getEventStats, deletePhoto,
   downloadPhotosZip, pingBackend, hidePhoto, unhidePhoto, getEventLeads,
@@ -717,6 +718,29 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                         </div>
                       )}
                     </Card>
+
+                    <Card title="Event Gallery QR" subtitle="Guests who miss their QR can scan this" icon={QrCode}>
+                      <p className="text-zinc-500 text-sm mb-4">Place this QR code at the venue. Any guest can scan to access the full gallery and find their photos.</p>
+                      <div className="bg-white p-4 rounded-xl flex items-center justify-center" style={{ width: '200px', height: '200px', margin: '0 auto' }}>
+                        <QRCode
+                          value={`${typeof window !== 'undefined' ? window.location.origin : 'https://example.com'}/gallery/${event.slug}`}
+                          size={180}
+                          level="H"
+                          includeMargin={false}
+                        />
+                      </div>
+                      <div className="mt-4 text-center">
+                        <p className="text-zinc-300 text-xs font-mono">/gallery/{event.slug}</p>
+                        <button onClick={() => {
+                          const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/gallery/${event.slug}`;
+                          navigator.clipboard.writeText(url);
+                          toast.success('Gallery URL copied!');
+                        }}
+                          className="mt-2 text-violet-300 hover:text-violet-200 text-xs font-semibold transition-colors">
+                          Copy Link
+                        </button>
+                      </div>
+                    </Card>
                   </div>
                 )}
 
@@ -890,10 +914,12 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                     <Card title="Capture Modes" subtitle="Which experiences guests can use" icon={Clapperboard}>
                       <div className="space-y-5">
                         {[
-                          { key: 'allowAI',        icon: Sparkles,   label: 'AI Art Studio',         desc: 'Guests apply AI art transformations — Anime, Cyberpunk, Vintage & more.' },
+                          { key: 'allowAI',        icon: Sparkles,   label: 'AI Art Studio',         desc: 'Guests apply AI art transformations — use admin styles.' },
                           { key: 'allowGIF',       icon: Film,       label: 'Animated GIF',           desc: '6-frame burst GIF, auto-looping and shareable.' },
                           { key: 'allowBoomerang', icon: RotateCcw,  label: 'Boomerang',              desc: 'Ping-pong looping burst video.' },
                           { key: 'allowRetakes',   icon: RefreshCw,  label: 'Allow Retakes',          desc: 'Let guests reshoot before the photo is saved.' },
+                          { key: 'allowFrameOverlays', icon: ImageIcon, label: 'Frame Overlays',       desc: 'Guests can apply PNG frame overlays during preview.' },
+                          { key: 'allowBrandingOverlay', icon: Palette, label: 'Branding Overlay',    desc: 'Show footer, overlay text, and frame on captured photos.' },
                         ].map(item => (
                           <ToggleRow key={item.key} icon={item.icon} label={item.label} desc={item.desc}
                             checked={(event.settings?.[item.key] as boolean) ?? true} onChange={v => updateSettings(item.key, v)} />
@@ -1523,6 +1549,10 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                 )}
 
                 {/* ══ DIAGNOSTICS ══ */}
+                                {tab === 'orientation' && (
+                  <OrientationSettings event={event} updateSettings={updateSettings} />
+                )}
+
                 {tab === 'diagnostics' && <DiagnosticsPanel eventId={event.id} />}
 
               </motion.div>
