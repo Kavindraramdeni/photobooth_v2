@@ -143,8 +143,7 @@ export function ShareScreen() {
   }, [timeoutSecs, resetTimer]);
 
   // ── WhatsApp with country code pre-fill ────────────────────────────────────
-  const whatsappCountryCode = (event?.settings?.whatsappCountryCode as string) || '';
-
+  const whatsappCountryCode = (settings?.whatsappCountryCode as string) || '';
   // ── Instagram share ────────────────────────────────────────────────────────
   function handleInstagram() {
     // Instagram doesn't support direct URL sharing — open story intent on mobile,
@@ -177,7 +176,6 @@ export function ShareScreen() {
     
     // Show QR code modal for WhatsApp scanning
     setShowWhatsAppQR(true);
-     setShowWhatsAppQR(true);
   }
 
   async function handleNativeShare() {
