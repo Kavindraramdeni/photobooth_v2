@@ -1549,10 +1549,7 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                 )}
 
                 {/* ══ DIAGNOSTICS ══ */}
-                                {tab === 'orientation' && (
-                  <OrientationSettings event={event} updateSettings={updateSettings} />
-                )}
-
+              
                 {tab === 'diagnostics' && <DiagnosticsPanel eventId={event.id} />}
 
               </motion.div>
