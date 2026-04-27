@@ -155,7 +155,7 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
     return null;
   }
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
 
   const resized = await sharp(imageBuffer)
     .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
@@ -230,7 +230,7 @@ async function generateWithFal(imageBuffer, styleKey) {
   const FAL_KEY = process.env.FAL_API_KEY;
   if (!FAL_KEY) return null;
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
 
   // Convert image to base64 data URL for Fal
   const resized = await sharp(imageBuffer)
@@ -288,7 +288,7 @@ async function generateWithCloudflare(imageBuffer, styleKey) {
   const { CF_ACCOUNT_ID, CF_AI_TOKEN } = process.env;
   if (!CF_ACCOUNT_ID || !CF_AI_TOKEN) return null;
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
 
   // Resize to 512x512 — SD v1-5 native resolution, use JPEG to keep payload small
   const resized = await sharp(imageBuffer)
@@ -349,7 +349,7 @@ async function generateWithHuggingFace(imageBuffer, styleKey) {
   const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
   if (!HF_TOKEN) return null;
 
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
   const model = HF_MODELS[styleKey] || HF_MODELS.anime;
   const prompt = `${style.prompt}, photobooth photo, high quality, one person`;
 
@@ -390,7 +390,7 @@ async function generateWithHuggingFace(imageBuffer, styleKey) {
 // ─── Sharp colour grading — professional per-style looks ─────────────────────
 // Each style applies a distinct cinematic grade. Face always preserved.
 async function generateWithSharp(imageBuffer, styleKey) {
-  const style = AI_STYLES[styleKey] || AI_STYLES.anime;
+  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
   if (!sharp) return { buffer: imageBuffer, style: style.name, styleKey, tier: 'passthrough' };
 
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
@@ -552,9 +552,8 @@ async function applyAIFilter(imageBuffer, styleKey) {
   return generateWithSharp(imageBuffer, styleKey);
 }
 
-module.exports = { generateAIImage, applyAIFilter, AI_STYLES };
+module.exports = { generateAIImage, applyAIFilter };
 
-// ══ NOTE: Replace the AI_STYLES const at the top of this file ══
 // The full premium prompts are in ai_prompts_update.js
 // Key changes:
 // 1. All prompts now explicitly handle multi-person / group photos
