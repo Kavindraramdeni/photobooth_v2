@@ -103,12 +103,12 @@ export function ShareScreen() {
     if (!currentPhoto) setScreen('preview');
   }, [currentPhoto, setScreen]);
 
-  if (!currentPhoto) return null;
+  if (!currentPhoto || (!currentPhoto.url && !currentPhoto.galleryUrl)) {   console.warn('Invalid photo state, redirecting...');   setScreen('preview');   return null; }
   const photo = currentPhoto;
 
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
-  const photoUrl = photo.galleryUrl || photo.url;
+  const photoUrl = photo?.galleryUrl || photo?.url || '';
   const settings = event?.settings as Record<string, unknown> | undefined;
   const allowEmail = (settings?.allowEmailShare as boolean) !== false;
   const allowInstagram = (settings?.allowInstagram as boolean) !== false;
@@ -192,7 +192,7 @@ export function ShareScreen() {
   async function handlePrint() {
     if (!event) return;
     try {
-      printPhotoOnly(photo.url, eventName, printScale);
+      printPhotoOnly(photoUrl, eventName, printScale);
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer!');
     } catch { toast.error('Print failed'); }
@@ -388,7 +388,7 @@ export function ShareScreen() {
 
       {/* ── Bottom — Done centred ── */}
       <div className="flex-shrink-0 px-4 pb-5 pt-3 border-t border-white/8 bg-[#0d0d18]/40">
-        <motion.button whileTap={{ scale: 0.98 }} onClick={resetSession}
+        <motion.button whileTap={{ scale: 0.98 }} onClick={() => {   setTimeout(() => {     resetSession();   }, 100); }}
           className="w-full py-4 rounded-2xl font-bold text-white text-sm btn-touch"
           style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}aa)` }}>
           ✅ Done — Take Another
