@@ -109,17 +109,17 @@ export function ShareScreen() {
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
   const photoUrl = photo.galleryUrl || photo.url;
-  const allowEmail = (event?.settings?.allowEmailShare as boolean) !== false;
-  const allowInstagram = (event?.settings?.allowInstagram as boolean) !== false;
-  const allowAirDrop = (event?.settings?.allowAirDrop as boolean) !== false;
-  const allowPrint = (event?.settings?.allowPrint as boolean) !== false;
-  const allowWhatsApp = (event?.settings?.allowWhatsApp as boolean) !== false;
-  const allowSMS = (event?.settings?.allowSMSShare as boolean) === true;
-  const allowPrint = event?.settings?.allowPrint !== false;
-  const printScale = (event?.settings?.printScale as number) || 98;
+   const settings = event?.settings as Record<string, unknown> | undefined;
+  const allowEmail = (settings?.allowEmailShare as boolean) !== false;
+  const allowInstagram = (settings?.allowInstagram as boolean) !== false;
+  const allowAirDrop = (settings?.allowAirDrop as boolean) !== false;
+  const allowWhatsApp = (settings?.allowWhatsApp as boolean) !== false;
+  const allowSMS = (settings?.allowSMSShare as boolean) === true;
+  const allowPrint = (settings?.allowPrint as boolean) !== false;
+  const printScale = (settings?.printScale as number) || 98;
   
   // ── Share screen auto-timeout ───────────────────────────────────────────────
-  const timeoutSecs = (event?.settings?.shareScreenTimeout as number) || 0; // 0 = disabled
+  const timeoutSecs = (settings?.shareScreenTimeout as number) || 0; // 0 = disabled
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [timeLeft, setTimeLeft] = useState(timeoutSecs);
 
