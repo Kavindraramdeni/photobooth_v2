@@ -191,48 +191,93 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
 router.post('/gif', upload.array('frames', 10), async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
-    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
-    if (!req.files?.length) return res.status(400).json({ error: 'No frames provided' });
 
-    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-    if (!event) return res.status(404).json({ error: 'Event not found' });
+    console.log('🎬 GIF START:', { eventId, type });
 
+    // ── Validation ─────────────────────────────────────────
+    if (!eventId) {
+      return res.status(400).json({ error: 'Event ID required' });
+    }
+
+    if (!req.files?.length) {
+      return res.status(400).json({ error: 'No frames provided' });
+    }
+
+    // ── Fetch event ────────────────────────────────────────
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      console.error('❌ Event fetch failed:', eventError);
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // ── Create GIF / Boomerang ─────────────────────────────
     const frames = req.files.map((f) => f.buffer);
-    let gifBuffer;
 
+    let gifBuffer;
     if (type === 'boomerang') {
       gifBuffer = await createBoomerang(frames);
     } else {
       gifBuffer = await createGIF(frames);
     }
 
+    // ── Upload to storage ──────────────────────────────────
     const gifId = uuidv4();
     const storageKey = `events/${eventId}/gifs/${gifId}.gif`;
+
     const gifUrl = await uploadToStorage(gifBuffer, storageKey, 'image/gif');
+
+    // ── Generate short code (CRITICAL) ─────────────────────
     const shortCode = await generateUniqueShortCode(supabase);
 
-    const galleryUrl = buildGalleryUrl(event.slug, gifId, shortCode);
-    const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const whatsappUrl = buildWhatsAppUrl(gifUrl, event.name);
+    if (!shortCode) {
+      throw new Error('Failed to generate short code');
+    }
 
-    await supabase.from('photos').insert({
+    // ── NEW: Correct gallery URL (ONLY FORMAT ALLOWED) ─────
+    const galleryUrl = `https://photobooth-v2-ten.vercel.app/p/${shortCode}`;
+
+    // Safety check (prevents old bug forever)
+    if (galleryUrl.includes('/gallery/')) {
+      throw new Error('❌ Invalid gallery URL generated');
+    }
+
+    // ── QR + WhatsApp ──────────────────────────────────────
+    const qrDataUrl = await generateQRDataURL(galleryUrl);
+    const whatsappUrl = buildWhatsAppUrl(galleryUrl, event.name);
+
+    // ── Insert into DB (STRICT CHECK) ──────────────────────
+    const { error: insertError } = await supabase.from('photos').insert({
       id: gifId,
       event_id: eventId,
       session_id: sessionId,
       url: gifUrl,
       gallery_url: galleryUrl,
       storage_key: storageKey,
-      mode: type,
+      mode: type, // 'gif' or 'boomerang'
       short_code: shortCode,
     });
 
+    if (insertError) {
+      console.error('❌ DB insert failed:', insertError);
+      throw new Error('Failed to save GIF');
+    }
+
+    console.log('✅ GIF SAVED:', { gifId, shortCode });
+
+    // ── Analytics ─────────────────────────────────────────
     await supabase.from('analytics').insert({
       event_id: eventId,
       action: type === 'boomerang' ? 'boomerang_created' : 'gif_created',
       metadata: { frameCount: frames.length },
     });
 
-    res.json({
+    // ── Response ──────────────────────────────────────────
+    return res.json({
       success: true,
       gif: {
         id: gifId,
@@ -243,12 +288,12 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
         type,
       },
     });
+
   } catch (error) {
-    console.error('GIF creation error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ GIF creation error:', error);
+    return res.status(500).json({ error: error.message });
   }
 });
-
 /**
  * POST /api/photos/strip
  * Create a 4-photo strip
