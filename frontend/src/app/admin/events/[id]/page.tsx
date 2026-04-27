@@ -10,7 +10,7 @@ import {
   ChevronLeft, Copy, ExternalLink, Save, RefreshCw, Trash2, EyeOff, Eye,
   Download, Smartphone, AlertCircle, Clapperboard, Sparkles, Film, RotateCcw,
   Mail, MessageSquare, Wifi, Globe, Clock, Lock, Users, Activity,
-  CheckCircle, XCircle, Zap, FileText, Hash, Plus
+  CheckCircle, XCircle, Zap, FileText, Hash, Plus,QrCode
 } from 'lucide-react';
 import QRCode from 'qrcode.react';
 import {
