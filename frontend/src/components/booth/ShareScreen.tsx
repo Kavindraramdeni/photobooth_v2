@@ -110,6 +110,10 @@ export function ShareScreen() {
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
   const photoUrl = photo.galleryUrl || photo.url;
   const allowEmail = (event?.settings?.allowEmailShare as boolean) !== false;
+  const allowInstagram = (event?.settings?.allowInstagram as boolean) !== false;
+  const allowAirDrop = (event?.settings?.allowAirDrop as boolean) !== false;
+  const allowPrint = (event?.settings?.allowPrint as boolean) !== false;
+  const allowWhatsApp = (event?.settings?.allowWhatsApp as boolean) !== false;
   const allowSMS = (event?.settings?.allowSMSShare as boolean) === true;
   const allowPrint = event?.settings?.allowPrint !== false;
   const printScale = (event?.settings?.printScale as number) || 98;
@@ -170,6 +174,9 @@ export function ShareScreen() {
 
   async function handleWhatsApp() {
     if (event) await trackAction(event.id, 'photo_shared', { platform: 'whatsapp', photoId: photo.id });
+    
+    // Show QR code modal for WhatsApp scanning
+    setShowWhatsAppQR(true);
      setShowWhatsAppQR(true);
   }
 
@@ -341,6 +348,7 @@ export function ShareScreen() {
           </motion.button>
 
           {/* Instagram */}
+          {allowInstagram && (
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleInstagram}
             className="flex items-center gap-2.5 px-3 py-3 rounded-xl font-bold text-white text-xs btn-touch"
             style={{ background: 'linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)' }}>
@@ -349,8 +357,10 @@ export function ShareScreen() {
             </svg>
             Instagram
           </motion.button>
+          )}
 
           {/* AirDrop — Apple devices only */}
+          {allowAirDrop && (
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleAirDrop}
             className="flex items-center gap-2.5 px-3 py-3 rounded-xl font-bold text-white text-xs btn-touch bg-sky-600/80 border border-sky-500/30">
             <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
