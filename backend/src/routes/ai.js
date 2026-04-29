@@ -4,7 +4,7 @@ const router = express.Router();
 
 const { generateAIImage, applyAIFilter, AI_STYLES } = require('../services/ai');
 const { uploadToStorage } = require('../services/storage');
-const { generateQRDataURL, buildGalleryUrl } = require('../services/sharing');
+const { generateQRDataURL, buildGalleryUrl, generateUniqueShortCode } = require('../services/sharing');
 const supabase = require('../services/database');
 const { v4: uuidv4 } = require('uuid');
 
@@ -204,6 +204,7 @@ router.post(
 router.post('/generate', upload.single('file'), async (req, res) => {
   try {
     const { styleKey = 'anime', eventId, photoId, customPrompt } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'eventId required' });
 
     // Get image buffer — either from direct upload or from stored photo
     let imageBuffer = null;
@@ -287,17 +288,21 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       }
     }
 
+    const { data: event } = await supabase.from('events').select('id, slug, name').eq('id', eventId).maybeSingle();
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
     // Upload AI image to storage
     const aiId = uuidv4();
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
+    const shortCode = await generateUniqueShortCode(supabase);
 
     // Save to DB linked to original photo
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
+    const galleryUrl = buildGalleryUrl(event.slug, aiId, shortCode);
+    console.log('[ai/generate] short_code generated', { aiId, eventId, shortCode, galleryUrl });
     const qrDataUrl = await generateQRDataURL(galleryUrl);
-    const shortCode = require('nanoid').nanoid(6);
 
-    await supabase.from('photos').insert({
+    const { error: aiInsertError } = await supabase.from('photos').insert({
       id: aiId,
       event_id: eventId,
       url: aiUrl,
@@ -307,15 +312,15 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       short_code: shortCode,
       metadata: { style: styleKey, originalPhotoId: photoId },
     });
+    if (aiInsertError) throw aiInsertError;
+    console.log('[ai/generate] DB insert success', { aiId, eventId, shortCode });
 
     // Track analytics
-    if (eventId) {
-      await supabase.from('analytics').insert({
-        event_id: eventId,
-        action: 'ai_generated',
-        metadata: { style: styleKey, aiId },
-      });
-    }
+    await supabase.from('analytics').insert({
+      event_id: eventId,
+      action: 'ai_generated',
+      metadata: { style: styleKey, aiId },
+    });
 
     res.json({
       success: true,
@@ -366,6 +371,7 @@ router.post('/filter', upload.single('photo'), async (req, res) => {
 router.post('/surprise', upload.single('photo'), async (req, res) => {
   try {
     const { eventId } = req.body;
+    if (!eventId) return res.status(400).json({ error: 'eventId required' });
     if (!req.file) return res.status(400).json({ error: 'Photo required' });
 
     const styles = Object.keys(AI_STYLES);
@@ -390,9 +396,32 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
     const aiId = uuidv4();
     const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
     const aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
+    const shortCode = await generateUniqueShortCode(supabase);
+    const { data: event } = await supabase.from('events').select('id, slug').eq('id', eventId).maybeSingle();
+    if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    const galleryUrl = eventId ? buildGalleryUrl(eventId, aiId) : aiUrl;
+    const galleryUrl = buildGalleryUrl(event.slug, aiId, shortCode);
+    console.log('[ai/surprise] short_code generated', { aiId, eventId, shortCode, galleryUrl });
     const qrDataUrl = await generateQRDataURL(galleryUrl);
+
+    const { error: surpriseInsertError } = await supabase.from('photos').insert({
+      id: aiId,
+      event_id: eventId,
+      url: aiUrl,
+      gallery_url: galleryUrl,
+      storage_key: storageKey,
+      mode: 'ai',
+      short_code: shortCode,
+      metadata: { style: randomStyle, surprise: true },
+    });
+    if (surpriseInsertError) throw surpriseInsertError;
+    console.log('[ai/surprise] DB insert success', { aiId, eventId, shortCode });
+
+    await supabase.from('analytics').insert({
+      event_id: eventId,
+      action: 'ai_generated',
+      metadata: { style: randomStyle, aiId, surprise: true },
+    });
 
     res.json({
       success: true,

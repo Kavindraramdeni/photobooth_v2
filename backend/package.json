@@ -5,7 +5,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "backfill:photo-short-urls:dry": "node scripts/backfill-photo-short-urls.js",
+    "backfill:photo-short-urls": "node scripts/backfill-photo-short-urls.js --apply"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.400.0",

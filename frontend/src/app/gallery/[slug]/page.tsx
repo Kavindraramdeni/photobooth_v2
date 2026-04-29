@@ -50,6 +50,7 @@ async function iosDownload(url: string, filename: string) {
 
 export default function GalleryPage() {
   const { slug } = useParams() as { slug: string };
+  const isUuidSlug = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
 
   const [event,   setEvent]   = useState<Event | null>(null);
   const [photos,  setPhotos]  = useState<Photo[]>([]);
@@ -70,6 +71,25 @@ export default function GalleryPage() {
   const loadGallery = useCallback(async () => {
     setLoading(true);
     try {
+      if (isUuidSlug) {
+        // Defensive: do not treat UUID photo ids as event slugs
+        const photoRes = await fetch(`${API_BASE}/api/photos/${slug}`);
+        if (!photoRes.ok) throw new Error('Photo link is invalid or expired');
+        const photoData = await photoRes.json();
+        const shortCode = photoData?.photo?.short_code as string | undefined;
+        const eventSlug = photoData?.photo?.events?.slug as string | undefined;
+
+        if (shortCode) {
+          window.location.replace(`/p/${shortCode}`);
+          return;
+        }
+        if (eventSlug) {
+          window.location.replace(`/gallery/${eventSlug}`);
+          return;
+        }
+        throw new Error('Could not resolve gallery link');
+      }
+
       // Get event by slug
       const evRes  = await fetch(`${API_BASE}/api/events/${slug}`);
       if (!evRes.ok) throw new Error('Event not found');
@@ -96,7 +116,7 @@ export default function GalleryPage() {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, isUuidSlug]);
 
   useEffect(() => { loadGallery(); }, [loadGallery]);
 

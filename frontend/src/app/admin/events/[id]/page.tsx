@@ -10,7 +10,7 @@ import {
   ChevronLeft, Copy, ExternalLink, Save, RefreshCw, Trash2, EyeOff, Eye,
   Download, Smartphone, AlertCircle, Clapperboard, Sparkles, Film, RotateCcw,
   Mail, MessageSquare, Wifi, Globe, Clock, Lock, Users, Activity,
-  CheckCircle, XCircle, Zap, FileText, Hash, Plus
+  CheckCircle, XCircle, Zap, FileText, Hash, Plus, QrCode
 } from 'lucide-react';
 import QRCode from 'qrcode.react';
 import {
@@ -22,10 +22,12 @@ import {
 import toast from 'react-hot-toast';
 import { LiveDashboard } from '@/components/admin/LiveDashboard';
 import { AnalyticsDashboard } from '@/components/admin/AnalyticsDashboard';
+import { FramesManager } from '@/components/admin/FramesManager';
+import { OrientationSettings } from '@/components/admin/OrientationSettings';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type Tab = 'overview' | 'branding' | 'capture' | 'aistyles' | 'sharing' | 'print' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
+type Tab = 'overview' | 'branding' | 'capture' | 'orientation' | 'aistyles' | 'sharing' | 'print' | 'frames' | 'photos' | 'moderation' | 'leads' | 'analytics' | 'diagnostics';
 
 interface EventData {
   id: string; name: string; slug: string; date: string; venue: string; status: string;
@@ -43,6 +45,13 @@ interface Photo {
 interface Lead {
   id: string; email?: string; name?: string; phone?: string;
   consented: boolean; created_at: string; photo_id?: string;
+}
+interface Frame {
+  id: string;
+  name: string;
+  url: string;
+  isDefault: boolean;
+  isActive: boolean;
 }
 
 interface EventStyle {
@@ -321,6 +330,8 @@ export default function EventManagePage() {
   const [moderatingId, setModeratingId] = useState<string | null>(null);
   const [webhookTesting, setWebhookTesting] = useState(false);
   const [webhookResult, setWebhookResult] = useState<'ok' | 'fail' | null>(null);
+  const [frames, setFrames] = useState<Frame[]>([]);
+  const [framesLoading, setFramesLoading] = useState(false);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingIdle, setUploadingIdle] = useState(false);
@@ -351,8 +362,27 @@ export default function EventManagePage() {
   useEffect(() => {
     if (tab === 'leads' && event && leads.length === 0 && !leadsLoading) handleLoadLeads();
     if (tab === 'aistyles' && event && eventStyles.length === 0 && !stylesLoading) handleLoadStyles();
+    if (tab === 'frames' && event && frames.length === 0 && !framesLoading) handleLoadFrames();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, event?.id]);
+
+  async function handleLoadFrames() {
+    if (!event) return;
+    setFramesLoading(true);
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      const res = await fetch(`${API_BASE}/api/events/${event.id}/frames`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load frames');
+      setFrames(data.frames || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load frames');
+    } finally {
+      setFramesLoading(false);
+    }
+  }
 
   async function handleSave() {
     if (!event) return;
@@ -538,11 +568,12 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
   const NAV: { section: string; icon: React.ComponentType<{ className?: string }>; tabs: { key: Tab; label: string; badge?: number }[] }[] = [
     { section: 'Event',   icon: LayoutDashboard, tabs: [{ key: 'overview', label: 'Overview' }] },
     { section: 'Design',  icon: Palette,         tabs: [{ key: 'branding', label: 'Branding' }] },
-    { section: 'Booth',   icon: Camera,          tabs: [{ key: 'capture',  label: 'Capture & Modes' }] },
+    { section: 'Booth',   icon: Camera,          tabs: [{ key: 'capture',  label: 'Capture & Modes' }, { key: 'orientation', label: 'Orientation' }] },
     { section: 'AI',      icon: Sparkles,        tabs: [{ key: 'aistyles', label: 'AI Styles' }] },
     { section: 'Share',   icon: Share2,          tabs: [{ key: 'sharing',  label: 'Sharing & Email' }] },
     { section: 'Print',   icon: Printer,         tabs: [{ key: 'print',    label: 'Print Setup' }] },
     { section: 'Gallery', icon: ImageIcon,       tabs: [
+      { key: 'frames',     label: 'Frames' },
       { key: 'photos',     label: 'Photos',     badge: visiblePhotos.length || undefined },
       { key: 'moderation', label: 'Moderation', badge: hiddenPhotos.length || undefined },
       { key: 'leads',      label: 'Leads',      badge: leads.length || undefined },
@@ -1013,6 +1044,13 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                   </div>
                 )}
 
+                {/* ══ ORIENTATION ══ */}
+                {tab === 'orientation' && (
+                  <Card title="Orientation & Preview Layout" subtitle="Set preview height and mobile orientation rules" icon={Smartphone}>
+                    <OrientationSettings event={event} updateSettings={updateSettings} />
+                  </Card>
+                )}
+
                 {/* ══ AI STYLES ══ */}
                 {tab === 'aistyles' && (
                   <div className="space-y-6">
@@ -1355,6 +1393,17 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                   </div>
                 )}
 
+                {/* ══ FRAMES ══ */}
+                {tab === 'frames' && (
+                  <Card title="Frame Library" subtitle="Upload and manage frame overlays guests can apply" icon={ImageIcon}>
+                    {framesLoading ? (
+                      <p className="text-zinc-500 text-sm">Loading frames...</p>
+                    ) : (
+                      <FramesManager eventId={event.id} frames={frames} onFramesUpdate={setFrames} />
+                    )}
+                  </Card>
+                )}
+
                 {/* ══ PHOTOS ══ */}
                 {tab === 'photos' && (
                   <div className="space-y-4">
@@ -1549,10 +1598,6 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                 )}
 
                 {/* ══ DIAGNOSTICS ══ */}
-                                {tab === 'orientation' && (
-                  <OrientationSettings event={event} updateSettings={updateSettings} />
-                )}
-
                 {tab === 'diagnostics' && <DiagnosticsPanel eventId={event.id} />}
 
               </motion.div>

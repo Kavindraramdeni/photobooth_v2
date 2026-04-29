@@ -59,8 +59,11 @@ function frontendUrl() {
   return process.env.FRONTEND_URL || 'https://photobooth-v2-xi.vercel.app';
 }
 
-function buildPhotoPageUrl(photoId) {
-  return `${frontendUrl()}/gallery/${photoId}`;
+function buildPhotoPageUrl(photo) {
+  if (photo?.short_code) return `${frontendUrl()}/p/${photo.short_code}`;
+  const slug = photo?.events?.slug || photo?.event_slug;
+  if (slug) return `${frontendUrl()}/gallery/${slug}`;
+  return `${frontendUrl()}/gallery`;
 }
 
 // ─── GET /api/share/:photoId ─ sharing metadata ───────────────────────────────
@@ -75,7 +78,7 @@ router.get('/:photoId', async (req, res) => {
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
 
     const eventName  = photo.events?.name || '';
-    const galleryUrl = buildPhotoPageUrl(photo.id);
+    const galleryUrl = buildPhotoPageUrl(photo);
     const qrCode     = await generateQRDataURL(galleryUrl);
     const whatsappUrl = buildWhatsAppUrl(photo.url, eventName);
 
@@ -115,7 +118,7 @@ router.post('/email', async (req, res) => {
     const primaryColor = photo.events?.branding?.primaryColor || '#7c3aed';
     const fromName     = settings.emailFromName || eventName;
     const replyTo      = settings.emailReplyTo  || null;
-    const photoPageUrl = buildPhotoPageUrl(photo.id);
+    const photoPageUrl = buildPhotoPageUrl(photo);
     // Custom subject/body per event (operator can set in admin)
     const customSubject = settings.emailSubject || null;
     const customBody    = settings.emailBody || null;
@@ -214,7 +217,7 @@ router.post('/sms', async (req, res) => {
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
 
     const eventName   = photo.events?.name || 'SnapBooth';
-    const photoPageUrl = buildPhotoPageUrl(photo.id);
+    const photoPageUrl = buildPhotoPageUrl(photo);
     const eventSettings = photo.events?.settings || {};
     const customSmsMsg  = eventSettings.smsMessage || null;
     const messageBody   = customSmsMsg
