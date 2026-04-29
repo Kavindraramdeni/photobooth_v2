@@ -261,6 +261,22 @@ export function PreviewScreen() {
               }}
               draggable={false}
             />
+            {(event?.branding?.frameUrl as string | null | undefined) && (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={event.branding.frameUrl as string}
+                  alt="Frame overlay"
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  style={{
+                    maxWidth: mode === 'strip' ? '280px' : 'min(100%, calc(100vh - 280px))',
+                    maxHeight: 'calc(100vh - 220px)',
+                    width: 'auto',
+                    height: 'auto',
+                  }}
+                />
+              </>
+            )}
 
             {/* ✅ Captured badge */}
             <motion.div
