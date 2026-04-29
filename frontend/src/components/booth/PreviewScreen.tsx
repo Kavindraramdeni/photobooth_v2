@@ -1,330 +1,186 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer } from 'lucide-react';
-import { useBoothStore } from '@/lib/store';
-import { trackAction } from '@/lib/api';
-import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
-import { useIsDemo } from '@/app/booth/BoothPageClient';
 import toast from 'react-hot-toast';
+import { Maximize2, ChevronUp, Share2, Check, AlertCircle, Wand2, RotateCw, Frame as FrameIcon } from 'lucide-react';
 
-// ── Print — single page, no blank pages ───────────────────────────────────────
-function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
-  const existing = document.getElementById('__snapbooth_print_frame');
-  if (existing) existing.remove();
-  const iframe = document.createElement('iframe');
-  iframe.id = '__snapbooth_print_frame';
-  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none;';
-  document.body.appendChild(iframe);
-  const win = iframe.contentWindow;
-  const doc = iframe.contentDocument || win?.document;
-  if (!doc || !win) { window.open(photoUrl, '_blank'); return; }
-  doc.open(); doc.close();
-  const style = doc.createElement('style');
-  style.textContent = [
-    '* { margin:0; padding:0; box-sizing:border-box; }',
-    'html, body { width:100%; height:100%; overflow:hidden; background:#fff; }',
-    '@page { margin:0; size:4in 6in portrait; }',
-    '@media print { html, body { height:auto; overflow:hidden; }',
-    '  * { page-break-after:avoid !important; page-break-before:avoid !important; page-break-inside:avoid !important; }',
-    '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
-    '.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; }',
-    'img { width:100%; height:auto; max-height:5.4in; object-fit:contain; display:block; }',
-    '.footer { font-size:8pt; color:#555; text-align:center; } .en { font-size:9pt; font-weight:bold; color:#333; }',
-  ].join(' ');
-  doc.head.appendChild(style);
-  const wrap = doc.createElement('div'); wrap.className = 'wrap';
-  const safeScale = Number.isFinite(scale) ? Math.max(70, Math.min(110, scale)) : 98;
-  const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
-  img.style.width = `${safeScale}%`;
-  img.style.margin = '0 auto';
-  wrap.appendChild(img);
-  const en = doc.createElement('p'); en.className = 'en'; en.textContent = eventName; wrap.appendChild(en);
-  const ft = doc.createElement('p'); ft.className = 'footer';
-  ft.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  wrap.appendChild(ft);
-  doc.body.appendChild(wrap);
-  function doPrint() { win!.focus(); win!.print(); }
-  if (img.complete) { setTimeout(doPrint, 400); } else { img.onload = () => setTimeout(doPrint, 400); }
-  setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// Type definitions
+interface EventSettings {
+  countdownSeconds: number;
+  photosPerSession: number;
+  allowRetakes: boolean;
+  allowAI: boolean;
+  allowGIF: boolean;
+  allowBoomerang: boolean;
+  allowPrint: boolean;
+  allowFrameOverlays?: boolean;
+  allowBrandingOverlay?: boolean;
+  allowEmailShare?: boolean;
+  allowInstagram?: boolean;
+  allowAirDrop?: boolean;
+  allowWhatsApp?: boolean;
+  [key: string]: any;
 }
 
-// ── Action button — used in both portrait row and landscape panel ─────────────
-function ActionBtn({
-  onClick, icon, label, color, accent = false, disabled = false,
+interface Event {
+  id: string;
+  name: string;
+  slug: string;
+  branding?: any;
+  settings?: EventSettings;
+}
+
+interface Photo {
+  id: string;
+  url: string;
+  [key: string]: any;
+}
+
+interface Frame {
+  id: string;
+  name: string;
+  url: string;
+  is_active: boolean;
+  is_default: boolean;
+}
+
+export function PreviewScreen({
+  photo,
+  event,
+  onShare,
+  onRetake,
+  setScreen,
+  currentPhoto,
+  resetTimer,
 }: {
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  color?: string;
-  accent?: boolean;
-  disabled?: boolean;
+  photo: Photo | null;
+  event: Event | null;
+  onShare: (frame?: string) => void;
+  onRetake: () => void;
+  setScreen: (screen: string) => void;
+  currentPhoto: Photo | null;
+  resetTimer: () => void;
 }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.93 }}
-      onClick={onClick}
-      disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-colors active:opacity-80 disabled:opacity-40 h-16 sm:h-auto sm:py-4 px-2 sm:px-3 min-w-[64px] sm:min-w-0 sm:w-full"
-      style={color ? { background: color } : accent
-        ? { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }
-        : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }
-      }
-    >
-      <span className="w-6 h-6 flex items-center justify-center">{icon}</span>
-      <span className="leading-none text-center">{label}</span>
-    </motion.button>
-  );
-}
-
-export function PreviewScreen() {
-  const { currentPhoto, event, mode, setScreen, resetSession } = useBoothStore();
-  const [showLeadModal, setShowLeadModal] = useState(false);
-  const isDemo = useIsDemo();
-
-  // Guard: redirect safely via effect, never during render
-  useEffect(() => {
-    if (!currentPhoto) setScreen('idle');
-  }, [currentPhoto, setScreen]);
-
-  if (!currentPhoto) return null;
-  const photo = currentPhoto;
-
-  const settings = event?.settings;
-  const primaryColor = event?.branding?.primaryColor || '#7c3aed';
-  const isGIF = mode === 'gif' || mode === 'boomerang';
-  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Strip' : 'Photo';
-  const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
-
-  function handleShareClick() {
-    if (event?.settings?.leadCapture) setShowLeadModal(true);
-    else setScreen('share');
-  }
-
-  const printScale = (event?.settings?.printScale as number) || 98;
-
-  async function handlePrint() {
-    if (!event) return;
-    try {
-      printPhotoOnly(photo.url, eventName, printScale);
-      await trackAction(event.id, 'photo_printed', { photoId: photo.id });
-      toast.success('Sent to printer!');
-    } catch { toast.error('Print failed — try again'); }
-  }
-
-  // ── Auto-print: fires once on mount if operator enabled it ─────────────────
-  const autoPrinted = useRef(false);
+  const [activeFilter, setActiveFilter] = useState<string>('none');
   const [showEffects, setShowEffects] = useState(false);
   const [showFrames, setShowFrames] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('none');
+  const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+  const [availableFrames, setAvailableFrames] = useState<Frame[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeoutSecs] = useState(10);
 
-  // CSS filters applied live on the preview image
-  const EFFECTS = [
-    { key: 'none',       label: 'Original',  style: 'none' },
-    { key: 'bw',         label: 'B&W',        style: 'grayscale(100%)' },
-    { key: 'warm',       label: 'Warm',       style: 'sepia(60%) saturate(140%) brightness(105%)' },
-    { key: 'cool',       label: 'Cool',       style: 'hue-rotate(200deg) saturate(120%)' },
-    { key: 'vivid',      label: 'Vivid',      style: 'saturate(180%) contrast(110%)' },
-    { key: 'fade',       label: 'Fade',       style: 'contrast(85%) brightness(110%) saturate(80%)' },
-    { key: 'drama',      label: 'Drama',      style: 'contrast(140%) brightness(90%) saturate(110%)' },
-    { key: 'golden',     label: 'Golden',     style: 'sepia(80%) hue-rotate(-20deg) saturate(160%) brightness(108%)' },
-  ];
-  const currentFilter = EFFECTS.find(e => e.key === activeFilter)?.style || 'none';
+  // Load frames on mount
   useEffect(() => {
-    const autoPrint = event?.settings?.autoPrint as boolean | undefined;
-    if (autoPrint && !autoPrinted.current && photo?.url && event) {
-      autoPrinted.current = true;
-      // Small delay so the photo renders first
-      setTimeout(() => {
-        printPhotoOnly(photo.url, eventName, printScale);
-        trackAction(event.id, 'photo_printed', { photoId: photo.id, auto: true });
-        toast.success('🖨️ Auto-printing...', { duration: 2000 });
-      }, 800);
+    if (!currentPhoto?.url) {
+      setScreen('idle');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build action list dynamically
+    // Load available frames
+    if (event?.id && (event.settings?.allowFrameOverlays as boolean) !== false) {
+      fetch(`${API_BASE}/api/events/${event.id}/frames`)
+        .then((r) => r.json())
+        .then((data) => {
+          setAvailableFrames(data.frames || []);
+          // Set default frame
+          const defaultFrame = data.frames?.find((f: Frame) => f.is_default);
+          if (defaultFrame) setSelectedFrame(defaultFrame.id);
+        })
+        .catch((err) => console.warn('Failed to load frames:', err));
+    }
+  }, [currentPhoto?.url, event?.id, setScreen, event?.settings?.allowFrameOverlays]);
+
+  // Countdown timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          onShare(selectedFrame || undefined);
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [onShare, selectedFrame]);
+
+  const EFFECTS = [
+    { key: 'none', label: 'Normal', style: 'none' },
+    { key: 'grayscale', label: 'B&W', style: 'grayscale(100%)' },
+    { key: 'sepia', label: 'Sepia', style: 'sepia(100%)' },
+    { key: 'saturate', label: 'Vivid', style: 'saturate(150%)' },
+    { key: 'cool', label: 'Cool', style: 'hue-rotate(180deg)' },
+  ];
+
   const actions = [
     {
-      id: 'effects', icon: <Wand2 className="w-5 h-5" />, label: 'Effects',
-      color: 'linear-gradient(135deg,#0ea5e9,#6366f1)',
-      onClick: () => setShowEffects(v => !v),
+      id: 'effects',
+      icon: <Wand2 className="w-5 h-5" />,
+      label: 'Effects',
+      action: () => {},
+      onClick: () => setShowEffects((v) => !v),
     },
     {
-      id: 'share', icon: <Share2 className="w-5 h-5" />, label: 'Share & QR',
-      color: '#2563eb', onClick: handleShareClick,
+      id: 'frames',
+      icon: <FrameIcon className="w-5 h-5" />,
+      label: 'Frames',
+      action: () => {},
+      onClick: () => setShowFrames((v) => !v),
+      hidden: (event?.settings?.allowFrameOverlays as boolean) === false || availableFrames.length === 0,
     },
-    ...(settings?.allowPrint !== false ? [{
-      id: 'print', icon: <Printer className="w-5 h-5" />, label: 'Print',
-      color: undefined, onClick: handlePrint,
-    }] : []),
-    ...(settings?.allowRetakes !== false ? [{
-      id: 'retake', icon: <RefreshCw className="w-5 h-5" />, label: 'Retake',
-      color: undefined, onClick: () => setScreen('countdown'),
-    }] : []),
   ];
 
-  return (
-    <div className="w-full h-full flex flex-col bg-[#080810] select-none overflow-hidden">
+  if (!photo) {
+    return (
+      <div className="w-full h-full bg-black flex items-center justify-center">
+        <div className="text-white text-center">
+          <p className="text-lg font-semibold">No photo captured</p>
+          <button
+            onClick={() => setScreen('capture')}
+            className="mt-4 px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white font-semibold"
+          >
+            Retake
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3
-                      border-b border-white/[0.07] bg-[#0d0d1a]">
+  return (
+    <div className="w-full h-full flex flex-col bg-[#0a0a0f] select-none overflow-hidden">
+      {/* Header */}
+      <div
+        className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#0d0d18]"
+        onClick={resetTimer}
+      >
         <button
-          onClick={() => setScreen('idle')}
-          className="text-white/40 hover:text-white/80 transition-colors text-sm font-medium px-2 py-1.5 rounded-lg hover:bg-white/5"
+          onClick={() => setScreen('capture')}
+          className="text-white/50 hover:text-white transition-colors text-sm px-2 py-1"
         >
           ← Back
         </button>
         <div className="text-center">
-          <h2 className="text-white font-bold text-base leading-tight">Your {modeLabel}</h2>
-          {event?.name && <p className="text-white/25 text-[11px] mt-0.5">{event.name}</p>}
+          <h2 className="text-white font-bold text-base">Preview</h2>
+          {timeoutSecs > 0 && <p className="text-white/30 text-[10px] mt-0.5">Auto-share in {timeLeft}s</p>}
         </div>
-        <div className="w-16" />
+        <div className="w-12"></div>
       </div>
 
-      {/* ── Body — responsive split ─────────────────────────────────────────
-           Portrait  (< sm): flex-col  — photo top, actions bottom row
-           Landscape (≥ sm): flex-row  — photo left, actions right panel
-      ── */}
-      <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0">
-
-        {/* ── PHOTO AREA ─────────────────────────────────────────────────── */}
-        <div className="
-          relative flex items-center justify-center overflow-hidden
-          /* portrait: 55% height, no padding top */ 
-          flex-[0_0_55%] sm:flex-1
-          p-3 sm:p-4
-        ">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-            className="relative w-full h-full flex items-center justify-center"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo.url}
-              alt="Your photo"
-              className="rounded-2xl shadow-2xl object-contain"
-              style={{
-                // Strip is narrow portrait — constrain width
-                // Single/GIF — fill available space but don't overflow
-                maxWidth: mode === 'strip' ? '280px' : 'min(100%, calc(100vh - 280px))',
-                maxHeight: 'calc(100vh - 220px)',
-                width: 'auto',
-                height: 'auto',
-                filter: currentFilter,
-                transition: 'filter 0.25s ease',
-              }}
-              draggable={false}
-            />
-
-            {/* ✅ Captured badge */}
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.35, type: 'spring' }}
-              className="absolute top-3 right-3 flex items-center gap-1.5 bg-green-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg"
-            >
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span>Captured!</span>
-            </motion.div>
-
-            {/* Retake circle — landscape only, floats bottom-center of photo */}
-            {settings?.allowRetakes !== false && (
-              <motion.button
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45 }}
-                whileTap={{ scale: 0.88 }}
-                onClick={() => setScreen('countdown')}
-                className="
-                  hidden sm:flex /* landscape only — portrait has it in actions row */
-                  absolute bottom-5 left-1/2 -translate-x-1/2
-                  flex-col items-center gap-1 group
-                "
-              >
-                <div className="w-14 h-14 rounded-full bg-black/40 border-2 border-white/30
-                                flex items-center justify-center backdrop-blur-md
-                                group-hover:bg-black/60 group-hover:border-white/50 transition-all shadow-xl">
-                  <RefreshCw className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-white/50 text-[11px] font-medium">Retake</span>
-              </motion.button>
-            )}
-          </motion.div>
-        </div>
-
-        {/* ── ACTIONS ────────────────────────────────────────────────────────
-             Portrait:  horizontal scrollable row at the bottom of photo section
-             Landscape: fixed-width vertical panel on the right
-        ── */}
-
-        {/* PORTRAIT row (hidden on sm+) */}
-        <div className="
-          flex sm:hidden
-          flex-shrink-0 overflow-x-auto overflow-y-hidden
-          gap-2 px-3 py-2
-          border-t border-white/[0.06] bg-[#0d0d1a]/70
-          scrollbar-none
-        "
-          style={{ WebkitOverflowScrolling: 'touch' }}
-        >
-          {actions.map((a, i) => (
-            <motion.div
-              key={a.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.06 }}
-              className="flex-shrink-0"
-            >
-              <ActionBtn
-                onClick={a.onClick}
-                icon={a.icon}
-                label={a.label}
-                color={a.color}
-              />
-            </motion.div>
-          ))}
-        </div>
-
-        {/* LANDSCAPE panel (hidden on mobile, shown on sm+) */}
-        <motion.div
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.12 }}
-          className="hidden sm:flex flex-shrink-0 flex-col gap-2.5 py-4 px-2.5 border-l border-white/[0.06] bg-[#0d0d1a]/60 overflow-y-auto"
-          style={{ width: '140px', minWidth: '140px' }}
-        >
-          {actions.map((a, i) => (
-            <motion.div
-              key={a.id}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 + i * 0.07 }}
-            >
-              <ActionBtn
-                onClick={a.onClick}
-                icon={a.icon}
-                label={a.label}
-                color={a.color}
-              />
-            </motion.div>
-          ))}
-
-          {/* Effects — coming soon */}
-          <div className="flex flex-col items-center gap-1.5 py-4 rounded-2xl
-                          text-white/15 text-xs border border-white/[0.06] border-dashed mt-auto">
-            <span className="text-lg">🎨</span>
-            <span>Effects</span>
-            <span className="text-[9px] opacity-70">Soon</span>
-          </div>
-        </motion.div>
+      {/* Photo Preview */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden bg-black p-4">
+        <img
+          src={photo.url}
+          alt="Preview"
+          className="max-w-full max-h-full object-contain rounded-xl"
+          style={{ filter: EFFECTS.find((e) => e.key === activeFilter)?.style || 'none' }}
+        />
       </div>
 
-      {/* ── Effects Panel (slides up) ───────────────────────────────────── */}
+      {/* Effects Panel (slides up) */}
       <AnimatePresence>
         {showEffects && (
           <motion.div
@@ -336,25 +192,31 @@ export function PreviewScreen() {
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-white/60 text-xs font-bold uppercase tracking-widest">🪄 Live Effects</span>
-              <button onClick={() => setShowEffects(false)}
-                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">
+              <button
+                onClick={() => setShowEffects(false)}
+                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10"
+              >
                 ✕
               </button>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {EFFECTS.map(ef => (
-                <button key={ef.key}
+              {EFFECTS.map((ef) => (
+                <button
+                  key={ef.key}
                   onClick={() => setActiveFilter(ef.key)}
                   className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all ${
                     activeFilter === ef.key
                       ? 'border-sky-400 bg-sky-500/20 text-sky-200'
                       : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
-                  }`}>
+                  }`}
+                >
                   <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt=""
+                    <img
+                      src={photo.url}
+                      alt=""
                       className="absolute inset-0 w-full h-full object-cover"
-                      style={{ filter: ef.style }} />
+                      style={{ filter: ef.style }}
+                    />
                   </div>
                   <span className="text-[10px] font-semibold leading-none whitespace-nowrap">{ef.label}</span>
                 </button>
@@ -364,7 +226,7 @@ export function PreviewScreen() {
         )}
       </AnimatePresence>
 
-            {/* ── Frames Panel (slides up) ───────────────────────────────────── */}
+      {/* Frames Panel (slides up) */}
       <AnimatePresence>
         {(event?.settings?.allowFrameOverlays as boolean) !== false && availableFrames.length > 0 && showFrames && (
           <motion.div
@@ -376,78 +238,76 @@ export function PreviewScreen() {
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-white/60 text-xs font-bold uppercase tracking-widest">🖼️ Frame Overlays</span>
-              <button onClick={() => setShowFrames(false)}
-                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">
+              <button
+                onClick={() => setShowFrames(false)}
+                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10"
+              >
                 ✕
               </button>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {availableFrames.filter((f: any) => f.is_active).map((frame: any) => (
-                <button key={frame.id}
-                  onClick={() => setSelectedFrame(frame.id)}
-                  className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all ${
-                    selectedFrame === frame.id
-                      ? 'border-violet-400 bg-violet-500/20 text-violet-200 font-semibold'
-                      : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
-                  }`}>
-                  {frame.name}
-                </button>
-              ))}
+              {availableFrames
+                .filter((f) => f.is_active)
+                .map((frame) => (
+                  <button
+                    key={frame.id}
+                    onClick={() => setSelectedFrame(frame.id)}
+                    className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all ${
+                      selectedFrame === frame.id
+                        ? 'border-violet-400 bg-violet-500/20 text-violet-200 font-semibold'
+                        : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
+                    }`}
+                  >
+                    {frame.name}
+                  </button>
+                ))}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Bottom bar ─────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-4 pb-safe-or-5 pt-2
-                      border-t border-white/[0.06] bg-[#0d0d1a]/50 space-y-2"
-           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}>
+      {/* Bottom bar */}
+      <div
+        className="flex-shrink-0 px-4 pb-safe-or-5 pt-2 border-t border-white/[0.06] bg-[#0d0d1a]/50 space-y-2"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
+      >
+        {/* Action buttons */}
+        <div className="flex gap-2 justify-center mb-3">
+          {actions
+            .filter((a) => !(a as any).hidden)
+            .map((action) => (
+              <motion.button
+                key={action.id}
+                whileTap={{ scale: 0.9 }}
+                onClick={action.onClick}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all text-sm font-semibold"
+              >
+                {action.icon}
+                {action.label}
+              </motion.button>
+            ))}
+        </div>
 
-        {/* Demo CTA */}
-        {isDemo && (
-          <motion.a
-            href="/signup"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            whileTap={{ scale: 0.98 }}
-            className="block w-full rounded-2xl overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7 50%,#ec4899)' }}
+        {/* Primary action buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={onRetake}
+            className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold transition-all"
           >
-            <div className="flex items-center justify-between px-4 py-3 gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Rocket className="w-5 h-5 text-white flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-white font-bold text-xs leading-tight truncate">Love it? This is YOUR booth.</p>
-                  <p className="text-white/70 text-[10px] truncate">Free trial — no card needed</p>
-                </div>
-              </div>
-              <span className="flex-shrink-0 bg-white text-purple-700 font-black text-xs px-3 py-1.5 rounded-lg">
-                Try Free →
-              </span>
-            </div>
-          </motion.a>
-        )}
-
-        {/* Done — centred, full width */}
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all active:opacity-80"
-          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}cc)` }}
-        >
-          ✅ Done — Take Another
-        </motion.button>
+            <RotateCw className="w-5 h-5" />
+            Retake
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onShare(selectedFrame || undefined)}
+            className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition-all shadow-lg shadow-violet-500/30"
+          >
+            <Share2 className="w-5 h-5" />
+            Share
+          </motion.button>
+        </div>
       </div>
-
-      {/* Lead capture modal */}
-      <AnimatePresence>
-        {showLeadModal && (
-          <LeadCaptureModal
-            onContinue={() => { setShowLeadModal(false); setScreen('share'); }}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
