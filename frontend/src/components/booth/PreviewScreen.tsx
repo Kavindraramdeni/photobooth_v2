@@ -116,6 +116,7 @@ export function PreviewScreen() {
   // ── Auto-print: fires once on mount if operator enabled it ─────────────────
   const autoPrinted = useRef(false);
   const [showEffects, setShowEffects] = useState(false);
+  const [showFrames, setShowFrames] = useState(false);
   const [activeFilter, setActiveFilter] = useState('none');
 
   // CSS filters applied live on the preview image
@@ -356,6 +357,40 @@ export function PreviewScreen() {
                       style={{ filter: ef.style }} />
                   </div>
                   <span className="text-[10px] font-semibold leading-none whitespace-nowrap">{ef.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+            {/* ── Frames Panel (slides up) ───────────────────────────────────── */}
+      <AnimatePresence>
+        {(event?.settings?.allowFrameOverlays as boolean) !== false && availableFrames.length > 0 && showFrames && (
+          <motion.div
+            initial={{ y: 140, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 140, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="absolute bottom-0 left-0 right-0 z-30 bg-[#0d0d1a]/97 backdrop-blur-xl border-t border-white/10 px-4 pt-4 pb-6"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">🖼️ Frame Overlays</span>
+              <button onClick={() => setShowFrames(false)}
+                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">
+                ✕
+              </button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {availableFrames.filter((f: any) => f.is_active).map((frame: any) => (
+                <button key={frame.id}
+                  onClick={() => setSelectedFrame(frame.id)}
+                  className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all ${
+                    selectedFrame === frame.id
+                      ? 'border-violet-400 bg-violet-500/20 text-violet-200 font-semibold'
+                      : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
+                  }`}>
+                  {frame.name}
                 </button>
               ))}
             </div>
