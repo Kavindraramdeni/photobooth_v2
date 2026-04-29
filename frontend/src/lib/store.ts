@@ -41,6 +41,7 @@ export interface Event {
     allowAI: boolean;
     allowGIF: boolean;
     allowBoomerang: boolean;
+    allowFrameOverlays?: boolean;
     allowPrint: boolean;
     printCopies: number;
     aiStyles: string[];
