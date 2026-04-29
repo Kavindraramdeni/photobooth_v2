@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer } from 'lucide-react';
+import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer, Image as ImageIcon, X } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
@@ -79,8 +79,11 @@ function ActionBtn({
 }
 
 export function PreviewScreen() {
-  const { currentPhoto, event, mode, setScreen, resetSession } = useBoothStore();
+  const { currentPhoto, event, mode, setScreen, resetSession, setEvent } = useBoothStore();
   const [showLeadModal, setShowLeadModal] = useState(false);
+  const [showFrames, setShowFrames] = useState(false);
+  const [framesLoading, setFramesLoading] = useState(false);
+  const [frames, setFrames] = useState<Array<{ id: string; name: string; url: string; isDefault?: boolean; isActive?: boolean }>>([]);
   const isDemo = useIsDemo();
 
   // Guard: redirect safely via effect, never during render
@@ -116,7 +119,6 @@ export function PreviewScreen() {
   // ── Auto-print: fires once on mount if operator enabled it ─────────────────
   const autoPrinted = useRef(false);
   const [showEffects, setShowEffects] = useState(false);
-  const [showFrames, setShowFrames] = useState(false);
   const [activeFilter, setActiveFilter] = useState('none');
 
   // CSS filters applied live on the preview image
@@ -144,6 +146,37 @@ export function PreviewScreen() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function loadFrames() {
+    if (!event?.id) return;
+    setFramesLoading(true);
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/events/${event.id}/frames`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load frames');
+      setFrames((data.frames || []).filter((f: { isActive?: boolean }) => f.isActive !== false));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load frames');
+    } finally {
+      setFramesLoading(false);
+    }
+  }
+
+  function selectFrame(frameUrl: string | null) {
+    if (!event) return;
+    setEvent({
+      ...event,
+      branding: {
+        ...event.branding,
+        frameUrl,
+      },
+    });
+    setShowFrames(false);
+    toast.success(frameUrl ? 'Frame applied' : 'Frame cleared');
+  }
+
   // Build action list dynamically
   const actions = [
     {
@@ -151,6 +184,14 @@ export function PreviewScreen() {
       color: 'linear-gradient(135deg,#0ea5e9,#6366f1)',
       onClick: () => setShowEffects(v => !v),
     },
+    ...(settings?.allowFrameOverlays ? [{
+      id: 'frames', icon: <ImageIcon className="w-5 h-5" />, label: 'Frames',
+      color: 'linear-gradient(135deg,#7c3aed,#a855f7)',
+      onClick: async () => {
+        setShowFrames(true);
+        if (frames.length === 0) await loadFrames();
+      },
+    }] : []),
     {
       id: 'share', icon: <Share2 className="w-5 h-5" />, label: 'Share & QR',
       color: '#2563eb', onClick: handleShareClick,
@@ -364,40 +405,6 @@ export function PreviewScreen() {
         )}
       </AnimatePresence>
 
-            {/* ── Frames Panel (slides up) ───────────────────────────────────── */}
-      <AnimatePresence>
-        {(event?.settings?.allowFrameOverlays as boolean) !== false && availableFrames.length > 0 && showFrames && (
-          <motion.div
-            initial={{ y: 140, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 140, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="absolute bottom-0 left-0 right-0 z-30 bg-[#0d0d1a]/97 backdrop-blur-xl border-t border-white/10 px-4 pt-4 pb-6"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">🖼️ Frame Overlays</span>
-              <button onClick={() => setShowFrames(false)}
-                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">
-                ✕
-              </button>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {availableFrames.filter((f: any) => f.is_active).map((frame: any) => (
-                <button key={frame.id}
-                  onClick={() => setSelectedFrame(frame.id)}
-                  className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all ${
-                    selectedFrame === frame.id
-                      ? 'border-violet-400 bg-violet-500/20 text-violet-200 font-semibold'
-                      : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
-                  }`}>
-                  {frame.name}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Bottom bar ─────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 px-4 pb-safe-or-5 pt-2
                       border-t border-white/[0.06] bg-[#0d0d1a]/50 space-y-2"
@@ -442,6 +449,47 @@ export function PreviewScreen() {
 
       {/* Lead capture modal */}
       <AnimatePresence>
+        {showFrames && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm p-4 sm:p-6 flex items-end sm:items-center justify-center"
+            onClick={() => setShowFrames(false)}
+          >
+            <motion.div
+              initial={{ y: 24, opacity: 0.9 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0.9 }}
+              className="w-full max-w-2xl bg-[#12121a] border border-white/10 rounded-3xl p-5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-bold">Choose Frame</h3>
+                <button onClick={() => setShowFrames(false)} className="text-white/50 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {framesLoading ? (
+                <p className="text-white/60 text-sm">Loading frames...</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <button onClick={() => selectFrame(null)}
+                    className="h-28 rounded-xl border border-white/15 text-white/80 text-sm hover:bg-white/5">
+                    No Frame
+                  </button>
+                  {frames.map(frame => (
+                    <button key={frame.id} onClick={() => selectFrame(frame.url)}
+                      className={`relative h-28 rounded-xl overflow-hidden border ${
+                        event?.branding?.frameUrl === frame.url ? 'border-violet-500' : 'border-white/10'
+                      }`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={frame.url} alt={frame.name} className="w-full h-full object-cover" />
+                      <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] py-1 px-2 truncate">{frame.name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
         {showLeadModal && (
           <LeadCaptureModal
             onContinue={() => { setShowLeadModal(false); setScreen('share'); }}
