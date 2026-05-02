@@ -185,14 +185,34 @@ export default function HomePage() {
               See live demo
             </Link>
           </div>
+{/* Submission Links */}
+<div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-white/40">
 
-          {/* Social proof */}
-          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/30">
-            <span>✓ No credit card required</span>
-            <span>✓ 7-day free trial</span>
-            <span>✓ Setup in 2 minutes</span>
-          </div>
-        </motion.div>
+  <a
+    href="https://github.com/your-github-username/snapbooth-ai"
+    target="_blank"
+    className="hover:text-white/70 transition"
+  >
+    🔗 GitHub Repository
+  </a>
+
+  <a
+    href="https://your-live-deployment-link.vercel.app"
+    target="_blank"
+    className="hover:text-white/70 transition"
+  >
+    🚀 Live Deployment
+  </a>
+
+  <a
+    href="https://linkedin.com/in/your-linkedin-id"
+    target="_blank"
+    className="hover:text-white/70 transition"
+  >
+    💼 LinkedIn Profile
+  </a>
+
+</div>
 
         {/* Scroll */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.4 }}
