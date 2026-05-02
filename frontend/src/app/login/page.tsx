@@ -122,14 +122,14 @@ function LoginForm() {
             {isDev && (
               <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-400">
                 <p className="font-medium text-gray-300 mb-1">Dev Login Hint</p>
-                <p>Email: test@example.com</p>
-                <p>Password: password123</p>
+                <p>Email: Kavindraraj1703@gmail.com</p>
+                <p>Password: Kavindr@7893</p>
 
                 <button
                   type="button"
                   onClick={() => {
-                    setEmail('test@example.com');
-                    setPassword('password123');
+                    setEmail('Kavindraraj1703@gmail.com');
+                    setPassword('Kavindr@7893');
                   }}
                   className="mt-2 text-violet-400 hover:text-violet-300"
                 >
