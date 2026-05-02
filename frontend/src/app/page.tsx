@@ -191,7 +191,7 @@ export default function HomePage() {
 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-white/40">
 
   <a
-    href="https://github.com/your-github-username"
+    href="https://github.com/Kavindraramdeni/photobooth_v2"
     target="_blank"
     rel="noreferrer"
     className="hover:text-white/70 transition"
@@ -200,7 +200,7 @@ export default function HomePage() {
   </a>
 
   <a
-    href="https://your-live-deployment-link.vercel.app"
+    href="https://photobooth-v2-ten.vercel.app/"
     target="_blank"
     rel="noreferrer"
     className="hover:text-white/70 transition"
@@ -209,7 +209,7 @@ export default function HomePage() {
   </a>
 
   <a
-    href="https://linkedin.com/in/your-linkedin-id"
+    href="www.linkedin.com/in/kavindra-raj"
     target="_blank"
     rel="noreferrer"
     className="hover:text-white/70 transition"
