@@ -12,8 +12,10 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams.get('from') || '/admin';
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const isDev = process.env.NODE_ENV === 'development';
+
+  const [email, setEmail] = useState(isDev ? 'test@example.com' : '');
+  const [password, setPassword] = useState(isDev ? 'password123' : '');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,6 +37,7 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 mb-4">
@@ -46,6 +49,7 @@ function LoginForm() {
 
         {/* Card */}
         <div className="bg-[#12121a] border border-white/10 rounded-2xl p-8">
+          
           {error && (
             <div className="mb-5 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
               {error}
@@ -53,9 +57,12 @@ function LoginForm() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
@@ -73,13 +80,20 @@ function LoginForm() {
             {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-gray-300">Password</label>
-                <Link href="/forgot-password" className="text-xs text-violet-400 hover:text-violet-300 transition">
+                <label className="block text-sm font-medium text-gray-300">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-violet-400 hover:text-violet-300 transition"
+                >
                   Forgot password?
                 </Link>
               </div>
+
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -89,15 +103,40 @@ function LoginForm() {
                   placeholder="••••••••"
                   className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-10 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition"
                 />
+
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
+
+            {/* Dev Hints (NEW) */}
+            {isDev && (
+              <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-400">
+                <p className="font-medium text-gray-300 mb-1">Dev Login Hint</p>
+                <p>Email: test@example.com</p>
+                <p>Password: password123</p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('test@example.com');
+                    setPassword('password123');
+                  }}
+                  className="mt-2 text-violet-400 hover:text-violet-300"
+                >
+                  Autofill credentials
+                </button>
+              </div>
+            )}
 
             {/* Submit */}
             <button
@@ -106,17 +145,24 @@ function LoginForm() {
               className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Signing in...</>
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Signing in...
+                </>
               ) : (
                 'Sign in'
               )}
             </button>
+
           </form>
         </div>
 
         <p className="text-center text-gray-500 text-sm mt-6">
           Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-violet-400 hover:text-violet-300 transition font-medium">
+          <Link
+            href="/signup"
+            className="text-violet-400 hover:text-violet-300 transition font-medium"
+          >
             Create one free
           </Link>
         </p>
@@ -127,7 +173,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="text-white">Loading...</div>}>
       <LoginForm />
     </Suspense>
   );
