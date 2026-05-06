@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 
 const metrics = [
-  { label: 'Photos generated', value: '1.2M+' },
-  { label: 'Events powered', value: '8,500+' },
+  { label: 'Photos generated', value: '24,800+' },
+  { label: 'Events powered', value: '320+' },
   { label: 'Avg share speed', value: '2.4s' },
   { label: 'Uptime', value: '99.95%' },
 ];
@@ -114,7 +114,7 @@ export default function HomePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-white/60">Live booth session</p>
-                    <h3 className="text-xl font-semibold mt-1">Corporate Gala 2026</h3>
+                    <h3 className="text-xl font-semibold mt-1">Live Demo Event</h3>
                   </div>
                   <Camera className="w-8 h-8 text-violet-300" />
                 </div>
