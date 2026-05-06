@@ -185,51 +185,62 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
   console.log('[Gemini] Attempting generation, key length:', GEMINI_KEY.length);
 
   // Model confirmed working in gembooth (same SDK)
-  const MODEL_NAMES = [
-    'gemini-2.5-flash-image',
-    'gemini-2.0-flash-exp',
-    'gemini-2.0-flash-preview-image-generation',
-  ];
+  const MODEL_NAMES = (process.env.GEMINI_IMAGE_MODELS
+    ? process.env.GEMINI_IMAGE_MODELS.split(',').map(s => s.trim()).filter(Boolean)
+    : [
+      'gemini-2.5-flash-image',
+      'gemini-2.5-flash-image-preview',
+    ]);
 
   for (const modelName of MODEL_NAMES) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        config: {
-          responseModalities: Modality
-            ? [Modality.TEXT, Modality.IMAGE]
-            : ['TEXT', 'IMAGE'],
-        },
-        contents: [{
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                data: base64Image,
-                mimeType: 'image/jpeg',
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          config: {
+            responseModalities: Modality
+              ? [Modality.TEXT, Modality.IMAGE]
+              : ['TEXT', 'IMAGE'],
+          },
+          contents: [{
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  data: base64Image,
+                  mimeType: 'image/jpeg',
+                },
               },
-            },
-            { text: prompt },
-          ],
-        }],
-      });
+              { text: prompt },
+            ],
+          }],
+        });
 
-      // Find the image part in the response
-      const parts = response?.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find(p => p.inlineData?.data);
+        // Find the image part in the response
+        const parts = response?.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find(p => p.inlineData?.data);
 
-      if (!imagePart) {
-        console.warn(`[Gemini] ${modelName}: no image in response`);
-        continue;
+        if (!imagePart) {
+          console.warn(`[Gemini] ${modelName}: no image in response`);
+          break;
+        }
+
+        console.log(`[Gemini] ✅ Generated via ${modelName}`);
+        const outputBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+        return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
+
+      } catch (err) {
+        const message = err.message || '';
+        const isBusy = message.includes('"code":503') || message.toLowerCase().includes('high demand');
+        const isNotFound = message.includes('"code":404') || message.toLowerCase().includes('not found');
+        console.warn(`[Gemini] ${modelName} attempt ${attempt} error:`, message.slice(0, 180));
+        if (isNotFound) break;
+        if (isBusy && attempt < 3) {
+          await new Promise((r) => setTimeout(r, attempt * 1500));
+          continue;
+        }
+        break;
       }
-
-      console.log(`[Gemini] ✅ Generated via ${modelName}`);
-      const outputBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-      return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
-
-    } catch (err) {
-      console.warn(`[Gemini] ${modelName} error:`, err.message?.slice(0, 150));
-      continue;
     }
   }
 
@@ -239,7 +250,10 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
 
 async function generateWithFal(imageBuffer, styleKey, customPrompt = null) {
   const FAL_KEY = process.env.FAL_API_KEY;
-  if (!FAL_KEY) return null;
+  if (!FAL_KEY) {
+    console.warn('[AI] Fal.ai skipped: FAL_API_KEY not set');
+    return null;
+  }
 
   const style = getStyleContext(styleKey, customPrompt);
 
