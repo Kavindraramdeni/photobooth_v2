@@ -358,7 +358,10 @@ const HF_MODELS = {
 
 async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = null) {
   const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
-  if (!HF_TOKEN) return null;
+  if (!HF_TOKEN) {
+    console.warn('[AI] HuggingFace skipped: HUGGINGFACE_API_TOKEN not set');
+    return null;
+  }
 
   const style = getStyleContext(styleKey, customPrompt);
   const model = HF_MODELS[styleKey] || HF_MODELS.anime;
@@ -403,6 +406,7 @@ async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = nul
 async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
   const style = { name: styleKey, ...(AI_STYLES[styleKey] || {}) };
   if (!sharp) return { buffer: imageBuffer, style: style.name, styleKey, tier: 'passthrough' };
+  const promptText = (customPrompt || style.prompt || '').toLowerCase();
 
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
 
@@ -516,7 +520,27 @@ async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
       break;
 
     default:
-      img = img.modulate({ brightness: 1.05, saturation: 1.6 });
+      // Unknown custom style keys: apply stronger "clearly different" cinematic treatment.
+      // This avoids outputs that look almost identical to the original preview image.
+      if (promptText.includes('old') || promptText.includes('aged') || promptText.includes('wrinkle')) {
+        img = img
+          .modulate({ brightness: 0.94, saturation: 0.45 })
+          .tint({ r: 235, g: 215, b: 185 })
+          .gamma(1.25)
+          .blur(0.35)
+          .sharpen({ sigma: 0.7 });
+      } else if (promptText.includes('anime') || promptText.includes('cartoon') || promptText.includes('comic')) {
+        img = img
+          .modulate({ brightness: 1.12, saturation: 2.9, hue: 8 })
+          .sharpen({ sigma: 3.2, m1: 3.5, m2: 0.2 })
+          .gamma(0.82);
+      } else {
+        img = img
+          .modulate({ brightness: 1.14, saturation: 2.25, hue: 6 })
+          .tint({ r: 248, g: 232, b: 255 })
+          .sharpen({ sigma: 2.2, m1: 2.2, m2: 0.5 })
+          .gamma(0.9);
+      }
   }
 
   const buffer = await img.jpeg({ quality: 94 }).toBuffer();
