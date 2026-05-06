@@ -1,212 +1,249 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader, ArrowLeft, X, Check } from 'lucide-react';
+import { Sparkles, Wand2, Share2, ImagePlus, RotateCcw } from 'lucide-react';
+import { useBoothStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-export function AIStudioScreen({ 
-  event, 
-  currentPhoto, 
-  onBack,
-  onConfirm,
-  setScreen 
-}: any) {
-  const [styles, setStyles] = useState<any[]>([]);
-  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [generatedPhoto, setGeneratedPhoto] = useState<any>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+const DEFAULT_STYLES: Style[] = [];
+
+interface Style {
+  key: string;
+  name: string;
+  emoji: string;
+  color: string;
+  gradient: string;
+  preview_image_url?: string | null;
+}
+
+type Step = 'select' | 'generating' | 'result';
+
+function StyleCard({ style, isSelected, onSelect, disabled }: any) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={onSelect}
+      disabled={disabled}
+      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all"
+      style={{
+        borderColor: isSelected ? style.color : 'rgba(255,255,255,0.08)',
+        boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',
+        aspectRatio: '3/4',
+      }}
+    >
+      {style.preview_image_url && !imgError ? (
+        <img
+          src={style.preview_image_url}
+          alt={style.name}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="absolute inset-0" style={{ background: style.gradient }} />
+      )}
+
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+      {isSelected && (
+        <div
+          className="absolute inset-0 rounded-2xl border-2"
+          style={{
+            borderColor: style.color,
+            boxShadow: `inset 0 0 20px ${style.color}30`,
+          }}
+        />
+      )}
+
+      <div className="absolute top-2 left-2 text-lg">{style.emoji}</div>
+
+      <div className="absolute bottom-0 left-0 right-0 p-2">
+        <p className="text-white font-bold text-xs">{style.name}</p>
+      </div>
+    </motion.button>
+  );
+}
+
+export function AIStudioScreen() {
+  const {
+    currentPhoto,
+    event,
+    setCurrentPhoto,
+    setScreen,
+    setAIGenerating,
+    aiGenerating,
+  } = useBoothStore();
+
+  const [styles, setStyles] = useState<Style[]>([]);
+  const [stylesLoading, setStylesLoading] = useState(true);
+  const [step, setStep] = useState<Step>('select');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
+
+  const selectedStyle = styles.find((s) => s.key === selected);
 
   useEffect(() => {
-    loadStyles();
+    if (!event?.id) return;
+
+    setStylesLoading(true);
+
+    fetch(`${API_BASE}/api/events/${event.id}/styles`)
+      .then((r) => r.json())
+      .then((data) => {
+        const list = data.styles || [];
+
+        if (list.length > 0) {
+          const mapped = list.map((s: any) => {
+            const def = DEFAULT_STYLES.find((d) => d.key === s.style_key);
+
+            return {
+              key: s.style_key,
+              name: s.name,
+              emoji: s.emoji || '✨',
+              color: def?.color || '#a78bfa',
+              gradient:
+                def?.gradient ||
+                'linear-gradient(135deg,#a78bfa,#7c3aed)',
+              preview_image_url: s.preview_image_url,
+            };
+          });
+
+          setStyles(mapped);
+        } else {
+          // No custom styles uploaded yet - show empty state
+          setStyles([]);
+        }
+      })
+      .catch(() => {
+        setStyles([]);
+      })
+      .finally(() => setStylesLoading(false));
   }, [event?.id]);
 
-  async function loadStyles() {
+  async function handleGenerate() {
+    if (!selected || !currentPhoto?.id || !event?.id || aiGenerating) return;
+
+    setStep('generating');
+    setAIGenerating(true);
+
     try {
-      const response = await fetch(`${API_BASE}/api/events/${event.id}/styles`);
-      if (response.ok) {
-        const data = await response.json();
-        setStyles(data.styles || []);
-      }
-    } catch (error) {
-      console.warn('Failed to load styles:', error);
+      const form = new FormData();
+      form.append('styleKey', selected);
+      form.append('eventId', event.id);
+      form.append('photoId', currentPhoto.id);
+
+      const res = await fetch(`${API_BASE}/api/ai/generate`, {
+        method: 'POST',
+        body: form,
+      });
+
+      const data = await res.json();
+
+      setGeneratedUrl(data.ai.url);
+      setAiPhotoId(data.ai.id);
+      setStep('result');
+
+      toast.success('Generated!');
+    } catch (e: any) {
+      toast.error(e.message);
+      setStep('select');
+    } finally {
+      setAIGenerating(false);
     }
   }
 
-  async function generateAIPhoto(styleId: string) {
-    if (!currentPhoto?.url) {
-      toast.error('No photo to process');
-      return;
-    }
+  function handleShareAI() {
+    if (!generatedUrl || !currentPhoto) return;
 
-    setGeneratingId(styleId);
-    setIsGenerating(true);
+    setCurrentPhoto({
+      ...currentPhoto,
+      url: generatedUrl,
+      isAI: true,
+      style: selected || '',
+      id: aiPhotoId || currentPhoto.id,
+    });
 
-    try {
-      const response = await fetch(`${API_BASE}/api/photos/generate-ai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          photoId: currentPhoto.id,
-          styleId,
-          eventId: event.id,
-        }),
-      });
-
-      if (!response.ok) throw new Error('Generation failed');
-
-      const data = await response.json();
-      setGeneratedPhoto(data.generatedPhoto);
-      setSelectedStyle(styleId);
-      toast.success('AI photo generated!');
-    } catch (error: any) {
-      toast.error(error.message || 'Generation failed');
-    } finally {
-      setGeneratingId(null);
-      setIsGenerating(false);
-    }
+    setScreen('share');
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#0a0a0f] select-none overflow-hidden relative">
-      {/* Header with Back Button */}
-      <div className="flex-shrink-0 px-4 py-4 bg-[#0d0d1a]/80 backdrop-blur-xl border-b border-white/10 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
-            title="Go back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h2 className="text-white font-bold text-lg">AI Art Studio</h2>
-        </div>
-        
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white"
-          title="Close"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+    <div className="w-full h-full flex flex-col bg-[#08080f]">
+      <div className="flex-1 flex overflow-hidden">
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden">
-        {/* Original Photo */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <p className="text-white/60 text-sm font-semibold mb-2">Original Photo</p>
-          <div className="flex-1 flex items-center justify-center bg-black/30 rounded-lg overflow-hidden">
-            <motion.img
-              src={currentPhoto?.url}
-              alt="Original"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="max-w-full max-h-full object-contain rounded-lg"
+        {/* LEFT */}
+        <div className="w-1/3 p-2">
+          {currentPhoto?.url && (
+            <img
+              src={currentPhoto.url}
+              className="w-full h-full object-cover rounded-xl"
             />
-          </div>
+          )}
         </div>
 
-        {/* Generated Photo */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <p className="text-white/60 text-sm font-semibold mb-2">AI Generated</p>
-          <div className="flex-1 flex items-center justify-center bg-black/30 rounded-lg overflow-hidden relative">
-            {generatedPhoto ? (
-              <motion.img
-                src={generatedPhoto.url}
-                alt="Generated"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="max-w-full max-h-full object-contain rounded-lg"
-              />
-            ) : (
-              <div className="text-center text-white/50">
-                <p>Select a style to generate</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        {/* RIGHT */}
+        <div className="flex-1 flex flex-col">
 
-      {/* Styles Grid */}
-      <div className="flex-shrink-0 px-4 py-4 bg-[#0d0d1a]/80 backdrop-blur-xl border-t border-white/10 max-h-[200px] overflow-y-auto">
-        <p className="text-white/60 text-sm font-semibold mb-3">Choose Style</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {styles.map(style => (
-            <motion.button
-              key={style.id}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => generateAIPhoto(style.id)}
-              disabled={isGenerating && generatingId === style.id}
-              className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                selectedStyle === style.id
-                  ? 'border-violet-400 ring-2 ring-violet-500'
-                  : 'border-white/10 hover:border-white/30'
-              } ${isGenerating && generatingId === style.id ? 'opacity-50' : ''}`}
-            >
-              {style.thumbnail ? (
-                <img
-                  src={style.thumbnail}
-                  alt={style.name}
-                  className="w-full h-full object-cover"
-                />
+          {step === 'select' && (
+            <div className="flex-1 overflow-y-auto p-2 grid grid-cols-3 gap-2">
+              {stylesLoading ? (
+                <div className="col-span-3 flex justify-center items-center">
+                  Loading...
+                </div>
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-violet-600 to-violet-900 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold text-center px-1">{style.name}</span>
-                </div>
+                styles.map((style) => (
+                  <StyleCard
+                    key={style.key}
+                    style={style}
+                    isSelected={selected === style.key}
+                    onSelect={() =>
+                      setSelected(
+                        selected === style.key ? null : style.key
+                      )
+                    }
+                    disabled={aiGenerating}
+                  />
+                ))
               )}
+            </div>
+          )}
 
-              {/* Loading Indicator */}
-              {isGenerating && generatingId === style.id && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <Loader className="w-6 h-6 text-white animate-spin" />
-                </div>
-              )}
+          {step === 'select' && selected && (
+            <button
+              onClick={handleGenerate}
+              className="m-2 p-3 bg-purple-600 text-white rounded-xl"
+            >
+              Generate AI
+            </button>
+          )}
 
-              {/* Selected Checkmark */}
-              {selectedStyle === style.id && generatingId !== style.id && (
-                <div className="absolute top-1 right-1 bg-violet-500 rounded-full p-1">
-                  <Check className="w-3 h-3 text-white" />
-                </div>
-              )}
+          {step === 'result' && (
+            <div className="flex-1 flex flex-col">
+              <img
+                src={generatedUrl || ''}
+                className="flex-1 object-cover"
+              />
+              <button
+                onClick={handleShareAI}
+                className="m-2 p-3 bg-green-600 text-white rounded-xl"
+              >
+                Share
+              </button>
+            </div>
+          )}
 
-              <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs font-semibold px-1 py-1 text-center">
-                {style.name}
-              </span>
-            </motion.button>
-          ))}
+          {step === 'generating' && (
+            <div className="flex-1 flex items-center justify-center">
+              Generating...
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Bottom Action Bar */}
-      <div className="flex-shrink-0 px-4 py-4 bg-[#0d0d1a]/80 backdrop-blur-xl border-t border-white/10 flex gap-2">
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={onBack}
-          className="flex-1 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors flex items-center justify-center gap-2"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Cancel
-        </motion.button>
-
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => {
-            if (generatedPhoto) {
-              onConfirm(generatedPhoto);
-            } else {
-              toast.error('Generate an AI photo first');
-            }
-          }}
-          disabled={!generatedPhoto}
-          className="flex-1 px-4 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-semibold transition-colors flex items-center justify-center gap-2"
-        >
-          <Check className="w-5 h-5" />
-          Use This Photo
-        </motion.button>
       </div>
     </div>
   );
