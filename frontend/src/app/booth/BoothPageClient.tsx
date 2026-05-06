@@ -48,52 +48,36 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
     loadEvent();
   }, [eventSlug, setEvent, router]);
 
-  // ── Always fullscreen when booth loads ────────────────────────────────────
+    // ── Fullscreen only from explicit user gesture (browser compliant) ─────────
   useEffect(() => {
     const el = document.documentElement;
+
     const requestFullscreen = () => {
       if (document.fullscreenElement || (document as any).webkitFullscreenElement) return;
       if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
       else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
     };
 
-    // Attempt once (works in some launch contexts).
-    requestFullscreen();
-
-    // Browser-compliant fallback: request fullscreen on first user gesture.
     const activateFullscreen = () => {
       requestFullscreen();
       window.removeEventListener('pointerdown', activateFullscreen);
       window.removeEventListener('keydown', activateFullscreen);
       window.removeEventListener('touchstart', activateFullscreen);
     };
+
     window.addEventListener('pointerdown', activateFullscreen, { once: true });
     window.addEventListener('keydown', activateFullscreen, { once: true });
     window.addEventListener('touchstart', activateFullscreen, { once: true });
 
-    // Re-request if user exits fullscreen accidentally
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
-        setTimeout(() => {
-          if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-          else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
-        }, 600);
-      }
-    };
-
     // Hide address bar on mobile
     window.scrollTo(0, 1);
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     return () => {
       window.removeEventListener('pointerdown', activateFullscreen);
       window.removeEventListener('keydown', activateFullscreen);
       window.removeEventListener('touchstart', activateFullscreen);
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
-  }, []); // runs once on mount
+  }, []);
 
   if (loading) {
     return (

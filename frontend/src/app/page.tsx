@@ -113,18 +113,28 @@ export default function HomePage() {
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-violet-500/20 via-indigo-500/10 to-cyan-500/20 p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-white/60">Live booth session</p>
-                    <h3 className="text-xl font-semibold mt-1">Live Demo Event</h3>
+                    <p className="text-xs text-white/60">Live booth preview</p>
+                    <h3 className="text-xl font-semibold mt-1">See it in action</h3>
                   </div>
                   <Camera className="w-8 h-8 text-violet-300" />
                 </div>
-                <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
-                  {metrics.map((m) => (
-                    <div key={m.label} className="rounded-xl border border-white/15 bg-black/30 p-3">
-                      <p className="text-white/60 text-xs">{m.label}</p>
-                      <p className="text-lg font-bold mt-1">{m.value}</p>
-                    </div>
-                  ))}
+                <div className="mt-6 rounded-2xl overflow-hidden border border-white/15 bg-black/35">
+                  <video
+                    className="w-full h-52 object-cover"
+                    src="https://cdn.coverr.co/videos/coverr-friends-taking-photos-at-a-party-1579/1080p.mp4"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                  <div className="grid grid-cols-2 gap-2 p-3 text-sm">
+                    {metrics.map((m) => (
+                      <div key={m.label} className="rounded-lg border border-white/15 bg-black/30 p-2.5">
+                        <p className="text-white/60 text-[11px]">{m.label}</p>
+                        <p className="text-base font-bold mt-0.5">{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

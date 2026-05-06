@@ -732,6 +732,10 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-violet-500/20">
                         <ExternalLink className="w-4 h-4" /> Launch Web Booth
                       </Link>
+                      <Link href={`/gallery/${event.slug}`} target="_blank"
+                        className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-zinc-700 hover:border-violet-500 text-zinc-200 hover:text-white font-medium text-sm transition-colors">
+                        <ExternalLink className="w-4 h-4" /> Go to Gallery
+                      </Link>
                       {stats && (
                         <div className="grid grid-cols-4 gap-2 mt-4">
                           {[
