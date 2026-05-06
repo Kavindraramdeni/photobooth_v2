@@ -85,6 +85,7 @@ export function AIStudioScreen() {
   const [step, setStep] = useState<Step>('select');
   const [selected, setSelected] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [generatedGalleryUrl, setGeneratedGalleryUrl] = useState<string | null>(null);
   const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
 
   const selectedStyle = styles.find((s) => s.key === selected);
@@ -146,6 +147,7 @@ export function AIStudioScreen() {
       const data = await res.json();
 
       setGeneratedUrl(data.ai.url);
+      setGeneratedGalleryUrl(data.ai.galleryUrl || null);
       setAiPhotoId(data.ai.id);
       setStep('result');
 
@@ -164,6 +166,7 @@ export function AIStudioScreen() {
     setCurrentPhoto({
       ...currentPhoto,
       url: generatedUrl,
+      galleryUrl: generatedGalleryUrl || generatedUrl,
       isAI: true,
       style: selected || '',
       id: aiPhotoId || currentPhoto.id,
@@ -177,6 +180,7 @@ export function AIStudioScreen() {
       // Back from result to style selection
       setStep('select');
       setGeneratedUrl(null);
+      setGeneratedGalleryUrl(null);
       setSelected(null);
     } else {
       // Back from AI studio to camera
@@ -341,6 +345,7 @@ export function AIStudioScreen() {
                   onClick={() => {
                     setStep('select');
                     setGeneratedUrl(null);
+                    setGeneratedGalleryUrl(null);
                     setSelected(null);
                   }}
                   className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center gap-2 transition-all"
