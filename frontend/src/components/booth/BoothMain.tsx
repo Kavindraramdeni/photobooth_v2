@@ -20,7 +20,18 @@ export function BoothMain() {
   useEffect(() => {
     if (!event) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
+    const socketUrl =
+      process.env.NEXT_PUBLIC_SOCKET_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 1200,
+      timeout: 15000,
+    });
     socketRef.current = socket;
 
     socket.emit('join-event', event.id);

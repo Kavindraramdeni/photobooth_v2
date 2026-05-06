@@ -51,10 +51,25 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
   // ── Always fullscreen when booth loads ────────────────────────────────────
   useEffect(() => {
     const el = document.documentElement;
-    // Request fullscreen — works when opened via window.open() from admin panel
-    // Safari on iPad requires user gesture but open-in-new-tab counts as one
-    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+    const requestFullscreen = () => {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) return;
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+      else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+    };
+
+    // Attempt once (works in some launch contexts).
+    requestFullscreen();
+
+    // Browser-compliant fallback: request fullscreen on first user gesture.
+    const activateFullscreen = () => {
+      requestFullscreen();
+      window.removeEventListener('pointerdown', activateFullscreen);
+      window.removeEventListener('keydown', activateFullscreen);
+      window.removeEventListener('touchstart', activateFullscreen);
+    };
+    window.addEventListener('pointerdown', activateFullscreen, { once: true });
+    window.addEventListener('keydown', activateFullscreen, { once: true });
+    window.addEventListener('touchstart', activateFullscreen, { once: true });
 
     // Re-request if user exits fullscreen accidentally
     const handleFullscreenChange = () => {
@@ -72,6 +87,9 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     return () => {
+      window.removeEventListener('pointerdown', activateFullscreen);
+      window.removeEventListener('keydown', activateFullscreen);
+      window.removeEventListener('touchstart', activateFullscreen);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
