@@ -312,6 +312,35 @@ router.delete('/:id/styles/:styleId', async (req, res) => {
 });
 
 /**
+ * POST /api/events/:id/upload-asset?type=logo|frame|idle
+ * Upload branding asset and update event branding fields
+ */
+router.post('/:id/upload-asset', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const type = (req.query.type || '').toString();
+    if (!['logo', 'frame', 'idle'].includes(type)) return res.status(400).json({ error: 'Invalid asset type' });
+
+    const ext = (req.file.mimetype || '').includes('png') ? 'png' : (req.file.mimetype || '').includes('mp4') ? 'mp4' : 'jpg';
+    const key = `events/${req.params.id}/${type}_${Date.now()}.${ext}`;
+    const url = await uploadToStorage(req.file.buffer, key, req.file.mimetype || 'application/octet-stream');
+
+    const { data: existing } = await supabase.from('events').select('branding').eq('id', req.params.id).single();
+    const branding = existing?.branding || {};
+    if (type === 'logo') branding.logoUrl = url;
+    if (type === 'frame') branding.frameUrl = url;
+    if (type === 'idle') branding.idleMediaUrl = url;
+
+    const { error } = await supabase.from('events').update({ branding }).eq('id', req.params.id);
+    if (error) throw error;
+
+    res.json({ success: true, url });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
+
+/**
  * POST /api/events/:id/styles/:styleId/image
  * Receives multipart/form-data with field 'file'
  * Resizes to portrait 3:4, stores in R2, updates DB

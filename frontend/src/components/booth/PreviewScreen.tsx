@@ -79,7 +79,7 @@ function ActionBtn({
 }
 
 export function PreviewScreen() {
-  const { currentPhoto, event, mode, setScreen, resetSession, setEvent } = useBoothStore();
+  const { currentPhoto, event, mode, setScreen, resetSession, setEvent, setCurrentPhoto } = useBoothStore();
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showFrames, setShowFrames] = useState(false);
   const [framesLoading, setFramesLoading] = useState(false);
@@ -164,7 +164,26 @@ export function PreviewScreen() {
     }
   }
 
-  function selectFrame(frameUrl: string | null) {
+  
+  async function applyFrameToCurrentPhoto(frameUrl: string | null) {
+    if (!currentPhoto?.url || !frameUrl) return;
+    try {
+      const [photoRes, frameRes] = await Promise.all([fetch(currentPhoto.url), fetch(frameUrl)]);
+      const [photoBlob, frameBlob] = await Promise.all([photoRes.blob(), frameRes.blob()]);
+      const photoBitmap = await createImageBitmap(photoBlob);
+      const frameBitmap = await createImageBitmap(frameBlob);
+      const canvas = document.createElement('canvas');
+      canvas.width = photoBitmap.width;
+      canvas.height = photoBitmap.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(photoBitmap, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      setCurrentPhoto({ ...currentPhoto, url: dataUrl, galleryUrl: dataUrl, downloadUrl: dataUrl });
+    } catch {}
+  }
+function selectFrame(frameUrl: string | null) {
     if (!event) return;
     setEvent({
       ...event,
@@ -174,6 +193,7 @@ export function PreviewScreen() {
       },
     });
     setShowFrames(false);
+    if (frameUrl) applyFrameToCurrentPhoto(frameUrl);
     toast.success(frameUrl ? 'Frame applied' : 'Frame cleared');
   }
 
@@ -253,8 +273,8 @@ export function PreviewScreen() {
                 style={{
                   // Strip is narrow portrait — constrain width
                   // Single/GIF — fill available space but don't overflow
-                  maxWidth: mode === 'strip' ? '280px' : 'min(100%, calc(100vh - 280px))',
-                  maxHeight: 'calc(100vh - 220px)',
+                  maxWidth: mode === 'strip' ? '360px' : 'min(100%, calc(100vw - 280px))',
+                  maxHeight: 'calc(100vh - 180px)',
                   width: 'auto',
                   height: 'auto',
                   filter: currentFilter,
@@ -267,7 +287,7 @@ export function PreviewScreen() {
                 <img
                   src={event.branding.frameUrl as string}
                   alt="Selected frame overlay"
-                  className="absolute inset-0 w-full h-full object-contain rounded-2xl pointer-events-none select-none"
+                  className="absolute inset-0 w-full h-full object-cover rounded-2xl pointer-events-none select-none"
                   draggable={false}
                 />
               )}

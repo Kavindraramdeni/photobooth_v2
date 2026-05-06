@@ -114,7 +114,7 @@ export default function HomePage() {
                 <div className="mt-6 rounded-2xl overflow-hidden border border-white/15 bg-black/35">
                   <video
                     className="w-full h-52 object-cover"
-                    src="https://cdn.coverr.co/videos/coverr-friends-taking-photos-at-a-party-1579/1080p.mp4"
+                    src="/video/snapbooth.mp4"
                     autoPlay
                     muted
                     loop
