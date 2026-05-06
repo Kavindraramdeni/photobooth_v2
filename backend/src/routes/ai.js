@@ -245,7 +245,7 @@ router.post('/generate', upload.single('file'), async (req, res) => {
           .select('prompt')
           .eq('event_id', eventId)
           .eq('style_key', styleKey)
-          .eq('is_active', true)
+          .eq('enabled', true)
           .maybeSingle();
         if (customStyle?.prompt) {
           resolvedPrompt = customStyle.prompt;
@@ -379,10 +379,25 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
 
     req.body.styleKey = randomStyle;
 
+    // Resolve admin-defined prompt for selected style
+    let resolvedPrompt = null;
+    const { data: customStyle } = await supabase
+      .from('event_styles')
+      .select('prompt')
+      .eq('event_id', eventId)
+      .eq('style_key', randomStyle)
+      .eq('enabled', true)
+      .maybeSingle();
+
+    if (!customStyle?.prompt) {
+      return res.status(400).json({ error: `No admin prompt configured for style "${randomStyle}"` });
+    }
+    resolvedPrompt = customStyle.prompt;
+
     // Delegate to generate endpoint logic
     let result;
     try {
-      result = await generateAIImage(req.file.buffer, randomStyle);
+      result = await generateAIImage(req.file.buffer, randomStyle, resolvedPrompt);
     } catch (err) {
       if (err.message.startsWith('MODEL_LOADING:')) {
         return res.status(503).json({

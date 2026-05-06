@@ -133,6 +133,20 @@ const AI_STYLES = {
 
 };
 
+function getStyleContext(styleKey, customPrompt = null) {
+  const prompt = (customPrompt || '').trim();
+  if (!prompt) {
+    throw new Error(`No admin prompt configured for style "${styleKey}"`);
+  }
+
+  const defaults = AI_STYLES[styleKey] || {};
+  return {
+    name: styleKey,
+    prompt,
+    negativePrompt: defaults.negativePrompt || 'blurry, low quality, distorted face',
+    strength: defaults.strength || 0.75,
+  };
+}
 
 // ─── TIER 1: Gemini — native img2img with face preservation ──────────────────
 // Uses @google/genai SDK with gemini-2.0-flash-exp model
@@ -155,7 +169,7 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
     return null;
   }
 
-  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
+  const style = getStyleContext(styleKey, customPrompt);
 
   const resized = await sharp(imageBuffer)
     .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
@@ -226,11 +240,11 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
 }
 
 
-async function generateWithFal(imageBuffer, styleKey) {
+async function generateWithFal(imageBuffer, styleKey, customPrompt = null) {
   const FAL_KEY = process.env.FAL_API_KEY;
   if (!FAL_KEY) return null;
 
-  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
+  const style = getStyleContext(styleKey, customPrompt);
 
   // Convert image to base64 data URL for Fal
   const resized = await sharp(imageBuffer)
@@ -284,11 +298,11 @@ async function generateWithFal(imageBuffer, styleKey) {
 // ─── TIER 2: Cloudflare Workers AI — img2img (free, good quality) ─────────────
 // Uses SD v1-5 img2img which takes the ACTUAL guest photo and transforms it.
 // This is the correct model for photobooth use — the person's face is preserved.
-async function generateWithCloudflare(imageBuffer, styleKey) {
+async function generateWithCloudflare(imageBuffer, styleKey, customPrompt = null) {
   const { CF_ACCOUNT_ID, CF_AI_TOKEN } = process.env;
   if (!CF_ACCOUNT_ID || !CF_AI_TOKEN) return null;
 
-  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
+  const style = getStyleContext(styleKey, customPrompt);
 
   // Resize to 512x512 — SD v1-5 native resolution, use JPEG to keep payload small
   const resized = await sharp(imageBuffer)
@@ -345,11 +359,11 @@ const HF_MODELS = {
   comic:       'black-forest-labs/FLUX.1-schnell',
 };
 
-async function generateWithHuggingFace(imageBuffer, styleKey) {
+async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = null) {
   const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
   if (!HF_TOKEN) return null;
 
-  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
+  const style = getStyleContext(styleKey, customPrompt);
   const model = HF_MODELS[styleKey] || HF_MODELS.anime;
   const prompt = `${style.prompt}, photobooth photo, high quality, one person`;
 
@@ -389,8 +403,8 @@ async function generateWithHuggingFace(imageBuffer, styleKey) {
 
 // ─── Sharp colour grading — professional per-style looks ─────────────────────
 // Each style applies a distinct cinematic grade. Face always preserved.
-async function generateWithSharp(imageBuffer, styleKey) {
-  // Style must come from database (event_styles table) — no fallback to hardcoded defaults
+async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
+  const style = { name: styleKey, ...(AI_STYLES[styleKey] || {}) };
   if (!sharp) return { buffer: imageBuffer, style: style.name, styleKey, tier: 'passthrough' };
 
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
@@ -524,7 +538,7 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   if (result) { console.log('[AI] ✅ Generated via Gemini (cinematic quality)'); return result; }
 
   // Tier 2: Fal.ai FLUX img2img — cinematic quality, face preserved
-  result = await generateWithFal(imageBuffer, styleKey).catch(err => {
+  result = await generateWithFal(imageBuffer, styleKey, customPrompt).catch(err => {
     console.warn('[AI] Fal.ai failed:', err.message);
     return null;
   });
@@ -534,7 +548,7 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
 
   // Final fallback: Sharp local filters — instant, face always preserved
   // Clean colour grading applied per style. Not "AI art" but professional quality.
-  result = await generateWithSharp(imageBuffer, styleKey);
+  result = await generateWithSharp(imageBuffer, styleKey, customPrompt);
   console.log('[AI] ✅ Generated via local Sharp filters (face preserved)');
   return result;
 
@@ -549,7 +563,7 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
 
 // ─── Apply filter only (no generation) ───────────────────────────────────────
 async function applyAIFilter(imageBuffer, styleKey) {
-  return generateWithSharp(imageBuffer, styleKey);
+  return generateWithSharp(imageBuffer, styleKey, null);
 }
 
 module.exports = { generateAIImage, applyAIFilter };
