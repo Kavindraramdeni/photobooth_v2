@@ -135,14 +135,11 @@ const AI_STYLES = {
 
 function getStyleContext(styleKey, customPrompt = null) {
   const prompt = (customPrompt || '').trim();
-  if (!prompt) {
-    throw new Error(`No admin prompt configured for style "${styleKey}"`);
-  }
-
   const defaults = AI_STYLES[styleKey] || {};
+  const resolvedPrompt = prompt || defaults.prompt || 'Transform this portrait in a cinematic artistic style while preserving facial identity.';
   return {
     name: styleKey,
-    prompt,
+    prompt: resolvedPrompt,
     negativePrompt: defaults.negativePrompt || 'blurry, low quality, distorted face',
     strength: defaults.strength || 0.75,
   };
@@ -188,51 +185,62 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
   console.log('[Gemini] Attempting generation, key length:', GEMINI_KEY.length);
 
   // Model confirmed working in gembooth (same SDK)
-  const MODEL_NAMES = [
-    'gemini-2.5-flash-image',
-    'gemini-2.0-flash-exp',
-    'gemini-2.0-flash-preview-image-generation',
-  ];
+  const MODEL_NAMES = (process.env.GEMINI_IMAGE_MODELS
+    ? process.env.GEMINI_IMAGE_MODELS.split(',').map(s => s.trim()).filter(Boolean)
+    : [
+      'gemini-2.5-flash-image',
+      'gemini-2.5-flash-image-preview',
+    ]);
 
   for (const modelName of MODEL_NAMES) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        config: {
-          responseModalities: Modality
-            ? [Modality.TEXT, Modality.IMAGE]
-            : ['TEXT', 'IMAGE'],
-        },
-        contents: [{
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                data: base64Image,
-                mimeType: 'image/jpeg',
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          config: {
+            responseModalities: Modality
+              ? [Modality.TEXT, Modality.IMAGE]
+              : ['TEXT', 'IMAGE'],
+          },
+          contents: [{
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  data: base64Image,
+                  mimeType: 'image/jpeg',
+                },
               },
-            },
-            { text: prompt },
-          ],
-        }],
-      });
+              { text: prompt },
+            ],
+          }],
+        });
 
-      // Find the image part in the response
-      const parts = response?.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find(p => p.inlineData?.data);
+        // Find the image part in the response
+        const parts = response?.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find(p => p.inlineData?.data);
 
-      if (!imagePart) {
-        console.warn(`[Gemini] ${modelName}: no image in response`);
-        continue;
+        if (!imagePart) {
+          console.warn(`[Gemini] ${modelName}: no image in response`);
+          break;
+        }
+
+        console.log(`[Gemini] ✅ Generated via ${modelName}`);
+        const outputBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+        return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
+
+      } catch (err) {
+        const message = err.message || '';
+        const isBusy = message.includes('"code":503') || message.toLowerCase().includes('high demand');
+        const isNotFound = message.includes('"code":404') || message.toLowerCase().includes('not found');
+        console.warn(`[Gemini] ${modelName} attempt ${attempt} error:`, message.slice(0, 180));
+        if (isNotFound) break;
+        if (isBusy && attempt < 3) {
+          await new Promise((r) => setTimeout(r, attempt * 1500));
+          continue;
+        }
+        break;
       }
-
-      console.log(`[Gemini] ✅ Generated via ${modelName}`);
-      const outputBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-      return { buffer: outputBuffer, style: style.name, styleKey, tier: 'gemini' };
-
-    } catch (err) {
-      console.warn(`[Gemini] ${modelName} error:`, err.message?.slice(0, 150));
-      continue;
     }
   }
 
@@ -242,7 +250,10 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
 
 async function generateWithFal(imageBuffer, styleKey, customPrompt = null) {
   const FAL_KEY = process.env.FAL_API_KEY;
-  if (!FAL_KEY) return null;
+  if (!FAL_KEY) {
+    console.warn('[AI] Fal.ai skipped: FAL_API_KEY not set');
+    return null;
+  }
 
   const style = getStyleContext(styleKey, customPrompt);
 
@@ -361,7 +372,10 @@ const HF_MODELS = {
 
 async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = null) {
   const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
-  if (!HF_TOKEN) return null;
+  if (!HF_TOKEN) {
+    console.warn('[AI] HuggingFace skipped: HUGGINGFACE_API_TOKEN not set');
+    return null;
+  }
 
   const style = getStyleContext(styleKey, customPrompt);
   const model = HF_MODELS[styleKey] || HF_MODELS.anime;
@@ -406,6 +420,7 @@ async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = nul
 async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
   const style = { name: styleKey, ...(AI_STYLES[styleKey] || {}) };
   if (!sharp) return { buffer: imageBuffer, style: style.name, styleKey, tier: 'passthrough' };
+  const promptText = (customPrompt || style.prompt || '').toLowerCase();
 
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
 
@@ -519,7 +534,27 @@ async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
       break;
 
     default:
-      img = img.modulate({ brightness: 1.05, saturation: 1.6 });
+      // Unknown custom style keys: apply stronger "clearly different" cinematic treatment.
+      // This avoids outputs that look almost identical to the original preview image.
+      if (promptText.includes('old') || promptText.includes('aged') || promptText.includes('wrinkle')) {
+        img = img
+          .modulate({ brightness: 0.94, saturation: 0.45 })
+          .tint({ r: 235, g: 215, b: 185 })
+          .gamma(1.25)
+          .blur(0.35)
+          .sharpen({ sigma: 0.7 });
+      } else if (promptText.includes('anime') || promptText.includes('cartoon') || promptText.includes('comic')) {
+        img = img
+          .modulate({ brightness: 1.12, saturation: 2.9, hue: 8 })
+          .sharpen({ sigma: 3.2, m1: 3.5, m2: 0.2 })
+          .gamma(0.82);
+      } else {
+        img = img
+          .modulate({ brightness: 1.14, saturation: 2.25, hue: 6 })
+          .tint({ r: 248, g: 232, b: 255 })
+          .sharpen({ sigma: 2.2, m1: 2.2, m2: 0.5 })
+          .gamma(0.9);
+      }
   }
 
   const buffer = await img.jpeg({ quality: 94 }).toBuffer();
@@ -544,21 +579,21 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   });
   if (result) { console.log('[AI] ✅ Generated via Fal.ai FLUX'); return result; }
 
-  // Cloudflare SD v1.5 skipped — output quality too low for photobooth events
+  // Tier 3: HuggingFace text-to-image fallback.
+  // This always generates a brand-new image so guests don't receive the same photo back.
+  try {
+    result = await generateWithHuggingFace(imageBuffer, styleKey, customPrompt);
+  } catch (err) {
+    if (err.message.startsWith('MODEL_LOADING:')) throw err;
+    console.warn('[AI] HuggingFace failed:', err.message);
+  }
+  if (result) { console.log('[AI] ✅ Generated via HuggingFace text2img fallback'); return result; }
 
   // Final fallback: Sharp local filters — instant, face always preserved
-  // Clean colour grading applied per style. Not "AI art" but professional quality.
+  // Clean colour grading applied per style. Not "AI art" but better than a hard failure.
   result = await generateWithSharp(imageBuffer, styleKey, customPrompt);
   console.log('[AI] ✅ Generated via local Sharp filters (face preserved)');
   return result;
-
-  // Tier 3: HuggingFace — disabled for now (text2img, does not use guest photo)
-  // Re-enable below once CF img2img is set up, as a fallback for style variety
-  // try {
-  //   result = await generateWithHuggingFace(imageBuffer, styleKey);
-  // } catch (err) {
-  //   if (err.message.startsWith('MODEL_LOADING:')) throw err;
-  // }
 }
 
 // ─── Apply filter only (no generation) ───────────────────────────────────────

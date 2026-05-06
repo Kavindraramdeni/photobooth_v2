@@ -242,12 +242,12 @@ router.post('/generate', upload.single('file'), async (req, res) => {
       try {
         const { data: customStyle } = await supabase
           .from('event_styles')
-          .select('prompt')
+          .select('prompt, is_active, enabled')
           .eq('event_id', eventId)
           .eq('style_key', styleKey)
-          .eq('enabled', true)
           .maybeSingle();
-        if (customStyle?.prompt) {
+        const isActiveStyle = customStyle && (customStyle.is_active !== false) && (customStyle.enabled !== false);
+        if (isActiveStyle && customStyle.prompt) {
           resolvedPrompt = customStyle.prompt;
           console.log(`[AI] Using custom prompt for style "${styleKey}"`);
         }
