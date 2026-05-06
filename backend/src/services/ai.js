@@ -188,6 +188,7 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
   const MODEL_NAMES = (process.env.GEMINI_IMAGE_MODELS
     ? process.env.GEMINI_IMAGE_MODELS.split(',').map(s => s.trim()).filter(Boolean)
     : [
+      'gemini-3.1-flash-image-preview',
       'gemini-2.5-flash-image',
       'gemini-2.5-flash-image-preview',
     ]);
@@ -233,8 +234,16 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
         const message = err.message || '';
         const isBusy = message.includes('"code":503') || message.toLowerCase().includes('high demand');
         const isNotFound = message.includes('"code":404') || message.toLowerCase().includes('not found');
+        const isBilling = message.includes('"code":429')
+          || message.includes('"code":402')
+          || message.toLowerCase().includes('billing')
+          || message.toLowerCase().includes('quota');
         console.warn(`[Gemini] ${modelName} attempt ${attempt} error:`, message.slice(0, 180));
         if (isNotFound) break;
+        if (isBilling) {
+          console.warn('[Gemini] Billing/quota issue detected. Gemini API image generation may require paid quota.');
+          break;
+        }
         if (isBusy && attempt < 3) {
           await new Promise((r) => setTimeout(r, attempt * 1500));
           continue;
