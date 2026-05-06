@@ -355,6 +355,195 @@ router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res
     res.status(500).json({ error: err.message });
   }
 });
+/**
+
+ */
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ADD THIS TO backend/src/routes/events.js (at the end, before module.exports)
+
+const multer = require('multer');
+const sharp = require('sharp');
+const { uploadToStorage } = require('../services/storage');
+
+const uploadAsset = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+});
+
+/**
+ * POST /api/events/:id/upload-asset?type=idle|logo|frame
+ * 
+ * Handles uploading:
+ * - Idle screen background (type=idle) → stored in branding
+ * - Event logo (type=logo) → stored in branding
+ * - Frame overlay (type=frame) → stored in event_frames
+ */
+router.post('/:id/upload-asset', uploadAsset.single('file'), async (req, res) => {
+  try {
+    // Validate inputs
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const assetType = req.query.type; // 'idle', 'logo', or 'frame'
+    
+    if (!['idle', 'logo', 'frame'].includes(assetType)) {
+      return res.status(400).json({ error: 'Invalid asset type. Must be: idle, logo, or frame' });
+    }
+
+    const eventId = req.params.id;
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // CASE 1: IDLE SCREEN BACKGROUND
+    if (assetType === 'idle') {
+      const processed = await sharp(req.file.buffer)
+        .resize(1920, 1080, { fit: 'cover' })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+
+      const key = `events/${eventId}/idle-background.jpg`;
+      const url = await uploadToStorage(processed, key, 'image/jpeg');
+
+      // Save to branding.idleBackgroundUrl
+      const { data: event, error: updateError } = await supabase
+        .from('events')
+        .select('branding')
+        .eq('id', eventId)
+        .single();
+
+      if (updateError) throw updateError;
+
+      const updatedBranding = {
+        ...event.branding,
+        idleBackgroundUrl: url,
+      };
+
+      const { error: brandingError } = await supabase
+        .from('events')
+        .update({ branding: updatedBranding })
+        .eq('id', eventId);
+
+      if (brandingError) throw brandingError;
+
+      console.log(`[Upload] Idle background: ${url}`);
+      return res.json({ success: true, url, type: 'idle' });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // CASE 2: LOGO
+    if (assetType === 'logo') {
+      // Keep as PNG for transparency
+      const processed = await sharp(req.file.buffer)
+        .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+        .png({ quality: 95 })
+        .toBuffer();
+
+      const key = `events/${eventId}/logo.png`;
+      const url = await uploadToStorage(processed, key, 'image/png');
+
+      // Save to branding.logoUrl
+      const { data: event, error: updateError } = await supabase
+        .from('events')
+        .select('branding')
+        .eq('id', eventId)
+        .single();
+
+      if (updateError) throw updateError;
+
+      const updatedBranding = {
+        ...event.branding,
+        logoUrl: url,
+      };
+
+      const { error: brandingError } = await supabase
+        .from('events')
+        .update({ branding: updatedBranding })
+        .eq('id', eventId);
+
+      if (brandingError) throw brandingError;
+
+      console.log(`[Upload] Logo: ${url}`);
+      return res.json({ success: true, url, type: 'logo' });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // CASE 3: FRAME OVERLAY
+    if (assetType === 'frame') {
+      const frameName = req.body.name || `Frame ${Date.now()}`;
+
+      // Keep as PNG for transparency on frame overlays
+      const processed = await sharp(req.file.buffer)
+        .png()
+        .toBuffer();
+
+      const frameId = require('crypto').randomUUID();
+      const key = `events/${eventId}/frames/${frameId}.png`;
+      const url = await uploadToStorage(processed, key, 'image/png');
+
+      // Save to event_frames table
+      const { data: frame, error: frameError } = await supabase
+        .from('event_frames')
+        .insert({
+          id: frameId,
+          event_id: eventId,
+          name: frameName,
+          url,
+          is_active: true,
+          is_default: false,
+          sort_order: 0,
+        })
+        .select()
+        .single();
+
+      if (frameError) throw frameError;
+
+      console.log(`[Upload] Frame: ${url}`);
+      return res.json({ success: true, url, type: 'frame', frame });
+    }
+
+  } catch (error) {
+    console.error(`[Upload] Error (${req.query.type}):`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * DELETE /api/events/:id/frames/:frameId
+ * Delete a frame overlay
+ */
+router.delete('/:id/frames/:frameId', async (req, res) => {
+  try {
+    const { data: frame } = await supabase
+      .from('event_frames')
+      .select('url')
+      .eq('id', req.params.frameId)
+      .eq('event_id', req.params.id)
+      .single();
+
+    if (frame?.url) {
+      try {
+        await deleteFromStorage(frame.url);
+      } catch { /* ignore storage errors */ }
+    }
+
+    await supabase
+      .from('event_frames')
+      .delete()
+      .eq('id', req.params.frameId)
+      .eq('event_id', req.params.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
 
@@ -503,3 +692,4 @@ router.delete('/:id/frames/:frameId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
