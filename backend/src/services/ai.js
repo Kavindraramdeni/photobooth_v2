@@ -135,14 +135,11 @@ const AI_STYLES = {
 
 function getStyleContext(styleKey, customPrompt = null) {
   const prompt = (customPrompt || '').trim();
-  if (!prompt) {
-    throw new Error(`No admin prompt configured for style "${styleKey}"`);
-  }
-
   const defaults = AI_STYLES[styleKey] || {};
+  const resolvedPrompt = prompt || defaults.prompt || 'Transform this portrait in a cinematic artistic style while preserving facial identity.';
   return {
     name: styleKey,
-    prompt,
+    prompt: resolvedPrompt,
     negativePrompt: defaults.negativePrompt || 'blurry, low quality, distorted face',
     strength: defaults.strength || 0.75,
   };
@@ -544,21 +541,21 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
   });
   if (result) { console.log('[AI] ✅ Generated via Fal.ai FLUX'); return result; }
 
-  // Cloudflare SD v1.5 skipped — output quality too low for photobooth events
+  // Tier 3: HuggingFace text-to-image fallback.
+  // This always generates a brand-new image so guests don't receive the same photo back.
+  try {
+    result = await generateWithHuggingFace(imageBuffer, styleKey, customPrompt);
+  } catch (err) {
+    if (err.message.startsWith('MODEL_LOADING:')) throw err;
+    console.warn('[AI] HuggingFace failed:', err.message);
+  }
+  if (result) { console.log('[AI] ✅ Generated via HuggingFace text2img fallback'); return result; }
 
   // Final fallback: Sharp local filters — instant, face always preserved
-  // Clean colour grading applied per style. Not "AI art" but professional quality.
+  // Clean colour grading applied per style. Not "AI art" but better than a hard failure.
   result = await generateWithSharp(imageBuffer, styleKey, customPrompt);
   console.log('[AI] ✅ Generated via local Sharp filters (face preserved)');
   return result;
-
-  // Tier 3: HuggingFace — disabled for now (text2img, does not use guest photo)
-  // Re-enable below once CF img2img is set up, as a fallback for style variety
-  // try {
-  //   result = await generateWithHuggingFace(imageBuffer, styleKey);
-  // } catch (err) {
-  //   if (err.message.startsWith('MODEL_LOADING:')) throw err;
-  // }
 }
 
 // ─── Apply filter only (no generation) ───────────────────────────────────────
