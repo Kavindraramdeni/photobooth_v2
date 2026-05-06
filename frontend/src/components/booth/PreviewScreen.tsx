@@ -245,22 +245,33 @@ export function PreviewScreen() {
             className="relative w-full h-full flex items-center justify-center"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo.url}
-              alt="Your photo"
-              className="rounded-2xl shadow-2xl object-contain"
-              style={{
-                // Strip is narrow portrait — constrain width
-                // Single/GIF — fill available space but don't overflow
-                maxWidth: mode === 'strip' ? '280px' : 'min(100%, calc(100vh - 280px))',
-                maxHeight: 'calc(100vh - 220px)',
-                width: 'auto',
-                height: 'auto',
-                filter: currentFilter,
-                transition: 'filter 0.25s ease',
-              }}
-              draggable={false}
-            />
+            <div className="relative inline-block">
+              <img
+                src={photo.url}
+                alt="Your photo"
+                className="rounded-2xl shadow-2xl object-contain"
+                style={{
+                  // Strip is narrow portrait — constrain width
+                  // Single/GIF — fill available space but don't overflow
+                  maxWidth: mode === 'strip' ? '280px' : 'min(100%, calc(100vh - 280px))',
+                  maxHeight: 'calc(100vh - 220px)',
+                  width: 'auto',
+                  height: 'auto',
+                  filter: currentFilter,
+                  transition: 'filter 0.25s ease',
+                }}
+                draggable={false}
+              />
+
+              {event?.branding?.frameUrl && (
+                <img
+                  src={event.branding.frameUrl as string}
+                  alt="Selected frame overlay"
+                  className="absolute inset-0 w-full h-full object-contain rounded-2xl pointer-events-none select-none"
+                  draggable={false}
+                />
+              )}
+            </div>
 
             {/* ✅ Captured badge */}
             <motion.div
