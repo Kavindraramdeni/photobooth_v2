@@ -16,13 +16,6 @@ import {
   Users,
 } from 'lucide-react';
 
-const metrics = [
-  { label: 'Photos generated', value: '24,800+' },
-  { label: 'Events powered', value: '320+' },
-  { label: 'Avg share speed', value: '2.4s' },
-  { label: 'Uptime', value: '99.95%' },
-];
-
 const features = [
   {
     icon: <Wand2 className="w-5 h-5" />,
@@ -113,7 +106,7 @@ export default function HomePage() {
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-violet-500/20 via-indigo-500/10 to-cyan-500/20 p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-white/60">Live booth preview</p>
+                    <p className="text-xs text-white/60">Photobooth live preview</p>
                     <h3 className="text-xl font-semibold mt-1">See it in action</h3>
                   </div>
                   <Camera className="w-8 h-8 text-violet-300" />
@@ -127,14 +120,6 @@ export default function HomePage() {
                     loop
                     playsInline
                   />
-                  <div className="grid grid-cols-2 gap-2 p-3 text-sm">
-                    {metrics.map((m) => (
-                      <div key={m.label} className="rounded-lg border border-white/15 bg-black/30 p-2.5">
-                        <p className="text-white/60 text-[11px]">{m.label}</p>
-                        <p className="text-base font-bold mt-0.5">{m.value}</p>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
