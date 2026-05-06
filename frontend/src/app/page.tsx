@@ -113,7 +113,7 @@ export default function HomePage() {
                 </div>
                 <div className="mt-6 rounded-2xl overflow-hidden border border-white/15 bg-black/35">
                   <video
-                    className="w-full h-52 object-cover"
+                   className="w-full aspect-[9/16] max-h-[420px] object-contain bg-black"
                     src="/video/snapbooth.mp4"
                     autoPlay
                     muted
