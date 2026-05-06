@@ -1,383 +1,184 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import {
-  Camera, Sparkles, QrCode, Share2, BarChart3, Zap,
-  ArrowRight, Check, ChevronDown, Play, Star
+  ArrowRight,
+  Camera,
+  Check,
+  Play,
+  Sparkles,
+  QrCode,
+  Share2,
+  BarChart3,
+  ShieldCheck,
+  Wand2,
+  Users,
 } from 'lucide-react';
 
-const NAV_LINKS = [
-  { href: '/pricing', label: 'Pricing' },
-  { href: '#features', label: 'Features' },
+const metrics = [
+  { label: 'Photos generated', value: '1.2M+' },
+  { label: 'Events powered', value: '8,500+' },
+  { label: 'Avg share speed', value: '2.4s' },
+  { label: 'Uptime', value: '99.95%' },
 ];
 
-const MODES = [
-  { icon: '📸', label: 'Single photo', desc: 'Classic portrait shots with AI filter overlays' },
-  { icon: '🎞️', label: '4-photo strip', desc: 'Film strip layout printed in seconds' },
-  { icon: '🎬', label: 'GIF mode', desc: 'Animated GIFs guests can share instantly' },
-  { icon: '⏪', label: 'Boomerang', desc: 'Looping video moments like Instagram' },
-];
-
-const FEATURES = [
+const features = [
   {
-    icon: <Sparkles className="w-5 h-5" />,
-    color: 'from-violet-500 to-purple-600',
-    title: 'AI Photo Styles',
-    desc: 'Transform every shot with anime, vintage, watercolor, cyberpunk and more — powered by HuggingFace.',
+    icon: <Wand2 className="w-5 h-5" />,
+    title: 'AI Style Engine',
+    desc: 'Transform portraits into cinematic, vintage, watercolor, anime, and brand-themed looks instantly.',
   },
   {
     icon: <QrCode className="w-5 h-5" />,
-    color: 'from-blue-500 to-cyan-500',
     title: 'Instant QR Delivery',
-    desc: 'Every photo gets a unique QR code. Guests scan and download in under 3 seconds.',
+    desc: 'Every capture gets a unique QR for immediate downloads, eliminating post-event follow-up.',
   },
   {
     icon: <Share2 className="w-5 h-5" />,
-    color: 'from-green-500 to-emerald-600',
-    title: 'WhatsApp & Instagram',
-    desc: 'One-tap sharing to WhatsApp, Instagram Stories, or download — guests love it.',
+    title: 'Social Sharing',
+    desc: 'Send photos and GIFs to WhatsApp and Instagram-ready formats in one tap.',
   },
   {
     icon: <BarChart3 className="w-5 h-5" />,
-    color: 'from-amber-500 to-orange-500',
-    title: 'Live Analytics',
-    desc: 'Real-time dashboard — see photos taken, shares, prints, and engagement as it happens.',
+    title: 'Live Event Analytics',
+    desc: 'Track sessions, popular styles, and conversion performance in real time from your dashboard.',
   },
   {
-    icon: <Camera className="w-5 h-5" />,
-    color: 'from-pink-500 to-rose-600',
-    title: 'Custom Branding',
-    desc: 'Add your logo, brand colors, and overlay text. Every photo becomes branded content.',
+    icon: <ShieldCheck className="w-5 h-5" />,
+    title: 'Secure by Design',
+    desc: 'Input validation, protected APIs, and role-aware access patterns built for production reliability.',
   },
   {
-    icon: <Zap className="w-5 h-5" />,
-    color: 'from-indigo-500 to-violet-600',
-    title: 'Webhook & Zapier',
-    desc: 'Auto-send leads to your CRM, trigger emails, and connect to 5000+ apps via Zapier.',
+    icon: <Users className="w-5 h-5" />,
+    title: 'Built for Teams',
+    desc: 'Multi-booth operations, branding controls, and scalable architecture for growing event agencies.',
   },
 ];
-
-const TESTIMONIALS = [
-  {
-    name: 'Priya R.',
-    role: 'Wedding photographer',
-    avatar: 'P',
-    color: 'bg-pink-500',
-    text: 'Guests were obsessed. The AI filters made everyone look incredible and the QR sharing meant zero follow-up chasing.',
-    stars: 5,
-  },
-  {
-    name: 'Marcus T.',
-    role: 'Corporate events',
-    avatar: 'M',
-    color: 'bg-blue-500',
-    text: 'We run 20+ events a month. SnapBooth paid for itself after the first event. The analytics dashboard is a game changer.',
-    stars: 5,
-  },
-  {
-    name: 'Aisha K.',
-    role: 'Event rental company',
-    avatar: 'A',
-    color: 'bg-violet-500',
-    text: 'White-label means our clients think it\'s our own platform. The business plan is genuinely worth every rupee.',
-    stars: 5,
-  },
-];
-
-const COMPARE = [
-  { feature: 'AI photo filters',    snapbooth: true,  others: false },
-  { feature: 'GIF & Boomerang',     snapbooth: true,  others: 'Paid add-on' },
-  { feature: 'Instant QR delivery', snapbooth: true,  others: true },
-  { feature: 'Analytics dashboard', snapbooth: true,  others: false },
-  { feature: 'Webhook / Zapier',    snapbooth: true,  others: false },
-  { feature: 'White-label',         snapbooth: true,  others: 'Enterprise only' },
-  { feature: 'Starting price',      snapbooth: 'Free','others': '$49/mo' },
-];
-
-function Tick() {
-  return <span className="text-green-400">✓</span>;
-}
-function Cross() {
-  return <span className="text-white/20">—</span>;
-}
 
 export default function HomePage() {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handler);
-    return () => window.removeEventListener('scroll', handler);
-  }, []);
-
   return (
-    <main className="min-h-screen bg-[#06060e] text-white overflow-x-hidden" style={{ fontFamily: 'system-ui, sans-serif' }}>
-
-      {/* ── Nav ── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-10 py-4 transition-all duration-300 ${
-        scrolled ? 'border-b border-white/8 bg-[#06060e]/90 backdrop-blur-md' : ''
-      }`}>
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center font-black text-sm">S</div>
-          <span className="font-bold text-lg tracking-tight">SnapBooth AI</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-8">
-          {NAV_LINKS.map(l => (
-            <Link key={l.href} href={l.href} className="text-sm text-white/50 hover:text-white transition">{l.label}</Link>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/login" className="hidden sm:block text-sm text-white/50 hover:text-white transition">Sign in</Link>
-          <Link href="/signup"
-            className="text-sm bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-semibold px-4 py-2 rounded-lg transition">
-            Start free →
-          </Link>
-        </div>
-      </nav>
-
-      {/* ── Hero ── */}
-      <section className="relative flex flex-col items-center justify-center min-h-screen px-6 text-center pt-24">
-        {/* Background */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full opacity-[0.12]"
-            style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)' }} />
-          <div className="absolute top-1/2 left-1/4 w-[350px] h-[350px] rounded-full opacity-[0.07]"
-            style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
-          <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] rounded-full opacity-[0.06]"
-            style={{ background: 'radial-gradient(circle, #ec4899 0%, transparent 70%)' }} />
-          {/* Grid */}
-          <div className="absolute inset-0 opacity-[0.03]"
-            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+    <main className="min-h-screen bg-[#04030a] text-white overflow-x-hidden">
+      <div className="relative">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[520px] w-[860px] rounded-full blur-3xl bg-violet-700/25" />
+          <div className="absolute top-[40%] -left-20 h-64 w-64 rounded-full blur-3xl bg-blue-600/20" />
+          <div className="absolute top-[30%] -right-16 h-72 w-72 rounded-full blur-3xl bg-fuchsia-600/20" />
         </div>
 
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}
-          className="relative z-10 max-w-4xl mx-auto">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}
-            className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 rounded-full px-4 py-1.5 mb-8">
-            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-            <span className="text-violet-300 text-xs font-medium tracking-wide">AI-Powered Photobooth Platform</span>
+        <nav className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-xl bg-[#04030a]/70">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 grid place-items-center font-black">S</div>
+              <span className="font-semibold tracking-tight text-lg">SnapBooth AI</span>
+            </Link>
+            <div className="hidden md:flex items-center gap-8 text-sm text-white/70">
+              <a href="#features" className="hover:text-white transition">Features</a>
+              <Link href="/pricing" className="hover:text-white transition">Pricing</Link>
+              <Link href="/admin" className="hover:text-white transition">Dashboard</Link>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link href="/login" className="text-sm text-white/70 hover:text-white">Sign in</Link>
+              <Link href="/signup" className="text-sm px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 font-semibold">Start free</Link>
+            </div>
+          </div>
+        </nav>
+
+        <section className="relative max-w-7xl mx-auto px-6 pt-24 pb-20 grid lg:grid-cols-2 gap-14 items-center">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <div className="inline-flex items-center gap-2 mb-6 rounded-full border border-violet-400/30 bg-violet-500/10 px-4 py-1.5 text-violet-200 text-xs font-medium">
+              <Sparkles className="w-3.5 h-3.5" /> Next-gen photobooth SaaS
+            </div>
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-[1.02] tracking-tight">
+              A stunning
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400"> AI photobooth </span>
+              your guests never forget.
+            </h1>
+            <p className="mt-6 text-lg text-white/70 max-w-xl leading-relaxed">
+              Convert physical moments into viral digital experiences with AI filters, instant QR delivery,
+              and real-time event intelligence.
+            </p>
+            <div className="mt-10 flex flex-col sm:flex-row gap-4">
+              <Link href="/signup" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 transition">
+                Launch your booth <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link href="/booth?event=snapbooth-demo" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 transition">
+                <Play className="w-4 h-4 fill-current" /> See live demo
+              </Link>
+            </div>
           </motion.div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black tracking-tight leading-[1.02] mb-6">
-            The photobooth that
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-400 to-blue-400">
-              runs itself.
-            </span>
-          </h1>
-
-          <p className="text-white/45 text-lg sm:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-            AI filters, instant QR sharing, GIFs, boomerangs, analytics — everything your clients expect,
-            in one platform that costs half of what competitors charge.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Link href="/signup"
-              className="group flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold px-8 py-4 rounded-xl transition-all text-base shadow-lg shadow-violet-500/20">
-              Start for free
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            <Link href="/booth?event=snapbooth-demo"
-              className="flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/10 text-white font-medium px-8 py-4 rounded-xl transition-all text-base">
-              <Play className="w-4 h-4 fill-current" />
-              See live demo
-            </Link>
-          </div>
-   
-         {/* Submission Links */}
-          
-<div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-white/40">
-
-  <a
-    href="https://github.com/Kavindraramdeni/photobooth_v2"
-    target="_blank"
-    rel="noreferrer"
-    className="hover:text-white/70 transition"
-  >
-    GitHub Repository
-  </a>
-
-  <a
-    href="https://photobooth-v2-ten.vercel.app/"
-    target="_blank"
-    rel="noreferrer"
-    className="hover:text-white/70 transition"
-  >
-    Live Deployment
-  </a>
-
-  <a
-    href="www.linkedin.com/in/kavindra-raj"
-    target="_blank"
-    rel="noreferrer"
-    className="hover:text-white/70 transition"
-  >
-    LinkedIn Profile
-  </a>
-
-</div>
-
-</motion.div>
-
-        {/* Scroll */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.4 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/20">
-          <ChevronDown className="w-5 h-5 animate-bounce" />
-        </motion.div>
-      </section>
-
-      {/* ── Booth modes ── */}
-      <section className="px-6 py-20 max-w-5xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-black mb-3">4 modes. One booth.</h2>
-          <p className="text-white/40">Every way guests want to capture the moment — built in.</p>
-        </motion.div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {MODES.map((m, i) => (
-            <motion.div key={m.label}
-              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-              className="bg-white/[0.03] border border-white/8 rounded-2xl p-5 text-center hover:bg-white/[0.06] transition-colors group">
-              <div className="text-3xl mb-3">{m.icon}</div>
-              <div className="font-semibold text-sm mb-1.5">{m.label}</div>
-              <div className="text-white/35 text-xs leading-relaxed">{m.desc}</div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Features ── */}
-      <section id="features" className="px-6 py-20 max-w-6xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-black mb-3">Everything included.</h2>
-          <p className="text-white/40 max-w-xl mx-auto">No plugins, no add-ons, no surprises. Every feature is built in from day one.</p>
-        </motion.div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {FEATURES.map((f, i) => (
-            <motion.div key={f.title}
-              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }} transition={{ delay: i * 0.07 }}
-              className="bg-white/[0.025] border border-white/8 rounded-2xl p-6 hover:bg-white/[0.05] transition-colors">
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${f.color} flex items-center justify-center mb-4 text-white`}>
-                {f.icon}
-              </div>
-              <h3 className="font-bold mb-2">{f.title}</h3>
-              <p className="text-white/40 text-sm leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Comparison ── */}
-      <section className="px-6 py-20 max-w-3xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="text-center mb-10">
-          <h2 className="text-3xl font-black mb-3">Half the price. Twice the features.</h2>
-          <p className="text-white/40">See how SnapBooth AI compares to legacy photobooth platforms.</p>
-        </motion.div>
-        <div className="rounded-2xl border border-white/8 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/8 bg-white/[0.03]">
-                <th className="text-left px-5 py-3.5 text-white/40 font-medium">Feature</th>
-                <th className="px-4 py-3.5 text-center font-black text-violet-400">SnapBooth AI</th>
-                <th className="px-4 py-3.5 text-center text-white/30 font-medium">Others</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.map((row, i) => (
-                <tr key={row.feature} className={`border-b border-white/5 ${i % 2 === 0 ? '' : 'bg-white/[0.015]'}`}>
-                  <td className="px-5 py-3 text-white/60">{row.feature}</td>
-                  <td className="px-4 py-3 text-center font-semibold">
-                    {row.snapbooth === true ? <Tick /> : <span className="text-violet-400 text-xs font-bold">{row.snapbooth}</span>}
-                  </td>
-                  <td className="px-4 py-3 text-center text-white/30 text-xs">
-                    {row.others === true ? <Tick /> : row.others === false ? <Cross /> : row.others}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ── Testimonials ── */}
-      <section className="px-6 py-20 max-w-5xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="text-center mb-12">
-          <h2 className="text-3xl font-black mb-3">Loved by event professionals</h2>
-        </motion.div>
-        <div className="grid md:grid-cols-3 gap-5">
-          {TESTIMONIALS.map((t, i) => (
-            <motion.div key={t.name}
-              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-              className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
-              <div className="flex gap-0.5 mb-4">
-                {[...Array(t.stars)].map((_, s) => <Star key={s} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />)}
-              </div>
-              <p className="text-white/60 text-sm leading-relaxed mb-5">"{t.text}"</p>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full ${t.color} flex items-center justify-center text-xs font-bold`}>{t.avatar}</div>
-                <div>
-                  <div className="text-sm font-semibold">{t.name}</div>
-                  <div className="text-white/35 text-xs">{t.role}</div>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, delay: 0.1 }} className="relative">
+            <div className="rounded-3xl border border-white/15 bg-white/[0.04] p-6 shadow-2xl shadow-violet-900/30">
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-violet-500/20 via-indigo-500/10 to-cyan-500/20 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-white/60">Live booth session</p>
+                    <h3 className="text-xl font-semibold mt-1">Corporate Gala 2026</h3>
+                  </div>
+                  <Camera className="w-8 h-8 text-violet-300" />
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
+                  {metrics.map((m) => (
+                    <div key={m.label} className="rounded-xl border border-white/15 bg-black/30 p-3">
+                      <p className="text-white/60 text-xs">{m.label}</p>
+                      <p className="text-lg font-bold mt-1">{m.value}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+            </div>
+          </motion.div>
+        </section>
 
-      {/* ── Final CTA ── */}
-      <section className="px-6 py-24">
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="max-w-2xl mx-auto text-center bg-gradient-to-b from-violet-600/15 via-violet-600/8 to-transparent border border-violet-500/20 rounded-3xl p-12">
-          <div className="text-4xl mb-4">🎉</div>
-          <h2 className="text-3xl font-black mb-3">Ready for your first event?</h2>
-          <p className="text-white/40 mb-8">Free forever. No card needed. Your first event is on us.</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-8 text-left max-w-sm mx-auto">
-            {['AI photo filters', 'Instant QR sharing', 'GIF & Boomerang', 'Live analytics', 'Custom branding', 'WhatsApp sharing'].map(item => (
-              <div key={item} className="flex items-center gap-2 text-sm text-white/55">
-                <Check className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
-                {item}
+        <section id="features" className="max-w-7xl mx-auto px-6 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-black">Everything you need. Nothing you don’t.</h2>
+            <p className="text-white/65 mt-3 max-w-2xl mx-auto">Built to impress users, satisfy clients, and scale from side hustles to enterprise-grade event operations.</p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {features.map((feature) => (
+              <div key={feature.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 hover:bg-white/[0.06] transition">
+                <div className="w-10 h-10 rounded-lg bg-violet-500/20 border border-violet-300/20 grid place-items-center text-violet-200 mb-4">{feature.icon}</div>
+                <h3 className="font-semibold text-lg">{feature.title}</h3>
+                <p className="text-white/65 mt-2 leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/signup"
-              className="group flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-violet-500/20">
-              Create free account
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            <Link href="/pricing" className="text-white/35 hover:text-white text-sm transition">
-              View pricing →
-            </Link>
-          </div>
-        </motion.div>
-      </section>
+        </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-white/5 px-6 py-10">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center font-black text-xs">S</div>
-            <span className="text-white/40 text-sm font-semibold">SnapBooth AI</span>
+        <section className="max-w-7xl mx-auto px-6 py-16">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-violet-700/20 via-indigo-700/15 to-cyan-700/20 p-8 md:p-12 text-center">
+            <h3 className="text-3xl md:text-4xl font-black">Ready to stun every client demo?</h3>
+            <p className="text-white/70 mt-3 max-w-2xl mx-auto">Start free, ship fast, and deploy a polished photobooth platform with AI-first differentiation.</p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm text-white/80">
+              {['Next.js 16', 'Tailwind CSS', 'AI-ready UX', 'Scalable architecture'].map((item) => (
+                <span key={item} className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/20 px-4 py-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-300" /> {item}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-8 text-white/25 text-sm">
-            <Link href="/pricing"      className="hover:text-white/60 transition">Pricing</Link>
-            <Link href="/admin"        className="hover:text-white/60 transition">Dashboard</Link>
-            <Link href="/booth?event=snapbooth-demo"        className="hover:text-white/60 transition">Live Demo</Link>
-            <Link href="/login"        className="hover:text-white/60 transition">Sign in</Link>
-            <Link href="/signup"       className="hover:text-white/60 transition">Sign up</Link>
+        </section>
+
+        <footer className="border-t border-white/10 mt-14">
+          <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <p className="font-semibold">SnapBooth AI</p>
+              <p className="text-sm text-white/60 mt-1">Crafted for modern event experiences.</p>
+            </div>
+            <div className="text-sm text-white/70 space-y-1 md:text-right">
+              <p>Built by <a href="https://github.com/Kavindraramdeni" target="_blank" rel="noreferrer" className="underline decoration-white/30 hover:text-white">Kavindra Ramdeni</a></p>
+              <div className="flex md:justify-end gap-4">
+                <a href="https://github.com/Kavindraramdeni/photobooth_v2" target="_blank" rel="noreferrer" className="hover:text-white">GitHub Repository</a>
+                <a href="https://photobooth-v2-ten.vercel.app/" target="_blank" rel="noreferrer" className="hover:text-white">Live Deployment</a>
+                <a href="https://www.linkedin.com/in/kavindra-raj" target="_blank" rel="noreferrer" className="hover:text-white">LinkedIn</a>
+              </div>
+              <p className="text-xs text-white/45">© {new Date().getFullYear()} SnapBooth AI</p>
+            </div>
           </div>
-          <p className="text-white/15 text-xs">© {new Date().getFullYear()} SnapBooth AI</p>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </main>
   );
 }
