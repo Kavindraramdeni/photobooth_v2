@@ -361,15 +361,10 @@ router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ADD THIS TO backend/src/routes/events.js (at the end, before module.exports)
-
-const multer = require('multer');
-const sharp = require('sharp');
-const { uploadToStorage } = require('../services/storage');
 
 const uploadAsset = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 /**
@@ -545,7 +540,6 @@ router.delete('/:id/frames/:frameId', async (req, res) => {
   }
 });
 
-module.exports = router;
 
 /**
  * ═════════════════════════════════════════════════════════════════════════════
@@ -693,3 +687,5 @@ router.delete('/:id/frames/:frameId', async (req, res) => {
   }
 });
 
+
+module.exports = router;
