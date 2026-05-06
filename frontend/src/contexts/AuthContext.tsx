@@ -33,7 +33,8 @@ function saveSession(token: string, refreshToken: string, user: AuthUser) {
   localStorage.setItem(REFRESH_KEY, refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   // Set cookie for Next.js middleware (7 day expiry)
-  document.cookie = `sb_access_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `sb_access_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
 }
 
 function clearSession() {
@@ -69,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(storedUser);
+      // Keep middleware cookie in sync (handles refreshes / manual cookie clears)
+      saveSession(storedToken, getStoredRefresh() || '', storedUser);
       // Silently verify token is still valid
       fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${storedToken}` },
@@ -102,6 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(REFRESH_KEY, data.refreshToken);
+      const storedUser = getStoredUser();
+      if (storedUser) saveSession(data.token, data.refreshToken, storedUser);
     } catch {
       clearSession();
       setUser(null);
