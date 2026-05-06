@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Wand2, Share2, ImagePlus, RotateCcw } from 'lucide-react';
+import { Sparkles, Wand2, Share2, ImagePlus, RotateCcw, ArrowLeft, X } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
@@ -117,7 +117,6 @@ export function AIStudioScreen() {
 
           setStyles(mapped);
         } else {
-          // No custom styles uploaded yet - show empty state
           setStyles([]);
         }
       })
@@ -173,75 +172,184 @@ export function AIStudioScreen() {
     setScreen('share');
   }
 
+  function handleBack() {
+    if (step === 'result') {
+      // Back from result to style selection
+      setStep('select');
+      setGeneratedUrl(null);
+      setSelected(null);
+    } else {
+      // Back from AI studio to camera
+      setScreen('preview');
+    }
+  }
+
   return (
     <div className="w-full h-full flex flex-col bg-[#08080f]">
-      <div className="flex-1 flex overflow-hidden">
+      {/* HEADER - Navigation & Title */}
+      <div className="flex items-center justify-between px-4 py-3 bg-[#0d0d1a]/80 backdrop-blur-xl border-b border-white/10">
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={handleBack}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-white"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-semibold">Back</span>
+        </motion.button>
 
-        {/* LEFT */}
-        <div className="w-1/3 p-2">
-          {currentPhoto?.url && (
-            <img
-              src={currentPhoto.url}
-              className="w-full h-full object-cover rounded-xl"
-            />
+        <h2 className="text-white font-bold text-lg">✨ AI Studio</h2>
+
+        <div className="w-16" /> {/* Spacer for alignment */}
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* LEFT - Original Photo Preview (2/5 width) */}
+        <div className="w-2/5 p-4 flex items-center justify-center bg-black/20">
+          {currentPhoto?.url ? (
+            <div className="w-full h-full flex items-center justify-center bg-black rounded-2xl overflow-hidden">
+              <img
+                src={currentPhoto.url}
+                alt="Original photo"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="text-white/50 text-center">
+              <ImagePlus className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No photo selected</p>
+            </div>
           )}
         </div>
 
-        {/* RIGHT */}
-        <div className="flex-1 flex flex-col">
+        {/* RIGHT - Style Selection & Generation (3/5 width) */}
+        <div className="w-3/5 flex flex-col bg-[#0a0a0f]">
+          {/* Status Bar */}
+          <div className="px-4 py-3 border-b border-white/10">
+            <p className="text-white/60 text-sm font-semibold">
+              {step === 'select' && 'Choose a Style'}
+              {step === 'generating' && '⏳ Generating...'}
+              {step === 'result' && '✅ Preview Result'}
+            </p>
+            {selectedStyle && step === 'select' && (
+              <p className="text-violet-300 text-sm mt-1">
+                Selected: {selectedStyle.name} {selectedStyle.emoji}
+              </p>
+            )}
+          </div>
 
+          {/* STEP 1: SELECT STYLES */}
           {step === 'select' && (
-            <div className="flex-1 overflow-y-auto p-2 grid grid-cols-3 gap-2">
-              {stylesLoading ? (
-                <div className="col-span-3 flex justify-center items-center">
-                  Loading...
-                </div>
-              ) : (
-                styles.map((style) => (
-                  <StyleCard
-                    key={style.key}
-                    style={style}
-                    isSelected={selected === style.key}
-                    onSelect={() =>
-                      setSelected(
-                        selected === style.key ? null : style.key
-                      )
-                    }
-                    disabled={aiGenerating}
-                  />
-                ))
-              )}
-            </div>
+            <>
+              <div className="flex-1 overflow-y-auto p-4">
+                {stylesLoading ? (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="text-white/60">
+                      <Sparkles className="w-8 h-8 mx-auto mb-2 animate-spin" />
+                      <p>Loading styles...</p>
+                    </div>
+                  </div>
+                ) : styles.length === 0 ? (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="text-white/60 text-center">
+                      <p>No styles available</p>
+                      <p className="text-sm mt-2">Create custom styles in admin</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {styles.map((style) => (
+                      <StyleCard
+                        key={style.key}
+                        style={style}
+                        isSelected={selected === style.key}
+                        onSelect={() =>
+                          setSelected(
+                            selected === style.key ? null : style.key
+                          )
+                        }
+                        disabled={aiGenerating}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Generate Button */}
+              <div className="p-4 border-t border-white/10">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleGenerate}
+                  disabled={!selected || aiGenerating}
+                  className={`w-full py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                    !selected || aiGenerating
+                      ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                      : 'bg-violet-600 hover:bg-violet-500 text-white'
+                  }`}
+                >
+                  <Wand2 className="w-5 h-5" />
+                  {aiGenerating ? 'Generating...' : 'Generate AI Photo'}
+                </motion.button>
+              </div>
+            </>
           )}
 
-          {step === 'select' && selected && (
-            <button
-              onClick={handleGenerate}
-              className="m-2 p-3 bg-purple-600 text-white rounded-xl"
-            >
-              Generate AI
-            </button>
-          )}
-
-          {step === 'result' && (
-            <div className="flex-1 flex flex-col">
-              <img
-                src={generatedUrl || ''}
-                className="flex-1 object-cover"
-              />
-              <button
-                onClick={handleShareAI}
-                className="m-2 p-3 bg-green-600 text-white rounded-xl"
-              >
-                Share
-              </button>
-            </div>
-          )}
-
+          {/* STEP 2: GENERATING */}
           {step === 'generating' && (
-            <div className="flex-1 flex items-center justify-center">
-              Generating...
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+              >
+                <Sparkles className="w-12 h-12 text-violet-400" />
+              </motion.div>
+              <p className="text-white text-lg font-semibold">Generating your AI photo...</p>
+              <p className="text-white/50 text-sm">This may take a moment</p>
             </div>
+          )}
+
+          {/* STEP 3: RESULT */}
+          {step === 'result' && (
+            <>
+              <div className="flex-1 overflow-hidden p-4">
+                {generatedUrl ? (
+                  <img
+                    src={generatedUrl}
+                    alt="Generated AI photo"
+                    className="w-full h-full object-contain rounded-xl"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <p className="text-white/50">Loading...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Result Actions */}
+              <div className="p-4 border-t border-white/10 space-y-2">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleShareAI}
+                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 transition-all"
+                >
+                  <Share2 className="w-5 h-5" />
+                  Share This Photo
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setStep('select');
+                    setGeneratedUrl(null);
+                    setSelected(null);
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center gap-2 transition-all"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  Try Another Style
+                </motion.button>
+              </div>
+            </>
           )}
         </div>
       </div>
