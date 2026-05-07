@@ -174,7 +174,7 @@ function UploadZone({ label, accept, currentUrl, onUploaded, uploading, setUploa
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setUploading(true);
-    try { const url = await uploadAssetViaBackend(file, eventId, assetType); onUploaded(url); toast.success(`${label} uploaded!`); }
+    try { const url = await uploadAssetViaBackend(file, eventId, assetType); const cacheBusted = assetType === 'idle' ? `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}` : url; onUploaded(cacheBusted); toast.success(`${label} uploaded!`); }
     catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Upload failed'); }
     finally { setUploading(false); if (ref.current) ref.current.value = ''; }
   }
