@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer, Image as ImageIcon, X } from 'lucide-react';
+import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer, Image as ImageIcon, X, Mail } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
+import { EmailCaptureModal } from '@/components/booth/EmailCaptureModal';
+import { TemplateRenderer } from '@/components/booth/TemplateRenderer';
 import { useIsDemo } from '@/app/booth/BoothPageClient';
 import toast from 'react-hot-toast';
 
@@ -81,6 +83,7 @@ function ActionBtn({
 export function PreviewScreen() {
   const { currentPhoto, event, mode, setScreen, resetSession, setEvent, setCurrentPhoto } = useBoothStore();
   const [showLeadModal, setShowLeadModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [showFrames, setShowFrames] = useState(false);
   const [framesLoading, setFramesLoading] = useState(false);
   const [frames, setFrames] = useState<Array<{ id: string; name: string; url: string; isDefault?: boolean; isActive?: boolean }>>([]);
@@ -212,6 +215,10 @@ function selectFrame(frameUrl: string | null) {
         if (frames.length === 0) await loadFrames();
       },
     }] : []),
+    ...(settings?.allowEmailShare !== false ? [{
+      id: 'email', icon: <Mail className="w-5 h-5" />, label: 'Email',
+      color: 'linear-gradient(135deg,#10b981,#059669)', onClick: () => setShowEmailModal(true),
+    }] : []),
     {
       id: 'share', icon: <Share2 className="w-5 h-5" />, label: 'Share & QR',
       color: '#2563eb', onClick: handleShareClick,
@@ -265,22 +272,11 @@ function selectFrame(frameUrl: string | null) {
             className="relative w-full h-full flex items-center justify-center"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <div className="relative inline-block">
-              <img
-                src={photo.url}
-                alt="Your photo"
-                className="rounded-2xl shadow-2xl object-contain"
-                style={{
-                  // Strip is narrow portrait — constrain width
-                  // Single/GIF — fill available space but don't overflow
-                  maxWidth: mode === 'strip' ? '360px' : 'min(100%, calc(100vw - 280px))',
-                  maxHeight: 'calc(100vh - 180px)',
-                  width: 'auto',
-                  height: 'auto',
-                  filter: currentFilter,
-                  transition: 'filter 0.25s ease',
-                }}
-                draggable={false}
+            <div className="relative inline-block" style={{ filter: currentFilter, transition: 'filter 0.25s ease' }}>
+              <TemplateRenderer
+                photoUrl={photo.url}
+                eventName={eventName}
+                template={{ layout: { footerText: event?.branding?.footerText, logoUrl: event?.branding?.logoUrl, borderColor: event?.branding?.secondaryColor } }}
               />
 
               {event?.branding?.frameUrl && (
@@ -519,6 +515,10 @@ function selectFrame(frameUrl: string | null) {
               )}
             </motion.div>
           </motion.div>
+        )}
+
+        {showEmailModal && event && currentPhoto && (
+          <EmailCaptureModal eventId={event.id} photoId={currentPhoto.id} onClose={() => setShowEmailModal(false)} />
         )}
 
         {showLeadModal && (

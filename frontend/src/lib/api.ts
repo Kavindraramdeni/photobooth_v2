@@ -322,3 +322,33 @@ export async function openBillingPortal() {
   const res = await api.post('/billing/portal');
   return res.data;
 }
+
+// ─── Email / Backgrounds / Templates ───────────────────────────────────────
+
+export async function sendPhotoEmail(data: { eventId: string; photoId: string; email: string; name?: string }) {
+  const res = await api.post('/email/photo', data);
+  return res.data;
+}
+
+export async function getBackgrounds(eventId: string) {
+  const res = await api.get(`/backgrounds/event/${eventId}`);
+  return res.data.backgrounds;
+}
+
+export async function uploadBackground(eventId: string, file: File, name?: string) {
+  const form = new FormData();
+  form.append('file', file);
+  if (name) form.append('name', name);
+  const res = await api.post(`/backgrounds/event/${eventId}`, form);
+  return res.data.background;
+}
+
+export async function getTemplates(eventId: string) {
+  const res = await api.get(`/templates/event/${eventId}`);
+  return res.data.templates;
+}
+
+export async function createTemplate(eventId: string, data: { name: string; layout?: Record<string, unknown>; isDefault?: boolean }) {
+  const res = await api.post(`/templates/event/${eventId}`, data);
+  return res.data.template;
+}
