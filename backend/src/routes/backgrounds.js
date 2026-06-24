@@ -1,32 +1,82 @@
+/**
+ * Backgrounds Routes - Green screen backgrounds management
+ */
+
 const express = require('express');
-const multer = require('multer');
-const sharp = require('sharp');
-const { randomUUID } = require('crypto');
 const router = express.Router();
-const supabase = require('../services/database');
-const { uploadToStorage } = require('../services/storage');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
-
-router.get('/event/:eventId', async (req, res) => {
+// GET /api/events/:id/backgrounds
+router.get('/backgrounds', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('backgrounds').select('*').eq('event_id', req.params.eventId).order('created_at', { ascending: false });
-    if (error) throw error;
-    res.json({ backgrounds: data || [] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { data: backgrounds } = await supabase
+      .from('event_backgrounds')
+      .select('*')
+      .eq('event_id', req.params.id)
+      .eq('is_active', true);
+
+    res.json({ backgrounds: backgrounds || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.post('/event/:eventId', upload.single('file'), async (req, res) => {
+// POST /api/events/:id/backgrounds
+router.post('/backgrounds', async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Background image is required' });
-    const id = randomUUID();
-    const processed = await sharp(req.file.buffer).resize(1920, 1080, { fit: 'cover' }).jpeg({ quality: 88 }).toBuffer();
-    const key = `events/${req.params.eventId}/backgrounds/${id}.jpg`;
-    const url = await uploadToStorage(processed, key, 'image/jpeg');
-    const { data, error } = await supabase.from('backgrounds').insert({ id, event_id: req.params.eventId, name: req.body.name || 'Background', url, storage_key: key, is_active: true }).select().single();
-    if (error) throw error;
-    res.status(201).json({ background: data });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { name, url } = req.body;
+    const eventId = req.params.id;
+
+    if (!name || !url) {
+      return res.status(400).json({ error: 'Name and URL required' });
+    }
+
+    const { data: background } = await supabase
+      .from('event_backgrounds')
+      .insert({
+        event_id: eventId,
+        name,
+        url,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    res.json({ success: true, background });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PATCH /api/events/:id/backgrounds/:bgId
+router.patch('/backgrounds/:bgId', async (req, res) => {
+  try {
+    const { is_active } = req.body;
+
+    const { data: background } = await supabase
+      .from('event_backgrounds')
+      .update({ is_active })
+      .eq('id', req.params.bgId)
+      .select()
+      .single();
+
+    res.json({ success: true, background });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/events/:id/backgrounds/:bgId
+router.delete('/backgrounds/:bgId', async (req, res) => {
+  try {
+    await supabase
+      .from('event_backgrounds')
+      .delete()
+      .eq('id', req.params.bgId);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;
