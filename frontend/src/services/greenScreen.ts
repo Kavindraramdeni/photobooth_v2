@@ -3,7 +3,7 @@
  * Real-time background removal and replacement using MediaPipe
  */
 
-import { SelfieSegmenter } from '@mediapipe/selfie-segmentation';
+import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 
 export class GreenScreenService {
   private segmenter: SelfieSegmenter | null = null;
