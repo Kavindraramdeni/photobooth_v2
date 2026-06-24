@@ -2,7 +2,6 @@
  * Green Screen / Virtual Background Service
  * Real-time background removal and replacement using MediaPipe
  */
-
 import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 
 export class GreenScreenService {
