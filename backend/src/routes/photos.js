@@ -40,7 +40,7 @@ async function fireWebhook(event, payload) {
 // Multer: memory storage for direct processing
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
+  limits: { fileSize: 75 * 1024 * 1024 }, // 75MB for high-resolution booth uploads
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -54,7 +54,21 @@ const upload = multer({
  * POST /api/photos/upload
  * Upload a photo, apply branding, generate QR
  */
-router.post('/upload', upload.single('photo'), async (req, res) => {
+const uploadPhotoFields = upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'file', maxCount: 1 }]);
+
+function normalizeUploadedPhoto(req, res, next) {
+  uploadPhotoFields(req, res, (err) => {
+    if (err) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(status).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large. Please upload an image under 75MB.' : err.message });
+    }
+    const file = req.files?.photo?.[0] || req.files?.file?.[0];
+    if (file) req.file = file;
+    next();
+  });
+}
+
+router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
   try {
     const { eventId, mode = 'single', sessionId } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
@@ -97,10 +111,15 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
     const storageKey = `events/${eventId}/photos/${photoId}_${timestamp}.jpg`;
 
     // Process image: resize + apply branding
-    let processedBuffer = await sharp(req.file.buffer)
+    let processedBuffer;
+    try {
+      processedBuffer = await sharp(req.file.buffer)
       .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 95 })
       .toBuffer();
+    } catch (imageError) {
+      return res.status(415).json({ error: 'Unsupported or invalid image format. Please upload a JPG, PNG, WEBP, HEIC, or GIF image.' });
+    }
 
     if (event.branding) {
       processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding);

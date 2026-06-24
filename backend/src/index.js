@@ -81,6 +81,9 @@ app.use('/api/share',     safeRoute('share',     './routes/share'));
 app.use('/api/leads',     safeRoute('leads',     './routes/leads'));
 app.use('/api/billing',   safeRoute('billing',   './routes/billing'));
 app.use('/api/gallery',   safeRoute('gallery',   './routes/gallery'));
+app.use('/api/email',     safeRoute('email',     './routes/email'));
+app.use('/api/backgrounds', safeRoute('backgrounds', './routes/backgrounds'));
+app.use('/api/templates', safeRoute('templates', './routes/templates'));
 
 app.get('/', (req, res) => res.json({ name: 'SnapBooth AI Backend', status: 'ok', version: '2.0.0' }));
 
