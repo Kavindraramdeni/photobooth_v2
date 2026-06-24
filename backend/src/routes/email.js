@@ -1,48 +1,62 @@
+/**
+ * Email Routes - Send photos to guests
+ */
+
 const express = require('express');
 const router = express.Router();
-const supabase = require('../services/database');
-const { sendPhotoEmail, buildPhotoEmail, isEmailConfigured, validateEmail } = require('../services/email');
+const { sendPhotoEmail, sendBatchEmails } = require('../services/email');
 
-router.get('/status', (req, res) => {
-  res.json({ configured: isEmailConfigured() });
-});
-
-router.post('/photo', async (req, res) => {
-  const { eventId, photoId, email, name, message, consented = true } = req.body;
-  if (!eventId) return res.status(400).json({ error: 'eventId is required' });
-  if (!photoId) return res.status(400).json({ error: 'photoId is required' });
-  if (!validateEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
-
+// POST /api/photos/send-email
+router.post('/send-email', async (req, res) => {
   try {
-    const [{ data: event, error: eventError }, { data: photo, error: photoError }] = await Promise.all([
-      supabase.from('events').select('*').eq('id', eventId).single(),
-      supabase.from('photos').select('*').eq('id', photoId).single(),
-    ]);
-    if (eventError || !event) return res.status(404).json({ error: 'Event not found' });
-    if (photoError || !photo) return res.status(404).json({ error: 'Photo not found' });
+    const { email, name, photoId, eventId, shortCode } = req.body;
 
-    const emailContent = buildPhotoEmail({ event, photo, message });
-    await sendPhotoEmail({
-      to: email,
-      ...emailContent,
-      fromName: event.settings?.emailFromName || event.branding?.eventName || event.name,
-      replyTo: event.settings?.emailReplyTo,
-    });
+    // Get photo
+    const { data: photo } = await supabase
+      .from('photos')
+      .select('*')
+      .eq('id', photoId)
+      .single();
 
+    if (!photo) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    // Get event
+    const { data: event } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    // Send email
+    const result = await sendPhotoEmail(email, name, photo.url, event, shortCode);
+
+    // Save lead
     await supabase.from('leads').insert({
       event_id: eventId,
       photo_id: photoId,
       email,
-      name: name || null,
-      consented: !!consented,
-      created_at: new Date().toISOString(),
+      name,
+      opted_in: true,
     });
-    await supabase.from('analytics').insert({ event_id: eventId, action: 'email_sent', metadata: { photoId } });
 
-    res.json({ success: true });
-  } catch (err) {
-    console.error('/api/email/photo error:', err);
-    res.status(500).json({ error: err.message });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/events/:id/send-batch
+router.post('/send-batch', async (req, res) => {
+  try {
+    const { leads } = req.body;
+    const eventId = req.params.id;
+
+    const result = await sendBatchEmails(eventId, leads);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
