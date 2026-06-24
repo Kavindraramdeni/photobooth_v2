@@ -1,34 +1,92 @@
+/**
+ * Templates Routes - Photo template management
+ */
+
 const express = require('express');
-const { randomUUID } = require('crypto');
 const router = express.Router();
-const supabase = require('../services/database');
 
-router.get('/event/:eventId', async (req, res) => {
+// GET /api/events/:id/templates
+router.get('/templates', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('templates').select('*').eq('event_id', req.params.eventId).order('updated_at', { ascending: false });
-    if (error) throw error;
-    res.json({ templates: data || [] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { data: templates } = await supabase
+      .from('photo_templates')
+      .select('*')
+      .eq('event_id', req.params.id)
+      .order('created_at', { ascending: false });
+
+    res.json({ templates: templates || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.post('/event/:eventId', async (req, res) => {
+// POST /api/events/:id/templates
+router.post('/templates', async (req, res) => {
   try {
-    const id = randomUUID();
-    const { name, layout, isDefault = false } = req.body;
-    if (!name) return res.status(400).json({ error: 'Template name is required' });
-    const payload = { id, event_id: req.params.eventId, name, layout: layout || {}, is_default: !!isDefault, is_active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-    const { data, error } = await supabase.from('templates').insert(payload).select().single();
-    if (error) throw error;
-    res.status(201).json({ template: data });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { name, elements, layout, width, height, is_default } = req.body;
+    const eventId = req.params.id;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Template name required' });
+    }
+
+    const { data: template } = await supabase
+      .from('photo_templates')
+      .insert({
+        event_id: eventId,
+        name,
+        elements: elements || [],
+        layout: layout || 'custom',
+        width: width || 1200,
+        height: height || 1800,
+        is_default: is_default || false,
+      })
+      .select()
+      .single();
+
+    res.json({ success: true, template });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.put('/:templateId', async (req, res) => {
+// PATCH /api/events/:id/templates/:templateId
+router.patch('/templates/:templateId', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('templates').update({ ...req.body, updated_at: new Date().toISOString() }).eq('id', req.params.templateId).select().single();
-    if (error) throw error;
-    res.json({ template: data });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { name, elements, layout, width, height, is_default } = req.body;
+
+    const { data: template } = await supabase
+      .from('photo_templates')
+      .update({
+        name,
+        elements,
+        layout,
+        width,
+        height,
+        is_default,
+      })
+      .eq('id', req.params.templateId)
+      .select()
+      .single();
+
+    res.json({ success: true, template });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/events/:id/templates/:templateId
+router.delete('/templates/:templateId', async (req, res) => {
+  try {
+    await supabase
+      .from('photo_templates')
+      .delete()
+      .eq('id', req.params.templateId);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;
