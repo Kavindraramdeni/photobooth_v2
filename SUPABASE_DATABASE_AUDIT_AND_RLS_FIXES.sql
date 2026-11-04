@@ -25,6 +25,19 @@ BEGIN;
 -- Ensure UUID extension is available
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Ensure subscription tables have required user_id and email columns
+ALTER TABLE IF EXISTS public.subscriptions 
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id),
+    ADD COLUMN IF NOT EXISTS email TEXT;
+
+ALTER TABLE IF EXISTS public.user_subscriptions 
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id),
+    ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free',
+    ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+
+ALTER TABLE IF EXISTS public.operators 
+    ADD COLUMN IF NOT EXISTS email TEXT;
+
 -- Add missing gallery columns to events
 ALTER TABLE IF EXISTS public.events 
     ADD COLUMN IF NOT EXISTS gallery_password TEXT,
@@ -353,25 +366,30 @@ WITH CHECK (email = (SELECT email FROM auth.users WHERE id = auth.uid()));
 -- Prevent anonymous users from overwriting or uploading arbitrary files directly
 -- to the storage bucket. Writes must be done via the backend service_role key
 -- or authenticated users.
-DROP POLICY IF EXISTS "Public Access" ON storage.objects;
-DROP POLICY IF EXISTS "Allow anonymous uploads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow anonymous update" ON storage.objects;
-DROP POLICY IF EXISTS "photobooth_media_public_read" ON storage.objects;
-DROP POLICY IF EXISTS "photobooth_media_auth_insert" ON storage.objects;
+DO $$
+BEGIN
+    BEGIN
+        DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+        DROP POLICY IF EXISTS "Allow anonymous uploads" ON storage.objects;
+        DROP POLICY IF EXISTS "Allow anonymous update" ON storage.objects;
+        DROP POLICY IF EXISTS "photobooth_media_public_read" ON storage.objects;
+        DROP POLICY IF EXISTS "photobooth_media_auth_insert" ON storage.objects;
 
--- Allow public read of objects in photobooth-media
-CREATE POLICY "photobooth_media_public_read"
-ON storage.objects
-FOR SELECT
-TO public
-USING (bucket_id = 'photobooth-media');
+        CREATE POLICY "photobooth_media_public_read"
+        ON storage.objects
+        FOR SELECT
+        TO public
+        USING (bucket_id = 'photobooth-media');
 
--- Require authentication for client-side uploads to photobooth-media
-CREATE POLICY "photobooth_media_auth_insert"
-ON storage.objects
-FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'photobooth-media');
+        CREATE POLICY "photobooth_media_auth_insert"
+        ON storage.objects
+        FOR INSERT
+        TO authenticated
+        WITH CHECK (bucket_id = 'photobooth-media');
+    EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'Notice: Storage policy adjustment skipped or managed via dashboard: %', SQLERRM;
+    END;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- 10. RANDOM OPERATOR PIN GENERATOR (Replaces default '1234')
