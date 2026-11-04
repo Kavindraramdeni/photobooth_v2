@@ -344,21 +344,21 @@ FOR SELECT
 TO authenticated
 USING (
     (user_id = auth.uid()) OR 
-    (email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+    (email = (auth.jwt()->>'email'))
 );
 
 CREATE POLICY "operators_owner_read"
 ON public.operators
 FOR SELECT
 TO authenticated
-USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));
+USING (email = (auth.jwt()->>'email'));
 
 CREATE POLICY "operators_owner_update"
 ON public.operators
 FOR UPDATE
 TO authenticated
-USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()))
-WITH CHECK (email = (SELECT email FROM auth.users WHERE id = auth.uid()));
+USING (email = (auth.jwt()->>'email'))
+WITH CHECK (email = (auth.jwt()->>'email'));
 
 -- ------------------------------------------------------------------------------
 -- 9. SUPABASE STORAGE BUCKET SECURITY: photobooth-media
