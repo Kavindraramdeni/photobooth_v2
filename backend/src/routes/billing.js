@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
+const { getUserPlanFeatures } = require('../middleware/planEnforcement');
 
 // Lazy-load stripe so missing STRIPE_SECRET_KEY doesn't crash the server at startup.
 // Routes will return 503 if key is not configured.
@@ -50,10 +52,79 @@ router.get('/plans', (req, res) => {
   res.json({ plans: PLANS });
 });
 
+// ─── GET /api/billing/my-plan ─────────────────────────────────────────────────
+router.get('/my-plan', requireAuth, async (req, res) => {
+  try {
+    const { plan, features } = await getUserPlanFeatures(req.user.id);
+    
+    // Count active events
+    const { count: eventCount } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', req.user.id)
+      .eq('status', 'active');
+
+    // Count photos this month
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const { data: userEvents } = await supabase
+      .from('events')
+      .select('id')
+      .eq('owner_id', req.user.id);
+    const eventIds = (userEvents || []).map(e => e.id);
+    
+    let photoCount = 0;
+    if (eventIds.length > 0) {
+      const { count } = await supabase
+        .from('photos')
+        .select('id', { count: 'exact', head: true })
+        .in('event_id', eventIds)
+        .gte('created_at', monthStart);
+      photoCount = count || 0;
+    }
+
+    res.json({
+      plan,
+      features,
+      usage: {
+        events: eventCount || 0,
+        photos: photoCount,
+        eventLimit: features.eventLimit,
+        photoLimit: features.photoLimit,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/billing/check-limits ───────────────────────────────────────────
+router.get('/check-limits', requireAuth, async (req, res) => {
+  try {
+    const { plan, features } = await getUserPlanFeatures(req.user.id);
+    const { count: eventCount } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', req.user.id)
+      .eq('status', 'active');
+
+    const canCreateEvent = features.eventLimit === -1 || (eventCount || 0) < features.eventLimit;
+
+    res.json({
+      plan,
+      canCreateEvent,
+      currentEvents: eventCount || 0,
+      eventLimit: features.eventLimit,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/billing/checkout ──────────────────────────────────────────────
 // Creates a Stripe Checkout session
 router.post('/checkout', async (req, res) => {
   try {
+    const stripe = getStripe(); // Initialize Stripe SDK first
     const { planKey, operatorEmail, operatorName, isAnnual = false } = req.body;
     const plan = PLANS[planKey];
     if (!plan) return res.status(400).json({ error: 'Invalid plan' });
@@ -63,7 +134,7 @@ router.post('/checkout', async (req, res) => {
       .from('operators')
       .select('*')
       .eq('email', operatorEmail)
-      .single();
+      .maybeSingle();
 
     // Create Stripe customer if new
     let customerId = operator?.stripe_customer_id;
@@ -77,14 +148,13 @@ router.post('/checkout', async (req, res) => {
     }
 
     // Build line items — pay-per-event uses one-time price
-    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       mode: 'subscription',
       line_items: [
         {
-          price: isAnnual ? plan.annualPriceId : plan.priceId,
+          price: isAnnual ? (plan.annualPriceId || plan.priceId) : plan.priceId,
           quantity: 1,
         },
       ],
@@ -144,16 +214,27 @@ router.post('/checkout/event', async (req, res) => {
 // Opens Stripe Customer Portal for self-service billing management
 router.post('/portal', async (req, res) => {
   try {
-    const { operatorEmail } = req.body;
+    let email = req.body?.operatorEmail;
+
+    // If email not in body, check Bearer token
+    if (!email && req.headers.authorization?.startsWith('Bearer ')) {
+      const token = req.headers.authorization.split(' ')[1];
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user?.email) email = user.email;
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Operator email is required' });
+    }
 
     const { data: operator } = await supabase
       .from('operators')
       .select('stripe_customer_id')
-      .eq('email', operatorEmail)
-      .single();
+      .eq('email', email)
+      .maybeSingle();
 
     if (!operator?.stripe_customer_id) {
-      return res.status(404).json({ error: 'No billing account found' });
+      return res.status(404).json({ error: 'No billing account found for this user' });
     }
 
     const stripe = getStripe();

@@ -13,8 +13,10 @@ const httpServer = createServer(app);
 app.set('trust proxy', 1);
 
 // ── CORS origins ──────────────────────────────────────────────────────────────
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://photobooth-v2-ten.vercel.app')
-  .split(',').map(o => o.trim()).filter(Boolean);
+const DEFAULT_ORIGINS = ['http://localhost:3000', 'https://photobooth-v2-ten.vercel.app', 'https://photobooth-v2-xi.vercel.app'];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : DEFAULT_ORIGINS);
 
 const io = new Server(httpServer, {
   cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
@@ -27,13 +29,15 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, Render health checks)
     if (!origin) return cb(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS blocked: ${origin}`));
+    return cb(null, false);
   },
   credentials: true,
 }));
+
+// Stripe webhook must receive raw body buffer BEFORE express.json() parses it
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 // Global rate limit — 500 req / 15 min across all API routes
 app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 500 }));
 

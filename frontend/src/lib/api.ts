@@ -84,7 +84,10 @@ export async function deletePhoto(photoId: string) {
 }
 
 export async function downloadPhotosZip(eventId: string, eventName: string) {
-  const response = await fetch(`${API_BASE}/api/photos/event/${eventId}/zip`);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('sb_access_token') : null;
+  const response = await fetch(`${API_BASE}/api/photos/event/${eventId}/zip`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!response.ok) throw new Error('ZIP download failed');
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);

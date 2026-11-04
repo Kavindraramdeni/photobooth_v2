@@ -2,20 +2,12 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Protects all /admin routes.
- * Exception: /admin/events/[id]?operator=true — PIN verified client-side.
+ * Protects all /admin, /dashboard, and /account routes.
  */
 export function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-  // Allow operator access to a specific event page (PIN verified client-side)
-  const isOperatorMode = searchParams.get('operator') === 'true';
-  const isEventPage = /^\/admin\/events\/[^/]+$/.test(pathname);
-  if (isOperatorMode && isEventPage) {
-    return NextResponse.next();
-  }
-
-  // Protect all other /admin, /dashboard, /account routes
+  // Protect all /admin, /dashboard, /account routes
   if (
     pathname.startsWith('/admin') ||
     pathname.startsWith('/dashboard') ||

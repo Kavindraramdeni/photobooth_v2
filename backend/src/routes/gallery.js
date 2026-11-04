@@ -15,7 +15,7 @@ router.get('/:slug', async (req, res) => {
       .eq('slug', slug)
       .maybeSingle();
 
-    if (!event && /^[0-9a-f-]{36}$/i.test(slug)) {
+    if (!event && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
       const byId = await supabase.from('events').select('id, name, slug, date, venue, branding, settings, gallery_password, gallery_expires_at').eq('id', slug).maybeSingle();
       if (byId.data) event = byId.data;
     }
@@ -27,12 +27,13 @@ router.get('/:slug', async (req, res) => {
       return res.status(410).json({ error: 'Gallery has expired' });
     }
 
-    // Password protection
-    if (event.gallery_password) {
+    // Password protection (check column or settings)
+    const expectedPassword = event.gallery_password || event.settings?.galleryPassword;
+    if (expectedPassword) {
       if (!password) {
         return res.status(401).json({ error: 'PASSWORD_REQUIRED', eventName: event.name });
       }
-      if (password !== event.gallery_password) {
+      if (password !== expectedPassword) {
         return res.status(403).json({ error: 'WRONG_PASSWORD' });
       }
     }
@@ -76,20 +77,36 @@ router.get('/:slug', async (req, res) => {
 });
 
 // ─── POST /api/gallery/:slug/verify-password ─────────────────────────────────
-router.post('/:slug/verify-password', async (req, res) => {
+router.post(['/:slug/verify-password', '/:slug/auth'], async (req, res) => {
   try {
     const { password } = req.body;
-    const { data: event } = await supabase
+    const { slug } = req.params;
+
+    let event = null;
+    const bySlug = await supabase
       .from('events')
-      .select('gallery_password, name')
-      .or(`id.eq.${req.params.slug},slug.eq.${req.params.slug}`)
-      .single();
+      .select('gallery_password, settings, name')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (bySlug.data) {
+      event = bySlug.data;
+    } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+      const byId = await supabase
+        .from('events')
+        .select('gallery_password, settings, name')
+        .eq('id', slug)
+        .maybeSingle();
+      if (byId.data) event = byId.data;
+    }
 
     if (!event) return res.status(404).json({ error: 'Not found' });
-    if (password === event.gallery_password) {
-      res.json({ success: true });
+
+    const expectedPassword = event.gallery_password || event.settings?.galleryPassword;
+    if (!expectedPassword || password === expectedPassword) {
+      res.json({ success: true, ok: true });
     } else {
-      res.status(403).json({ error: 'Wrong password' });
+      res.status(403).json({ error: 'Wrong password', ok: false });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -118,11 +135,13 @@ router.get('/photo/:photoId', async (req, res) => {
   try {
     const { data: photo, error } = await supabase
       .from('photos')
-      .select('id, url, thumb_url, gallery_url, mode, created_at, events(name, slug, branding)')
+      .select('id, url, thumb_url, gallery_url, mode, created_at, is_hidden, events(name, slug, branding)')
       .eq('id', req.params.photoId)
       .single();
 
-    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (error || !photo || photo.is_hidden) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
     res.json({ photo });
   } catch (err) {
     res.status(500).json({ error: err.message });

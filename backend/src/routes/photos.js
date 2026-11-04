@@ -342,8 +342,19 @@ router.get('/event/:eventId', async (req, res) => {
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
-    // Operators can request all photos including hidden ones
-    if (include_hidden !== 'true') {
+    // Only allow viewing hidden photos if caller is the authenticated event owner
+    let isOwner = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        const { data: ev } = await supabase.from('events').select('owner_id').eq('id', eventId).maybeSingle();
+        if (ev && ev.owner_id === user.id) isOwner = true;
+      }
+    }
+
+    if (!isOwner || include_hidden !== 'true') {
       query = query.or('is_hidden.is.null,is_hidden.eq.false');
     }
 
@@ -403,6 +414,17 @@ router.patch('/:photoId/moderate', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'is_hidden (boolean) required' });
   }
   try {
+    const { data: photo, error: fetchErr } = await supabase
+      .from('photos')
+      .select('event_id, events!inner(owner_id)')
+      .eq('id', req.params.photoId)
+      .single();
+
+    if (fetchErr || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (photo.events?.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied: you do not own the event this photo belongs to' });
+    }
+
     const { error } = await supabase
       .from('photos')
       .update({
@@ -487,14 +509,17 @@ router.delete('/:photoId', requireAuth, async (req, res) => {
   try {
     const { photoId } = req.params;
 
-    // Get storage_key first so we can delete from R2
+    // Verify ownership of the event before deleting
     const { data: photo, error: fetchErr } = await supabase
       .from('photos')
-      .select('storage_key, event_id')
+      .select('storage_key, event_id, events!inner(owner_id)')
       .eq('id', photoId)
       .single();
 
     if (fetchErr || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (photo.events?.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied: you do not own the event this photo belongs to' });
+    }
 
     // Delete from R2 storage
     const { deleteFromStorage } = require('../services/storage');
@@ -525,6 +550,19 @@ router.delete('/:photoId', requireAuth, async (req, res) => {
 router.get('/event/:eventId/zip', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
+
+    // Verify ownership
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('name, owner_id')
+      .eq('id', eventId)
+      .single();
+
+    if (eventErr || !event) return res.status(404).json({ error: 'Event not found' });
+    if (event.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
+    }
+
     const archiver = require('archiver');
 
     const { data: photos, error } = await supabase
@@ -536,7 +574,6 @@ router.get('/event/:eventId/zip', requireAuth, async (req, res) => {
     if (error) throw error;
     if (!photos?.length) return res.status(404).json({ error: 'No photos found' });
 
-    const { data: event } = await supabase.from('events').select('name').eq('id', eventId).single();
     const eventName = (event?.name || 'event').replace(/\s+/g, '_');
     const date = new Date().toISOString().split('T')[0];
 
@@ -596,7 +633,7 @@ router.post('/burst', upload.fields([
       try {
         publicUrl = await uploadToStorage(file.buffer, storageKey, 'image/jpeg');
       } catch (e) { console.warn('R2 burst upload failed:', e.message); continue; }
-      const shortCode = require('nanoid').nanoid(6);
+      const shortCode = await generateUniqueShortCode(supabase);
 
       const { data: photo } = await supabase.from('photos').insert({
         id: photoId, event_id: eventId, session_id: sessionId,

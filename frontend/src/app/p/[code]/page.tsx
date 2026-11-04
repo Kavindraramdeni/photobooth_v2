@@ -30,6 +30,14 @@ interface PhotoData {
       eventName?: string;
     };
   };
+  events?: {
+    name: string;
+    branding?: {
+      primaryColor?: string;
+      logoUrl?: string;
+      eventName?: string;
+    };
+  };
 }
 
 async function iosCompatibleDownload(url: string, filename: string) {
@@ -73,8 +81,10 @@ export default function ShortUrlPage() {
       .finally(() => setLoading(false));
   }, [code]);
 
-  const primaryColor = photo?.event?.branding?.primaryColor || '#7c3aed';
-  const eventName = photo?.event?.branding?.eventName || photo?.event?.name || 'SnapBooth';
+  const ev = photo?.events || photo?.event;
+  const primaryColor = ev?.branding?.primaryColor || '#7c3aed';
+  const eventName = ev?.branding?.eventName || ev?.name || 'SnapBooth';
+  const logoUrl = ev?.branding?.logoUrl;
   const downloadUrl = photo?.download_url || photo?.url || '';
   const pageUrl = typeof window !== 'undefined' ? window.location.href : '';
 
@@ -147,9 +157,9 @@ export default function ShortUrlPage() {
           <span className="text-sm">Gallery</span>
         </a>
         <div className="text-center">
-          {photo.event?.branding?.logoUrl ? (
+          {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={photo.event.branding.logoUrl} alt={eventName}
+            <img src={logoUrl} alt={eventName}
               className="h-7 w-auto object-contain mx-auto" />
           ) : (
             <p className="text-white font-bold text-sm">{eventName}</p>

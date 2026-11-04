@@ -2,6 +2,8 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
+const { deleteFromStorage } = require('../services/storage');
 
 /**
  * Generate a URL-safe slug from event name
@@ -17,9 +19,9 @@ function generateSlug(name) {
 
 /**
  * GET /api/events
- * List all events (admin)
+ * List all events for the authenticated owner
  */
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { data: events, error } = await supabase
       .from('events')
@@ -27,6 +29,7 @@ router.get('/', async (req, res) => {
         id, name, slug, date, venue, status, created_at,
         photos(count)
       `)
+      .eq('owner_id', req.user.id)
       .order('date', { ascending: false });
 
     if (error) throw error;
@@ -38,20 +41,19 @@ router.get('/', async (req, res) => {
 
 /**
  * GET /api/events/:id
- * Get single event details
+ * Get single event details.
+ * If authenticated owner, returns full record.
+ * If public / kiosk guest, returns sanitized public DTO without credentials.
  */
 router.get('/:id', async (req, res) => {
   try {
     const param = req.params.id;
-
-    // Try by slug first, then by UUID — avoids PostgREST .or() parsing issues with hyphens
     let event = null;
 
     const bySlug = await supabase.from('events').select('*').eq('slug', param).maybeSingle();
     if (bySlug.data) {
       event = bySlug.data;
     } else {
-      // Only try UUID lookup if it looks like a UUID
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param);
       if (isUUID) {
         const byId = await supabase.from('events').select('*').eq('id', param).maybeSingle();
@@ -60,7 +62,44 @@ router.get('/:id', async (req, res) => {
     }
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    res.json({ event });
+
+    // Check if the request is from the event owner
+    let isOwner = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user && event.owner_id && user.id === event.owner_id) {
+        isOwner = true;
+      }
+    }
+
+    // Owner gets full record
+    if (isOwner) {
+      return res.json({ event });
+    }
+
+    // Public / Booth caller: sanitize sensitive credentials
+    const safeSettings = { ...(event.settings || {}) };
+    delete safeSettings.operatorPin;
+    delete safeSettings.webhookSecret;
+    const hasPassword = !!(event.gallery_password || safeSettings.galleryPassword);
+    delete safeSettings.galleryPassword;
+
+    const publicEvent = {
+      id: event.id,
+      name: event.name,
+      slug: event.slug,
+      date: event.date,
+      venue: event.venue,
+      status: event.status,
+      branding: event.branding,
+      settings: safeSettings,
+      hasGalleryPassword: hasPassword,
+      created_at: event.created_at,
+    };
+
+    res.json({ event: publicEvent });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -68,9 +107,9 @@ router.get('/:id', async (req, res) => {
 
 /**
  * POST /api/events
- * Create a new event
+ * Create a new event (Authenticated owner only)
  */
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const {
       name,
@@ -88,6 +127,7 @@ router.post('/', async (req, res) => {
 
     const eventId = uuidv4();
     const slug = generateSlug(name);
+    const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
 
     // Default branding
     const defaultBranding = {
@@ -113,8 +153,8 @@ router.post('/', async (req, res) => {
       allowPrint: true,
       printCopies: 1,
       aiStyles: ['anime', 'vintage', 'watercolor', 'cyberpunk', 'oilpainting', 'comic'],
-      sessionTimeout: 60, // seconds before reset
-      operatorPin: '1234',
+      sessionTimeout: 60,
+      operatorPin: settings.operatorPin && settings.operatorPin !== '1234' ? settings.operatorPin : randomPin,
       ...settings,
     };
 
@@ -122,6 +162,7 @@ router.post('/', async (req, res) => {
       .from('events')
       .insert({
         id: eventId,
+        owner_id: req.user.id,
         name,
         slug,
         date,
@@ -147,21 +188,39 @@ router.post('/', async (req, res) => {
 
 /**
  * PUT /api/events/:id
- * Update event (branding, settings, etc.)
+ * Update event (Authenticated owner only)
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { name, date, venue, clientName, clientEmail, branding, settings, status, gallery_password } = req.body;
+
+    // Strict allowlist — forbid changing owner_id, id, created_at
+    const safeUpdates = {
+      ...(name && { name }),
+      ...(date && { date }),
+      ...(venue !== undefined && { venue }),
+      ...(clientName !== undefined && { client_name: clientName }),
+      ...(clientEmail !== undefined && { client_email: clientEmail }),
+      ...(branding && { branding }),
+      ...(settings && { settings }),
+      ...(status && { status }),
+      ...(gallery_password !== undefined && { gallery_password }),
+      updated_at: new Date().toISOString(),
+    };
 
     const { data: event, error } = await supabase
       .from('events')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update(safeUpdates)
       .eq('id', id)
+      .eq('owner_id', req.user.id)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error || !event) {
+      return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
     res.json({ success: true, event });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -170,19 +229,80 @@ router.put('/:id', async (req, res) => {
 
 /**
  * DELETE /api/events/:id
- * Archive an event (soft delete)
+ * Archive an event (Authenticated owner only)
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('events')
       .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('owner_id', req.user.id);
 
-    if (error) throw error;
+    if (error || count === 0) {
+      return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/gallery-auth
+ * Verify password for a protected gallery
+ */
+router.post('/:id/gallery-auth', async (req, res) => {
+  try {
+    const { password } = req.body;
+    const { id } = req.params;
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('gallery_password, settings')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+
+    const expectedPassword = event.gallery_password || event.settings?.galleryPassword;
+    if (!expectedPassword || expectedPassword === password) {
+      return res.json({ ok: true });
+    }
+
+    res.status(401).json({ ok: false, error: 'Incorrect password' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/webhook-test
+ * Dispatch test payload to webhook URL
+ */
+router.post('/:id/webhook-test', requireAuth, async (req, res) => {
+  try {
+    const { webhookUrl } = req.body;
+    if (!webhookUrl) return res.status(400).json({ ok: false, error: 'webhookUrl required' });
+
+    const testPayload = {
+      event: 'test.ping',
+      event_id: req.params.id,
+      timestamp: new Date().toISOString(),
+      message: 'Webhook configuration test successful',
+    };
+
+    const resp = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testPayload),
+      signal: AbortSignal.timeout(6000),
+    });
+
+    res.json({ ok: resp.ok, status: resp.status });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err.message });
   }
 });
 
@@ -655,37 +775,5 @@ router.post('/:id/frames/:frameId/default', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-/**
- * DELETE /api/events/:id/frames/:frameId
- * Delete a frame overlay
- */
-router.delete('/:id/frames/:frameId', async (req, res) => {
-  try {
-    const { data: frame } = await supabase
-      .from('event_frames')
-      .select('url')
-      .eq('id', req.params.frameId)
-      .eq('event_id', req.params.id)
-      .single();
-
-    if (frame?.url) {
-      try {
-        await deleteFromStorage(frame.url);
-      } catch { /* ignore storage errors */ }
-    }
-
-    await supabase
-      .from('event_frames')
-      .delete()
-      .eq('id', req.params.frameId)
-      .eq('event_id', req.params.id);
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 module.exports = router;

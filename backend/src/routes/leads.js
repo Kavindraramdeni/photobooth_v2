@@ -59,10 +59,24 @@ router.post('/', async (req, res) => {
 
 router.get('/event/:eventId', requireAuth, async (req, res) => {
   try {
+    const { eventId } = req.params;
+
+    // Verify event ownership
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('owner_id')
+      .eq('id', eventId)
+      .single();
+
+    if (eventErr || !event) return res.status(404).json({ error: 'Event not found' });
+    if (event.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
+    }
+
     const { data, error } = await supabase
       .from('leads')
       .select('id, email, phone, name, consented, created_at, photo_id')
-      .eq('event_id', req.params.eventId)
+      .eq('event_id', eventId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;

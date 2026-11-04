@@ -6,6 +6,7 @@ const { generateAIImage, applyAIFilter, AI_STYLES } = require('../services/ai');
 const { uploadToStorage } = require('../services/storage');
 const { generateQRDataURL, buildGalleryUrl, generateUniqueShortCode } = require('../services/sharing');
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
 const { v4: uuidv4 } = require('uuid');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -77,7 +78,7 @@ router.get('/styles/:eventId', async (req, res) => {
  * GET /api/ai/event-styles/:eventId
  * Admin: get all styles for an event (including disabled)
  */
-router.get('/event-styles/:eventId', async (req, res) => {
+router.get('/event-styles/:eventId', requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('event_styles')
@@ -96,7 +97,7 @@ router.get('/event-styles/:eventId', async (req, res) => {
  * POST /api/ai/event-styles
  * Admin: create a new custom style for an event
  */
-router.post('/event-styles', async (req, res) => {
+router.post('/event-styles', requireAuth, async (req, res) => {
   try {
     const { eventId, styleKey, name, emoji, prompt, previewUrl, displayOrder } = req.body;
     if (!eventId || !styleKey || !name || !prompt) {
@@ -129,7 +130,7 @@ router.post('/event-styles', async (req, res) => {
  * PATCH /api/ai/event-styles/:styleId
  * Admin: update a style
  */
-router.patch('/event-styles/:styleId', async (req, res) => {
+router.patch('/event-styles/:styleId', requireAuth, async (req, res) => {
   try {
     const allowed = ['name', 'emoji', 'prompt', 'preview_url', 'display_order', 'enabled'];
     const updates = {};
@@ -154,7 +155,7 @@ router.patch('/event-styles/:styleId', async (req, res) => {
  * DELETE /api/ai/event-styles/:styleId
  * Admin: delete a style
  */
-router.delete('/event-styles/:styleId', async (req, res) => {
+router.delete('/event-styles/:styleId', requireAuth, async (req, res) => {
   try {
     const { error } = await supabase
       .from('event_styles')
@@ -174,6 +175,7 @@ router.delete('/event-styles/:styleId', async (req, res) => {
  */
 router.post(
   '/event-styles/:styleId/upload-preview',
+  requireAuth,
   upload.single('file'),
   async (req, res) => {
     try {
