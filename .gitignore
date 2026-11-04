@@ -28,3 +28,6 @@ Thumbs.db
 .vscode/
 .idea/
 .cursor/
+
+# Agent scratch & internal orchestration
+.agents/
