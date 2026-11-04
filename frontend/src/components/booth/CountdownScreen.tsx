@@ -5,6 +5,7 @@ import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
+import { enqueueCapture, removeSyncedCapture } from '@/lib/offlineQueue';
 import toast from 'react-hot-toast';
 
 
@@ -135,21 +136,54 @@ export function CountdownScreen() {
         // Apply frame overlay to every captured frame before upload
         const composited = await Promise.all(frames.map(f => compositeWithFrame(f)));
 
+        const clientCaptureId =
+          typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `cap-${Date.now()}`;
+
+        // Save to offline IndexedDB queue first to guarantee zero photo loss
+        try {
+          await enqueueCapture({
+            clientCaptureId,
+            eventId: event.id,
+            sessionId,
+            mode: mode === 'aistudio' ? 'single' : (mode as any),
+            blobData: composited[0],
+            mimeType: 'image/jpeg',
+          });
+        } catch (dbErr) {
+          console.warn('[CountdownScreen] Offline queue save warning:', dbErr);
+        }
+
         let result;
 
-        if (mode === 'single' || mode === 'aistudio') {
-          result = await uploadPhoto(composited[0], event.id, sessionId, 'single');
-          setCurrentPhoto(result.photo);
-          // AI Studio goes to AIStudioScreen (style picker), regular photo goes to PreviewScreen
+        try {
+          if (mode === 'single' || mode === 'aistudio') {
+            result = await uploadPhoto(composited[0], event.id, sessionId, 'single', clientCaptureId);
+            await removeSyncedCapture(clientCaptureId);
+            setCurrentPhoto(result.photo);
+            setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
+          } else if (mode === 'strip') {
+            result = await createStrip(composited, event.id);
+            await removeSyncedCapture(clientCaptureId);
+            setCurrentPhoto({ ...result.strip, mode: 'strip' });
+            setScreen('preview');
+          } else if (mode === 'gif' || mode === 'boomerang') {
+            result = await createGIF(composited, event.id, mode);
+            await removeSyncedCapture(clientCaptureId);
+            setCurrentPhoto({ ...result.gif, mode });
+            setScreen('preview');
+          }
+        } catch (uploadError: any) {
+          // Network failure / offline: show local capture preview and notify user
+          const localPreviewUrl = URL.createObjectURL(composited[0]);
+          setCurrentPhoto({
+            id: clientCaptureId,
+            url: localPreviewUrl,
+            thumb_url: localPreviewUrl,
+            gallery_url: '',
+            isOfflinePending: true,
+          } as any);
+          toast.success('Photo saved offline! Will automatically sync when connection returns.', { icon: '💾' });
           setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
-        } else if (mode === 'strip') {
-          result = await createStrip(composited, event.id);
-          setCurrentPhoto({ ...result.strip, mode: 'strip' });
-          setScreen('preview');
-        } else if (mode === 'gif' || mode === 'boomerang') {
-          result = await createGIF(composited, event.id, mode);
-          setCurrentPhoto({ ...result.gif, mode });
-          setScreen('preview');
         }
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Unknown error';

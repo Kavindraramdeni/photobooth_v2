@@ -11,6 +11,7 @@ const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
 const requireAuth = require('../middleware/requireAuth');
 const { checkPhotoLimit, requireFeature } = require('../middleware/planEnforcement');
+const { verifyToken } = require('../utils/token');
 
 // ─── Webhook helper ───────────────────────────────────────────────────────────
 async function fireWebhook(event, payload) {
@@ -70,9 +71,21 @@ function normalizeUploadedPhoto(req, res, next) {
 
 router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
   try {
-    const { eventId, mode = 'single', sessionId } = req.body;
+    const { eventId, mode = 'single', sessionId, clientCaptureId } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
+
+    // Validate booth session token or operator token if provided
+    const rawAuth = req.headers['x-booth-session'] || req.headers.authorization;
+    if (rawAuth) {
+      const token = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7) : rawAuth;
+      const parsedToken = verifyToken(token);
+      if (parsedToken && (parsedToken.role === 'booth' || parsedToken.role === 'operator')) {
+        if (parsedToken.eventId !== eventId) {
+          return res.status(403).json({ error: 'Session token does not match this event' });
+        }
+      }
+    }
 
     // Get event branding from DB
     const { data: event } = await supabase
@@ -82,6 +95,30 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
       .single();
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    // Deduplication check: if clientCaptureId already exists for this event, return existing photo
+    if (clientCaptureId) {
+      const { data: existing } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('event_id', eventId)
+        .contains('metadata', { clientCaptureId })
+        .maybeSingle();
+
+      if (existing) {
+        return res.json({
+          success: true,
+          deduplicated: true,
+          photo: existing,
+          qrDataUrl: await generateQRDataURL(existing.gallery_url),
+          whatsappUrl: buildWhatsAppUrl(existing.url, event.name),
+          galleryUrl: existing.gallery_url,
+          photoUrl: existing.url,
+          thumbUrl: existing.thumb_url,
+          shortCode: existing.short_code,
+        });
+      }
+    }
 
     // Check photo limit using event's owner (not the guest)
     if (event.owner_id) {
@@ -149,6 +186,7 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
       .insert({
         id: photoId,
         event_id: eventId,
+        owner_id: event.owner_id || null,
         session_id: sessionId,
         url: photoUrl,
         thumb_url: thumbUrl,
@@ -156,6 +194,7 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
         storage_key: storageKey,
         short_code: shortCode,
         mode,
+        metadata: { clientCaptureId: clientCaptureId || null, sessionId: sessionId || null },
         created_at: new Date().toISOString(),
       })
       .select()

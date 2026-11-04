@@ -88,6 +88,7 @@ app.use('/api/gallery',   safeRoute('gallery',   './routes/gallery'));
 app.use('/api/email',     safeRoute('email',     './routes/email'));
 app.use('/api/backgrounds', safeRoute('backgrounds', './routes/backgrounds'));
 app.use('/api/templates', safeRoute('templates', './routes/templates'));
+app.use('/api/print',     safeRoute('print',     './routes/print'));
 
 app.get('/', (req, res) => res.json({ name: 'SnapBooth AI Backend', status: 'ok', version: '2.0.0' }));
 
@@ -104,8 +105,94 @@ if (process.env.RENDER) {
   setInterval(() => fetch(`${SELF}/health`).catch(() => {}), 14 * 60 * 1000);
 }
 
+const { verifyToken } = require('./utils/token');
+
+// Secure Socket.IO Handshake & Room Authorization
+io.use(async (socket, next) => {
+  try {
+    const rawToken = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+    if (!rawToken) {
+      socket.authInfo = { role: 'guest' };
+      return next();
+    }
+
+    const token = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
+
+    // Check custom signed token (operator / booth / session)
+    const customPayload = verifyToken(token);
+    if (customPayload) {
+      socket.authInfo = customPayload;
+      return next();
+    }
+
+    // Check Supabase JWT
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseUser = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_ANON_KEY,
+        { global: { headers: { Authorization: `Bearer ${token}` } } }
+      );
+      const { data: { user } } = await supabaseUser.auth.getUser();
+      if (user) {
+        socket.authInfo = { role: 'owner', userId: user.id };
+        return next();
+      }
+    }
+
+    socket.authInfo = { role: 'guest' };
+    next();
+  } catch (err) {
+    console.error('Socket auth error:', err.message);
+    socket.authInfo = { role: 'guest' };
+    next();
+  }
+});
+
 io.on('connection', (socket) => {
-  socket.on('join-event', (eventId) => socket.join(`event-${eventId}`));
+  socket.on('join-event', async (eventId) => {
+    try {
+      if (!eventId) return;
+
+      const authInfo = socket.authInfo || { role: 'guest' };
+      const supabase = require('./services/database');
+
+      // Fetch event
+      const { data: event, error } = await supabase
+        .from('events')
+        .select('id, owner_id, status, gallery_password')
+        .eq('id', eventId)
+        .single();
+
+      if (error || !event) {
+        return socket.emit('error', { message: 'Event not found' });
+      }
+
+      // 1. Owner access
+      if (authInfo.role === 'owner' && authInfo.userId === event.owner_id) {
+        socket.join(`event-${eventId}`);
+        return socket.emit('joined-event', { eventId, role: 'owner' });
+      }
+
+      // 2. Operator or Booth access scoped to this event
+      if ((authInfo.role === 'operator' || authInfo.role === 'booth') && authInfo.eventId === eventId) {
+        socket.join(`event-${eventId}`);
+        return socket.emit('joined-event', { eventId, role: authInfo.role });
+      }
+
+      // 3. Guest / public access: allowed only if event is active and gallery is not password-protected
+      if (event.status === 'active' && !event.gallery_password) {
+        socket.join(`event-${eventId}`);
+        return socket.emit('joined-event', { eventId, role: 'guest' });
+      }
+
+      // Otherwise deny
+      socket.emit('error', { message: 'Unauthorized to join event room' });
+    } catch (err) {
+      console.error('Socket join-event error:', err.message);
+      socket.emit('error', { message: 'Failed to join event room' });
+    }
+  });
 });
 
 app.use((err, req, res, next) => {

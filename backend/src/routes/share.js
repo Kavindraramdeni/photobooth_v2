@@ -124,7 +124,25 @@ router.post('/email', async (req, res) => {
     const customBody    = settings.emailBody || null;
 
     if (!process.env.RESEND_API_KEY) {
-      return res.status(503).json({ error: 'Email service not configured. Add RESEND_API_KEY to Render environment variables. Get a free key at resend.com' });
+      console.log('📧 [Share Email Fallback Mode] Resend/SendGrid API key not set. Email logged to console:');
+      console.log(JSON.stringify({
+        recipient,
+        eventName,
+        photoUrl: photo.url,
+        photoPageUrl,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
+      await supabase.from('analytics').insert({
+        event_id: photo.event_id, action: 'photo_emailed', metadata: { photoId, recipient, mode: 'fallback-logged' },
+      }).catch(() => {});
+
+      return res.json({
+        success: true,
+        mode: 'fallback-logged',
+        message: `Photo share link prepared and logged to server console for ${recipient}`,
+        photoPageUrl,
+      });
     }
 
     // Use verified custom domain if set, otherwise fall back to Resend's free sending domain

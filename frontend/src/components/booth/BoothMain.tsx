@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useBoothStore } from '@/lib/store';
+import { processOfflineQueue, getPendingCaptures } from '@/lib/offlineQueue';
+import { uploadPhoto } from '@/lib/api';
 import { IdleScreen } from './IdleScreen';
 import { CountdownScreen } from './CountdownScreen';
 import { PreviewScreen } from './PreviewScreen';
@@ -16,7 +18,42 @@ export function BoothMain() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
-  // Connect to Socket.IO for real-time updates
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  // Background sync for offline photo queue
+  useEffect(() => {
+    if (!event) return;
+
+    const triggerSync = async () => {
+      try {
+        const pending = await getPendingCaptures(event.id);
+        setPendingSyncCount(pending.length);
+
+        if (pending.length > 0 && typeof navigator !== 'undefined' && navigator.onLine) {
+          await processOfflineQueue(
+            event.id,
+            async (item) => {
+              await uploadPhoto(item.blobData, item.eventId, item.sessionId || '', item.mode, item.clientCaptureId);
+            },
+            (remaining) => setPendingSyncCount(remaining)
+          );
+        }
+      } catch (syncErr) {
+        console.warn('[BoothMain] Background sync error:', syncErr);
+      }
+    };
+
+    triggerSync();
+    window.addEventListener('online', triggerSync);
+    const interval = setInterval(triggerSync, 30000); // Check every 30s
+
+    return () => {
+      window.removeEventListener('online', triggerSync);
+      clearInterval(interval);
+    };
+  }, [event]);
+
+  // Connect to Socket.IO with authenticated handshake
   useEffect(() => {
     if (!event) return;
 
@@ -25,7 +62,13 @@ export function BoothMain() {
       process.env.NEXT_PUBLIC_API_URL ||
       (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
 
+    const boothToken =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem(`booth_token_${event.id}`) || localStorage.getItem(`booth_token_${event.id}`)
+        : null;
+
     const socket = io(socketUrl, {
+      auth: { token: boothToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 8,
@@ -88,8 +131,14 @@ export function BoothMain() {
   };
 
   return (
-    <div className="booth-container" onTouchStart={resetTimeout} onClick={resetTimeout}>
+    <div className="booth-container relative" onTouchStart={resetTimeout} onClick={resetTimeout}>
       <FlashOverlay />
+      {pendingSyncCount > 0 && (
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-medium backdrop-blur-md animate-pulse">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          Offline Sync: {pendingSyncCount} photo{pendingSyncCount > 1 ? 's' : ''} queued
+        </div>
+      )}
       <AnimatePresence mode="wait">
         <motion.div
           key={screen}

@@ -37,13 +37,29 @@ api.interceptors.response.use(
 
 // ─── Photos ────────────────────────────────────────────────────────────────
 
-export async function uploadPhoto(blob: Blob, eventId: string, sessionId: string, mode = 'single') {
+export async function uploadPhoto(
+  blob: Blob,
+  eventId: string,
+  sessionId: string,
+  mode = 'single',
+  clientCaptureId?: string
+) {
   const form = new FormData();
   form.append('photo', blob, 'photo.jpg');
   form.append('eventId', eventId);
   form.append('sessionId', sessionId);
   form.append('mode', mode);
-  const res = await api.post('/photos/upload', form);
+  if (clientCaptureId) {
+    form.append('clientCaptureId', clientCaptureId);
+  }
+
+  const boothToken =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem(`booth_token_${eventId}`) || localStorage.getItem(`booth_token_${eventId}`)
+      : null;
+
+  const headers = boothToken ? { 'x-booth-session': boothToken } : undefined;
+  const res = await api.post('/photos/upload', form, { headers });
   return res.data;
 }
 

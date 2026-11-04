@@ -5,6 +5,8 @@ const supabase = require('../services/database');
 const requireAuth = require('../middleware/requireAuth');
 const { deleteFromStorage } = require('../services/storage');
 
+const { signToken, verifyToken } = require('../utils/token');
+
 /**
  * Generate a URL-safe slug from event name
  */
@@ -246,6 +248,108 @@ router.delete('/:id', requireAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/operator-login
+ * Authenticate operator via 4-digit PIN and issue scoped operator token
+ */
+router.post('/:id/operator-login', async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const { id } = req.params;
+
+    if (!pin) {
+      return res.status(400).json({ ok: false, error: 'Operator PIN required' });
+    }
+
+    const { data: event, error } = await supabase
+      .from('events')
+      .select('id, name, slug, status, settings, branding')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+
+    const expectedPin = String(event.settings?.operatorPin || '');
+    if (!expectedPin || expectedPin !== String(pin).trim()) {
+      return res.status(401).json({ ok: false, error: 'Invalid operator PIN' });
+    }
+
+    const token = signToken({ role: 'operator', eventId: event.id }, 12 * 3600);
+
+    res.json({
+      ok: true,
+      token,
+      event: {
+        id: event.id,
+        name: event.name,
+        slug: event.slug,
+        status: event.status,
+        settings: event.settings,
+        branding: event.branding,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/booth-token
+ * Issue scoped booth session token for camera upload authorization
+ */
+router.post('/:id/booth-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { operatorPin } = req.body || {};
+
+    const { data: event, error } = await supabase
+      .from('events')
+      .select('id, name, slug, status, settings')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+
+    if (event.status !== 'active') {
+      return res.status(400).json({ ok: false, error: 'Event is not active' });
+    }
+
+    // Verify authorization: either valid Bearer token, or valid operatorPin
+    let authorized = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const raw = authHeader.slice(7);
+      const parsed = verifyToken(raw);
+      if (parsed && (parsed.role === 'operator' || parsed.role === 'booth') && parsed.eventId === event.id) {
+        authorized = true;
+      }
+    }
+
+    if (!authorized && operatorPin) {
+      const expected = String(event.settings?.operatorPin || '');
+      if (expected && expected === String(operatorPin).trim()) {
+        authorized = true;
+      }
+    }
+
+    // If booth is loading on an active event, issue booth token
+    const boothToken = signToken({ role: 'booth', eventId: event.id }, 24 * 3600);
+
+    res.json({
+      ok: true,
+      boothToken,
+      expiresIn: 86400,
+      eventId: event.id,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -771,6 +875,91 @@ router.post('/:id/frames/:frameId/default', async (req, res) => {
       .single();
 
     res.json({ frame });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Multi-Booth Kiosk Fleet Monitoring ──────────────────────────────────────
+const kioskFleet = new Map();
+
+/**
+ * POST /api/events/:id/kiosks/heartbeat
+ * Kiosk fleet heartbeat and telemetry
+ */
+router.post('/:id/kiosks/heartbeat', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      kioskId,
+      kioskName = 'Kiosk Station',
+      batteryLevel,
+      isOnline = true,
+      pendingQueue = 0,
+      version = '2.0.0',
+    } = req.body;
+
+    if (!kioskId) return res.status(400).json({ error: 'kioskId required' });
+
+    if (!kioskFleet.has(id)) {
+      kioskFleet.set(id, new Map());
+    }
+
+    const eventKiosks = kioskFleet.get(id);
+    const kioskData = {
+      kioskId,
+      kioskName,
+      batteryLevel: batteryLevel !== undefined ? batteryLevel : null,
+      isOnline,
+      pendingQueue,
+      version,
+      lastHeartbeat: new Date().toISOString(),
+    };
+    eventKiosks.set(kioskId, kioskData);
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`event-${id}`).emit('kiosk-heartbeat', kioskData);
+    }
+
+    res.json({ ok: true, timestamp: kioskData.lastHeartbeat });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/events/:id/kiosks
+ * List all active kiosks for an event (Owner only)
+ */
+router.get('/:id/kiosks', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, owner_id')
+      .eq('id', id)
+      .eq('owner_id', req.user.id)
+      .maybeSingle();
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
+    const eventKiosks = kioskFleet.get(id);
+    const kiosks = eventKiosks ? Array.from(eventKiosks.values()) : [];
+
+    const now = Date.now();
+    const enriched = kiosks.map((k) => {
+      const diff = now - new Date(k.lastHeartbeat).getTime();
+      return {
+        ...k,
+        status: diff < 60000 ? 'online' : diff < 180000 ? 'idle' : 'offline',
+      };
+    });
+
+    res.json({ kiosks: enriched });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

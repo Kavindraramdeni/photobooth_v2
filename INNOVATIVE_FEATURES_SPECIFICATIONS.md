@@ -1,5 +1,7 @@
 # SnapBooth AI — Innovative & High-Value Feature Specifications
 
+> **Architectural Privacy Standard:** SnapBooth strictly enforces a Zero Biometric Footprint architecture. The "Find My Photos" biometric facial recognition feature has been permanently deprecated in favor of **Instant Dynamic Session QR (`/p/[code]`)**, **Event Gallery QR (`/gallery/[slug]`)**, and direct WhatsApp delivery.
+
 This document defines the technical architecture, user experience, and revenue models for the **20 high-value, differentiated features** that elevate SnapBooth from a basic photo booth CRUD utility into an enterprise event engagement platform.
 
 ---
@@ -7,7 +9,7 @@ This document defines the technical architecture, user experience, and revenue m
 ## 1. Guest Experience Features
 
 ### 1. Instant Session Delivery (Dynamic Session QR & WhatsApp Delivery)
-* **Value Proposition:** Direct, privacy-preserving session delivery without face scanning or biometric data collection. Each guest session mints a distinct short code (`/p/[code]`), giving guests immediate access to their exact photos with 1-tap download and instant WhatsApp sharing.
+* **Value Proposition:** Direct, privacy-preserving session delivery without face scanning or biometric data collection. Explicitly replaces the legacy "Find My Photos" face-search concept, eliminating GDPR Article 9 special-category data liabilities and Illinois BIPA compliance risk. Each guest session mints a distinct short code (`/p/[code]`), giving guests immediate access to their exact photos with 1-tap download and instant WhatsApp sharing.
 * **Technical Architecture:**
   * **Short Code Engine:** 6-character collision-resistant Base62 generator (`backend/src/services/sharing.js`).
   * **Instant Session QR:** Kiosk generates a high-contrast QR pointing to `yourapp.com/p/:code`.
@@ -106,6 +108,6 @@ This document defines the technical architecture, user experience, and revenue m
 | **15** | **Sponsor Branding & Monetization** | Corporate clients sell digital ad space: sponsor logo watermark, sponsored email banners, and sponsor CTA buttons on guest download pages. |
 | **16** | **White-label Agency Platform** | High-tier SaaS plan: Agencies host galleries and kiosks under their own custom domain (`photos.agencyname.com`) with zero SnapBooth branding. |
 | **17** | **Custom Event Microsites** | Dedicated SEO-optimized event landing page featuring a countdown clock, venue map, live gallery, and sponsor shoutouts. |
-| **18** | **Guest Consent & GDPR Manager** | Configurable consent checkboxes (Terms of Service, Marketing emails, Face search consent) ensuring strict legal compliance. |
+| **18** | **Guest Consent & GDPR Manager** | Configurable consent checkboxes (Terms of Service, Marketing emails, SMS/WhatsApp photo delivery consent) ensuring strict legal compliance without biometric data processing. |
 | **19** | **Corporate Lead Generation** | Configurable modal capturing custom fields (Company Name, Job Title, Purchase Timeline) with automatic export to HubSpot or CSV. |
 | **20** | **Automated Gallery Expiration** | Scheduled background worker automatically sets galleries to read-only or archives media after 7/30/90 days based on the customer's plan tier. |

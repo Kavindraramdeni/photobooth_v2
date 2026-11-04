@@ -33,8 +33,8 @@ Focus on booth hardware integrations, operations, and venue guest experience.
 | **12** | **Print Templates** | Create custom layouts, strips and photo frames. | ⏳ Pending |
 | **13** | **Live Slideshow** | Display approved event photos on a large screen. | ⏳ Pending |
 | **14** | **Photo Moderation** | Approve or reject photos before public display. | ⏳ Pending |
-| **15** | **QR Code Sharing** | Let guests scan and download their photos. | ⏳ Pending |
-| **16** | **Guest Self-Service Gallery** | Let guests find and download their own photos. | ⏳ Pending |
+| **15** | **QR Code Sharing** | Let guests scan and download their photos via Session & Event QR. | ⏳ Pending |
+| **16** | **Guest Self-Service Gallery** | Let guests find and download photos via session code or event gallery (face-search dropped). | ⏳ Pending |
 | **17** | **Event Branding** | Customize logos, colors, overlays and gallery design. | ⏳ Pending |
 
 ---
@@ -54,11 +54,20 @@ Focus on SaaS monetization, client CRM, multi-tenant agency tools, and automatio
 | **24** | **White-label Galleries** | Let customers use their own branding and domain. | ⏳ Pending |
 | **25** | **Scheduled Gallery Delivery** | Automatically send gallery links after events. | ⏳ Pending |
 
+---
+
+## Architectural Privacy Standard: Deprecation of Biometric Face-Search
+
+> **Notice:** The previously proposed "Find My Photos" face-search capability has been **permanently dropped** from the platform roadmap in favor of **Instant Session QR Delivery (`/p/[code]`)** and **Event Gallery QR Delivery (`/gallery/[slug]`)**:
+> - **Zero Biometric Footprint:** Prevents GDPR Article 9 special-category biometric liabilities and Illinois BIPA compliance exposure.
+> - **Bandwidth & Performance:** Eliminates client-side neural network downloads (~20MB `@vladmandic/face-api` model weights) on mobile venue connections.
+> - **Session Privacy:** Each kiosk photo session generates an ephemeral 6-character Base62 short code (`/p/[code]`), isolating guest captures directly to their group.
 
 ---
 
 ## Detailed Innovative Feature Specifications
 
-For in-depth architectural blueprints, facial recognition schemas, and revenue models on the **20 high-value differentiator features** (including *Find My Photos*, *Live Social Wall*, *Digital Guestbook*, *Smart Print Manager*, *WhatsApp Delivery*, and *Sponsor Branding*), see:
+For in-depth architectural blueprints and revenue models on the **20 high-value differentiator features** (including *Instant Session QR Delivery*, *Live Social Wall*, *Digital Guestbook*, *Smart Print Manager*, *WhatsApp Delivery*, and *Sponsor Branding*), see:
 
 📄 **[INNOVATIVE_FEATURES_SPECIFICATIONS.md](file:///c:/Users/Kavin/antigravity/photobooth_v2-main/INNOVATIVE_FEATURES_SPECIFICATIONS.md)**
+
