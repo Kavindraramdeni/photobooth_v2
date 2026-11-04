@@ -6,19 +6,13 @@ This document defines the technical architecture, user experience, and revenue m
 
 ## 1. Guest Experience Features
 
-### 1. "Find My Photos" (AI Face-Matching Search)
-* **Value Proposition:** Instead of guests scrolling through 500+ photos in a crowded public gallery, a guest snaps a quick selfie to instantly retrieve only the photos they appear in.
+### 1. Instant Session Delivery (Dynamic Session QR & WhatsApp Delivery)
+* **Value Proposition:** Direct, privacy-preserving session delivery without face scanning or biometric data collection. Each guest session mints a distinct short code (`/p/[code]`), giving guests immediate access to their exact photos with 1-tap download and instant WhatsApp sharing.
 * **Technical Architecture:**
-  * **Engine:** In-browser facial feature extraction via `@vladmandic/face-api` or server-side vector generation using **pgvector** in Supabase (`vector(512)` embedding per detected face).
-  * **Privacy & Consent Flow:** Guest provides explicit consent before selfie capture (`consent_face_search = true`). The selfie is converted to an ephemeral embedding and is never saved permanently.
-  * **Query:** Cosine similarity distance search in Supabase PostgreSQL:
-    ```sql
-    SELECT p.id, p.url, 1 - (f.embedding <=> query_embedding) AS similarity
-    FROM photo_faces f
-    JOIN photos p ON p.id = f.photo_id
-    WHERE p.event_id = :eventId AND (1 - (f.embedding <=> query_embedding)) > 0.65
-    ORDER BY similarity DESC;
-    ```
+  * **Short Code Engine:** 6-character collision-resistant Base62 generator (`backend/src/services/sharing.js`).
+  * **Instant Session QR:** Kiosk generates a high-contrast QR pointing to `yourapp.com/p/:code`.
+  * **WhatsApp Dispatch:** Direct phone number capture dispatches session link through WhatsApp Cloud API or Twilio.
+  * **Zero Biometric Footprint:** No face scanning, no vector embeddings, and zero facial biometric storage.
 
 ---
 
