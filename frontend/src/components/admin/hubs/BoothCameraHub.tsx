@@ -1,12 +1,10 @@
 'use client';
 
-import { useRef } from 'react';
 import {
-  Camera, Image as ImageIcon, Film, RefreshCw, Sparkles, Zap,
-  Timer, Volume2, FlipHorizontal, Monitor, RotateCcw, Sliders,
+  Camera, RefreshCw, Sparkles,
+  Volume2, FlipHorizontal, RotateCcw,
   Clock, Tablet,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -508,7 +506,6 @@ export function BoothCameraHub({
   onSave,
   saving,
   dirty,
-  eventId,
 }: BoothCameraHubProps) {
   return (
     <div className="space-y-6">

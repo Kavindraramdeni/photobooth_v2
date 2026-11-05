@@ -130,7 +130,7 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
   const fetchPhotos = useCallback(async () => {
     setLoadingPhotos(true);
     try {
-      const res = await fetch(`${API_BASE}/api/photos?eventId=${event.id}`, {
+      const res = await fetch(`${API_BASE}/api/photos/event/${event.id}?include_hidden=true`, {
         headers: authHeaders(),
       });
       if (!res.ok) throw new Error('Failed to load photos');
@@ -149,7 +149,7 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
   const fetchLeads = useCallback(async () => {
     setLoadingLeads(true);
     try {
-      const res = await fetch(`${API_BASE}/api/leads/${event.id}`, {
+      const res = await fetch(`${API_BASE}/api/leads/event/${event.id}`, {
         headers: authHeaders(),
       });
       if (!res.ok) throw new Error('Failed to load leads');
@@ -171,19 +171,20 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
   // ─── Hide / Unhide single photo ──────────────────────────────────────────
 
   async function toggleHide(photo: Photo) {
-    const endpoint = photo.is_hidden
-      ? `${API_BASE}/api/photos/${photo.id}/unhide`
-      : `${API_BASE}/api/photos/${photo.id}/hide`;
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: authHeaders(),
+      const res = await fetch(`${API_BASE}/api/photos/${photo.id}/moderate`, {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_hidden: !photo.is_hidden }),
       });
       if (!res.ok) throw new Error(await res.text());
       setPhotos((prev) =>
         prev.map((p) => (p.id === photo.id ? { ...p, is_hidden: !p.is_hidden } : p)),
       );
-      toast.success(photo.is_hidden ? 'Photo unhidden' : 'Photo hidden');
+      toast.success(photo.is_hidden ? 'Photo restored' : 'Photo hidden');
     } catch (err) {
       toast.error('Action failed');
       console.error(err);
@@ -198,9 +199,13 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
     try {
       await Promise.all(
         Array.from(selectedPhotos).map((id) =>
-          fetch(`${API_BASE}/api/photos/${id}/${action}`, {
-            method: 'POST',
-            headers: authHeaders(),
+          fetch(`${API_BASE}/api/photos/${id}/moderate`, {
+            method: 'PATCH',
+            headers: {
+              ...authHeaders(),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ is_hidden: action === 'hide' }),
           }),
         ),
       );
@@ -210,7 +215,7 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
         ),
       );
       toast.success(
-        `${selectedPhotos.size} photo${selectedPhotos.size > 1 ? 's' : ''} ${action === 'hide' ? 'hidden' : 'unhidden'}`,
+        `${selectedPhotos.size} photo${selectedPhotos.size > 1 ? 's' : ''} ${action === 'hide' ? 'hidden' : 'restored'}`,
       );
       setSelectedPhotos(new Set());
     } catch (err) {
@@ -224,10 +229,8 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
   // ─── Batch download (placeholder — triggers server ZIP) ──────────────────
 
   function handleBatchDownload() {
-    if (selectedPhotos.size === 0) return;
-    const ids = Array.from(selectedPhotos).join(',');
     window.open(
-      `${API_BASE}/api/photos/zip?eventId=${event.id}&ids=${ids}`,
+      `${API_BASE}/api/photos/event/${event.id}/zip`,
       '_blank',
     );
   }
@@ -235,18 +238,27 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
   // ─── Download all ZIP ────────────────────────────────────────────────────
 
   function handleDownloadAll() {
-    window.open(`${API_BASE}/api/photos/zip?eventId=${event.id}`, '_blank');
+    window.open(`${API_BASE}/api/photos/event/${event.id}/zip`, '_blank');
   }
 
   // ─── Export leads CSV ────────────────────────────────────────────────────
 
-  async function handleExportLeads() {
+  function handleExportLeads() {
     try {
-      const res = await fetch(`${API_BASE}/api/leads/${event.id}/export`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
+      if (leads.length === 0) {
+        toast.error('No leads to export');
+        return;
+      }
+      const headers = ['Name', 'Email', 'Phone', 'Consented', 'Captured At'];
+      const rows = leads.map(l => [
+        `"${(l.name || '').replace(/"/g, '""')}"`,
+        `"${(l.email || '').replace(/"/g, '""')}"`,
+        `"${(l.phone || '').replace(/"/g, '""')}"`,
+        l.consented ? 'Yes' : 'No',
+        `"${new Date(l.created_at).toLocaleString()}"`,
+      ]);
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
