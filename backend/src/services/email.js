@@ -1,13 +1,13 @@
 /**
  * Email Service - Auto email delivery for photos
- * SendGrid integration for reliable email sending
+ * Unified Resend API integration (with optional SendGrid & dev fallback)
  */
 
 let sgMail = null;
 try {
   sgMail = require('@sendgrid/mail');
 } catch (err) {
-  // @sendgrid/mail will be installed when SendGrid credentials are configured
+  // @sendgrid/mail is optional; Resend is the primary email provider
 }
 
 // Initialize SendGrid if package is installed and API key is present
@@ -34,62 +34,86 @@ async function sendPhotoEmail(email, name, photoUrl, event, shortCode, photoId) 
     const venue = event?.venue ? ` • ${event.venue}` : '';
     const targetPhotoId = photoId || event?.photoId || (photoUrl && photoUrl.match(/photos\/([a-f0-9-]+)/i)?.[1]) || 'unknown';
 
-    const msg = {
-      to: email,
-      from: process.env.SENDGRID_FROM_EMAIL || 'photos@snapbooth.app',
-      replyTo: event?.owner_email || 'support@snapbooth.app',
-      subject: `Your ${eventName} Photo!`,
-      html: generateEmailTemplate({
-        name: name || 'Guest',
-        photoUrl,
-        galleryUrl,
-        eventName,
-        venue,
-        eventLogo: event?.branding?.logo_url,
-        eventColor: event?.branding?.primary_color || '#8B5CF6',
-      }),
-      trackingSettings: {
-        clickTracking: { enable: true },
-        openTracking: { enable: true },
-      },
+    const emailHtml = generateEmailTemplate({
+      name: name || 'Guest',
+      photoUrl,
+      galleryUrl,
+      eventName,
+      venue,
+      eventLogo: event?.branding?.logo_url,
+      eventColor: event?.branding?.primary_color || '#8B5CF6',
+    });
+
+    // 1. Primary: If RESEND_API_KEY is configured, send via Resend API
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+        const fromAddress = process.env.RESEND_FROM_EMAIL ? `${eventName} <${fromEmail}>` : `SnapBooth <onboarding@resend.dev>`;
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromAddress,
+            to: [email],
+            reply_to: event?.owner_email || undefined,
+            subject: `Your ${eventName} Photo!`,
+            html: emailHtml,
+          }),
+        });
+
+        if (res.ok) {
+          const resData = await res.json();
+          return {
+            success: true,
+            provider: 'resend',
+            messageId: resData.id,
+            email,
+            timestamp: new Date(),
+          };
+        }
+        console.warn('[Email Service] Resend dispatch returned error:', await res.text());
+      } catch (resendErr) {
+        console.warn('[Email Service] Resend error, falling back:', resendErr.message);
+      }
+    }
+
+    // 2. Secondary: If SENDGRID_API_KEY is configured
+    if (process.env.SENDGRID_API_KEY && sgMail) {
+      try {
+        const msg = {
+          to: email,
+          from: process.env.SENDGRID_FROM_EMAIL || 'photos@snapbooth.app',
+          replyTo: event?.owner_email || 'support@snapbooth.app',
+          subject: `Your ${eventName} Photo!`,
+          html: emailHtml,
+        };
+        await sgMail.send(msg);
+        return {
+          success: true,
+          provider: 'sendgrid',
+          messageId: msg.messageId,
+          email,
+          timestamp: new Date(),
+        };
+      } catch (sgErr) {
+        console.warn('[Email Service] SendGrid dispatch failed:', sgErr.message);
+      }
+    }
+
+    // 3. Graceful Fallback Mode: Log to console without failing
+    console.log(`[EMAIL_FALLBACK] To: ${email}, ShareLink: ${galleryUrl}, PhotoId: ${targetPhotoId}`);
+    return {
+      success: true,
+      fallback: true,
+      message: 'Logged to console (SendGrid API key not configured)',
+      mode: 'fallback-logged',
+      email,
+      messageId: `dev-fallback-${Date.now()}`,
+      timestamp: new Date(),
     };
-
-    // If SendGrid key is missing or module is not installed, log payload and return fallback success
-    if (!process.env.SENDGRID_API_KEY || !sgMail) {
-      console.log(`[EMAIL_FALLBACK] To: ${email}, ShareLink: ${galleryUrl}, PhotoId: ${targetPhotoId}`);
-
-      return {
-        success: true,
-        fallback: true,
-        message: 'Logged to console (SendGrid API key not configured)',
-        mode: 'fallback-logged',
-        email,
-        messageId: `dev-fallback-${Date.now()}`,
-        timestamp: new Date(),
-      };
-    }
-
-    try {
-      await sgMail.send(msg);
-      return {
-        success: true,
-        messageId: msg.messageId,
-        email,
-        timestamp: new Date(),
-      };
-    } catch (sendError) {
-      console.log(`[EMAIL_FALLBACK] To: ${email}, ShareLink: ${galleryUrl}, PhotoId: ${targetPhotoId}`);
-      return {
-        success: true,
-        fallback: true,
-        message: 'Logged to console (SendGrid API key not configured)',
-        mode: 'fallback-logged',
-        email,
-        messageId: `fallback-${Date.now()}`,
-        error: sendError.message,
-        timestamp: new Date(),
-      };
-    }
   } catch (error) {
     console.error('Email send error:', error);
     throw error;

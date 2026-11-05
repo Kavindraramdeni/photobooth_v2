@@ -5,9 +5,8 @@ import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
-import { enqueueCapture, removeSyncedCapture } from '@/lib/offlineQueue';
+import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
 import toast from 'react-hot-toast';
-
 
 // ── Web Audio API sounds (no files needed) ───────────────────────────────────
 function playBeep(frequency = 880, duration = 0.12, volume = 0.3) {
@@ -54,7 +53,7 @@ export function CountdownScreen() {
   const {
     event, mode, sessionId,
     setScreen, setCurrentPhoto,
-    addFrame, clearFrames, capturedFrames,
+    clearFrames,
     setProcessing, triggerFlash,
   } = useBoothStore();
 
@@ -62,11 +61,8 @@ export function CountdownScreen() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [phase, setPhase] = useState<'ready' | 'countdown' | 'capturing' | 'processing'>('ready');
   const [shotsTaken, setShotsTaken] = useState(0);
-  // ── Camera warm-up: block countdown until the camera stream is live ──────
-  // On iPad Safari the Webcam component mounts before the video pipeline is
-  // ready. getScreenshot() during that window returns null or a black frame.
-  // We wait for onUserMedia, then add an extra 400ms so the sensor can
-  // auto-expose — this eliminates the 1-2s black screen on first capture.
+
+  // Camera warm-up: wait for sensor to settle auto-exposure
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
@@ -133,61 +129,89 @@ export function CountdownScreen() {
       try {
         if (!event) throw new Error('No event loaded');
 
-        // Apply frame overlay to every captured frame before upload
-        const composited = await Promise.all(frames.map(f => compositeWithFrame(f)));
+        // Apply frame overlay to every captured frame
+        const composited = await Promise.all(frames.map((f) => compositeWithFrame(f)));
 
-        const clientCaptureId =
-          typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `cap-${Date.now()}`;
+        // Generate client-side UUID per capture session
+        const clientPhotoId =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `photo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-        // Save to offline IndexedDB queue first to guarantee zero photo loss
+        const localPreviewUrl = URL.createObjectURL(composited[0]);
+        const format: 'single' | 'strip' | 'gif' =
+          mode === 'strip' ? 'strip' : mode === 'gif' || mode === 'boomerang' ? 'gif' : 'single';
+
+        // 1. Immediately save to IndexedDB offline queue BEFORE initiating network upload
+        const offlineRecord: OfflinePhotoRecord = {
+          clientPhotoId,
+          eventId: event.id,
+          sessionId: sessionId || '',
+          blob: composited[0],
+          format,
+          timestamp: Date.now(),
+          retryCount: 0,
+          status: 'pending',
+          localPreviewUrl,
+        };
+
         try {
-          await enqueueCapture({
-            clientCaptureId,
-            eventId: event.id,
-            sessionId,
-            mode: mode === 'aistudio' ? 'single' : (mode as any),
-            blobData: composited[0],
-            mimeType: 'image/jpeg',
-          });
+          await queueOfflinePhoto(offlineRecord);
         } catch (dbErr) {
-          console.warn('[CountdownScreen] Offline queue save warning:', dbErr);
+          console.warn('[CountdownScreen] IndexedDB pre-save warning:', dbErr);
         }
 
-        let result;
-
+        // 2. Attempt network upload
         try {
+          let result;
+
           if (mode === 'single' || mode === 'aistudio') {
-            result = await uploadPhoto(composited[0], event.id, sessionId, 'single', clientCaptureId);
-            await removeSyncedCapture(clientCaptureId);
+            result = await uploadPhoto(composited[0], event.id, sessionId, 'single', clientPhotoId);
+            await removeQueuedPhoto(clientPhotoId);
             setCurrentPhoto(result.photo);
             setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
           } else if (mode === 'strip') {
-            result = await createStrip(composited, event.id);
-            await removeSyncedCapture(clientCaptureId);
+            result = await createStrip(composited, event.id, clientPhotoId, sessionId);
+            await removeQueuedPhoto(clientPhotoId);
             setCurrentPhoto({ ...result.strip, mode: 'strip' });
             setScreen('preview');
           } else if (mode === 'gif' || mode === 'boomerang') {
-            result = await createGIF(composited, event.id, mode);
-            await removeSyncedCapture(clientCaptureId);
+            result = await createGIF(composited, event.id, mode, clientPhotoId, sessionId);
+            await removeQueuedPhoto(clientPhotoId);
             setCurrentPhoto({ ...result.gif, mode });
             setScreen('preview');
           }
         } catch (uploadError: any) {
-          // Network failure / offline: show local capture preview and notify user
-          const localPreviewUrl = URL.createObjectURL(composited[0]);
+          // Network upload failed (offline, timeout, or server unavailable)
+          // DO NOT discard captured frames or reset without saving.
+          console.warn('[CountdownScreen] Network upload failed, using local offline queue preview:', uploadError);
+
+          // Inform user clearly
+          toast.success('Saved to offline queue. Will auto-sync when online.', {
+            icon: '💾',
+            duration: 4000,
+          });
+
+          // Transition guest smoothly to preview/aistudio screen with local preview URL
           setCurrentPhoto({
-            id: clientCaptureId,
+            id: clientPhotoId,
             url: localPreviewUrl,
+            thumbUrl: localPreviewUrl,
             thumb_url: localPreviewUrl,
+            downloadUrl: localPreviewUrl,
+            galleryUrl: '',
             gallery_url: '',
+            qrCode: '',
+            whatsappUrl: '',
+            mode: (mode === 'aistudio' ? 'single' : mode) as any,
             isOfflinePending: true,
           } as any);
-          toast.success('Photo saved offline! Will automatically sync when connection returns.', { icon: '💾' });
+
           setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
         }
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        toast.error(`Failed to process: ${msg}`);
+        toast.error(`Failed to process capture: ${msg}`);
         setScreen('idle');
       } finally {
         setProcessing(false);
@@ -246,7 +270,6 @@ export function CountdownScreen() {
       }
     }
 
-    // Brief extra delay so auto-exposure settles after camera ready signal
     const t = setTimeout(runSession, 200);
     return () => {
       cancelled = true;
@@ -273,8 +296,6 @@ export function CountdownScreen() {
           mirrored={true}
           onUserMedia={() => {
             // Camera stream is live — wait 400ms for auto-exposure to settle
-            // before marking ready and starting the countdown. This eliminates
-            // the black/under-exposed first frame on iPad Safari.
             setTimeout(() => setIsCameraReady(true), 400);
           }}
           onUserMediaError={(err) => {

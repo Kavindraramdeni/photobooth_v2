@@ -180,7 +180,7 @@ class QueryBuilder {
     let result = table.filter((item) => this.filters.every((f) => f(item)));
 
     // Join simulation for events relation
-    if (this.selectedFields && this.selectedFields.includes('events(')) {
+    if (this.selectedFields && (this.selectedFields.includes('events(') || this.selectedFields.includes('events!inner('))) {
       result = result.map((item) => {
         const eventId = item.event_id;
         const event = state.events.find((e) => e.id === eventId);

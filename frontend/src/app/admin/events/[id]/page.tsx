@@ -681,15 +681,16 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
         </aside>
 
         {/* ── Mobile tabs ── */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-zinc-950/95 backdrop-blur border-t border-white/[0.06] flex overflow-x-auto scrollbar-none px-2 py-1.5 gap-1">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-zinc-950/95 backdrop-blur border-t border-white/[0.06] flex overflow-x-auto scrollbar-none px-2 py-2 gap-1.5"
+             style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
           {NAV.flatMap(g => g.tabs).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                tab === t.key ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+              className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold min-h-[44px] transition-all ${
+                tab === t.key ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80 bg-zinc-900/40'
               }`}>
-              {t.label}
+              <span>{t.label}</span>
               {t.badge !== undefined && t.badge > 0 && (
-                <span className="text-[9px] bg-white/20 rounded px-1">{t.badge}</span>
+                <span className="text-[9px] bg-white/20 rounded-full px-1.5 py-0.5 min-w-[16px] text-center">{t.badge}</span>
               )}
             </button>
           ))}
@@ -737,7 +738,7 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                         <ExternalLink className="w-4 h-4" /> Go to Gallery
                       </Link>
                       {stats && (
-                        <div className="grid grid-cols-4 gap-2 mt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-4">
                           {[
                             { v: stats.totalPhotos, l: 'Photos', e: '📸' },
                             { v: stats.totalGIFs, l: 'GIFs', e: '🎬' },
@@ -1336,7 +1337,7 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                     </Card>
 
                     <Card title="Paper Size" subtitle="Select the paper loaded in your printer" icon={FileText}>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {[
                           { key: '4x6', label: '4×6"', desc: 'Standard photo', rec: true },
                           { key: '5x7', label: '5×7"', desc: 'Large photo' },
@@ -1568,7 +1569,7 @@ async function handleSaveStyle(style: Partial<EventStyle> & { id?: string; previ
                 {tab === 'analytics' && (
                   <div className="space-y-5">
                     {stats && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {[
                           { v: stats.totalPhotos,     l: 'Photos',    c: '#7c3aed' },
                           { v: (stats.totalGIFs || 0) + (stats.totalBoomerangs || 0), l: 'GIFs', c: '#0ea5e9' },

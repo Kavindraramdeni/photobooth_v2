@@ -2,21 +2,29 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Image, Film, Zap, Settings, X, AlertCircle, Sparkles } from 'lucide-react';
+import { Camera, Image, Film, Zap, Settings, X, AlertCircle, Sparkles, RefreshCw, Lock, CheckCircle2 } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { AttractScreenWrapper } from './AttractScreen';
+import { operatorLogin, getBoothSession } from '@/lib/api';
+import { getPendingCount, syncQueuedPhotos } from '@/lib/offlineQueue';
+import toast from 'react-hot-toast';
 
 export function IdleScreen() {
   const { event, setScreen, setMode, resetSession } = useBoothStore();
 
   // Operator panel state
   const [showPanel, setShowPanel] = useState(false);
+  const [showPinPad, setShowPinPad] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [pinErrorMessage, setPinErrorMessage] = useState('');
   const [pinLocked, setPinLocked] = useState(false);
   const [pinAttempts, setPinAttempts] = useState(0);
   const [lockCountdown, setLockCountdown] = useState(0);
-  const [showPinPad, setShowPinPad] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [offlinePendingCount, setOfflinePendingCount] = useState(0);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+
   const lockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const branding = event?.branding;
@@ -43,6 +51,13 @@ export function IdleScreen() {
     }
   }, [settings]);
 
+  // Keep offline pending count updated when panel is open
+  useEffect(() => {
+    if (showPanel && event?.id) {
+      getPendingCount(event.id).then(setOfflinePendingCount).catch(() => {});
+    }
+  }, [showPanel, event?.id]);
+
   const modes = [
     { mode: 'single' as const, label: 'Photo',     icon: <Camera className="w-6 h-6" />,  enabled: true,                              desc: 'Single shot' },
     { mode: 'strip'  as const, label: '4-Strip',   icon: <Image  className="w-6 h-6" />,  enabled: true,                              desc: 'Film strip' },
@@ -53,69 +68,155 @@ export function IdleScreen() {
 
   function handleStart(mode: 'single' | 'gif' | 'boomerang' | 'strip' | 'aistudio') {
     if (gated) return;
-    // All modes go to countdown first — aistudio captures then goes to style picker
     setMode(mode);
     setScreen('countdown');
   }
 
   function handleOperatorGear() {
-    const pin = (settings as Record<string, unknown>)?.operatorPin as string;
     if (pinLocked) return;
-    if (pin) {
-      setShowPinPad(true);
-      setPinInput('');
-      setPinError(false);
-    } else {
+
+    // Check if operator already holds a valid session token in sessionStorage
+    const existingToken =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem('operator_token') || (event?.id ? sessionStorage.getItem(`booth_token_${event.id}`) : null)
+        : null;
+
+    if (existingToken) {
       setShowPanel(true);
+      return;
     }
+
+    // Require genuine backend PIN authentication
+    setShowPinPad(true);
+    setPinInput('');
+    setPinError(false);
+    setPinErrorMessage('');
   }
 
-  function handlePinKey(key: string) {
-    if (key === '⌫') { setPinInput(p => p.slice(0, -1)); return; }
-    if (key === '') return;
-    const pin = (settings as Record<string, unknown>)?.operatorPin as string || '1234';
-    const next = pinInput + key;
-    if (next.length === pin.length) {
-      if (next === pin) {
+  async function submitPin(pinToSubmit: string) {
+    if (!event?.id) {
+      toast.error('No active event loaded');
+      return;
+    }
+
+    setIsAuthenticating(true);
+    setPinError(false);
+    setPinErrorMessage('');
+
+    try {
+      // Authenticate against backend operator-login endpoint
+      const res = await operatorLogin(event.id, pinToSubmit);
+
+      // Exchange for signed booth session token
+      if (res?.token) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('operator_token', res.token);
+        }
+        try {
+          await getBoothSession(event.id, res.token);
+        } catch (sessionErr) {
+          console.warn('[IdleScreen] Booth session creation warning:', sessionErr);
+        }
+
+        toast.success('Operator authenticated', { icon: '🔓' });
         setShowPinPad(false);
         setShowPanel(true);
         setPinInput('');
         setPinAttempts(0);
-      } else {
-        setPinError(true);
-        setPinInput('');
-        setTimeout(() => setPinError(false), 800);
-        const attempts = pinAttempts + 1;
-        setPinAttempts(attempts);
-        if (attempts >= 5) {
-          setPinLocked(true);
-          setLockCountdown(30);
-          lockTimerRef.current = setInterval(() => {
-            setLockCountdown(c => {
-              if (c <= 1) { clearInterval(lockTimerRef.current!); setPinLocked(false); setPinAttempts(0); return 0; }
-              return c - 1;
-            });
-          }, 1000);
-        }
       }
-    } else {
-      setPinInput(next);
+    } catch (err: any) {
+      const is401 = err?.response?.status === 401;
+      const errorMsg = is401 ? 'Invalid Operator PIN' : (err?.response?.data?.error || err?.message || 'Authentication failed');
+
+      setPinError(true);
+      setPinErrorMessage(errorMsg);
+      toast.error(errorMsg);
+      setPinInput('');
+
+      const attempts = pinAttempts + 1;
+      setPinAttempts(attempts);
+
+      if (attempts >= 5) {
+        setPinLocked(true);
+        setLockCountdown(30);
+        lockTimerRef.current = setInterval(() => {
+          setLockCountdown((c) => {
+            if (c <= 1) {
+              if (lockTimerRef.current) clearInterval(lockTimerRef.current);
+              setPinLocked(false);
+              setPinAttempts(0);
+              return 0;
+            }
+            return c - 1;
+          });
+        }, 1000);
+      } else {
+        setTimeout(() => setPinError(false), 1200);
+      }
+    } finally {
+      setIsAuthenticating(false);
     }
   }
 
-  const pin = (settings as Record<string, unknown>)?.operatorPin as string || '1234';
-  const pinDots = Array.from({ length: pin.length }, (_, i) => i);
+  function handlePinKey(key: string) {
+    if (isAuthenticating || pinLocked) return;
+    if (key === '⌫') {
+      setPinInput((p) => p.slice(0, -1));
+      return;
+    }
+    if (key === '') return;
+
+    const next = pinInput + key;
+    if (next.length <= 6) {
+      setPinInput(next);
+      // Auto-submit on 4 digits (standard PIN length)
+      if (next.length === 4) {
+        submitPin(next);
+      }
+    }
+  }
+
+  async function handleManualSync() {
+    if (!event?.id) return;
+    setIsManualSyncing(true);
+    try {
+      const result = await syncQueuedPhotos(undefined, event.id);
+      toast.success(`Sync complete: ${result.synced} synced, ${result.failed} failed`);
+      const count = await getPendingCount(event.id);
+      setOfflinePendingCount(count);
+    } catch (err: any) {
+      toast.error(`Sync error: ${err?.message || 'Network failure'}`);
+    } finally {
+      setIsManualSyncing(false);
+    }
+  }
+
+  function handleLockOperator() {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('operator_token');
+      sessionStorage.removeItem('booth_token');
+      if (event?.id) {
+        sessionStorage.removeItem(`booth_token_${event.id}`);
+      }
+    }
+    setShowPanel(false);
+    setShowPinPad(false);
+    setPinInput('');
+    toast('Operator locked', { icon: '🔒' });
+  }
+
+  const pinDots = Array.from({ length: 4 }, (_, i) => i);
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-8 relative overflow-hidden select-none">
-
-      {/* Attract screen — shows after 60s of no interaction */}
+      {/* Attract screen — shows after inactivity */}
       <AttractScreenWrapper
         eventName={eventName}
         logoUrl={logoUrl}
         primaryColor={primaryColor}
         timeoutMs={120_000}
       />
+
       {/* Background */}
       {idleMediaUrl ? (
         isVideo
@@ -140,7 +241,8 @@ export function IdleScreen() {
       {/* Operator gear button */}
       <button
         onClick={handleOperatorGear}
-        className="absolute top-4 right-4 z-20 p-2.5 rounded-xl bg-black/30 backdrop-blur-sm text-white/30 hover:text-white/70 transition-colors"
+        aria-label="Operator Settings"
+        className="absolute top-4 right-4 z-20 p-2.5 rounded-xl bg-black/30 backdrop-blur-sm text-white/40 hover:text-white transition-colors"
       >
         <Settings className="w-5 h-5" />
       </button>
@@ -210,22 +312,61 @@ export function IdleScreen() {
               className="bg-[#12121a] border border-white/10 rounded-2xl p-8 w-full max-w-xs text-center">
               <Settings className="w-8 h-8 text-white/40 mx-auto mb-3" />
               <h3 className="text-white font-bold text-lg mb-1">Operator Access</h3>
-              <p className="text-white/40 text-sm mb-5">Enter your PIN</p>
+              <p className="text-white/40 text-sm mb-4">
+                {pinLocked ? `Locked. Try again in ${lockCountdown}s` : 'Enter Operator PIN'}
+              </p>
+
+              {pinErrorMessage && (
+                <p className="text-red-400 text-xs mb-3 font-semibold">{pinErrorMessage}</p>
+              )}
+
               <div className="flex justify-center gap-3 mb-6">
                 {pinDots.map((_, i) => (
-                  <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${i < pinInput.length ? (pinError ? 'bg-red-500 border-red-500' : 'border-current') : 'border-white/20'}`}
-                    style={i < pinInput.length && !pinError ? { background: primaryColor, borderColor: primaryColor } : {}} />
+                  <div
+                    key={i}
+                    className={`w-4 h-4 rounded-full border-2 transition-all ${
+                      i < pinInput.length
+                        ? (pinError ? 'bg-red-500 border-red-500' : 'border-current')
+                        : 'border-white/20'
+                    }`}
+                    style={i < pinInput.length && !pinError ? { background: primaryColor, borderColor: primaryColor } : {}}
+                  />
                 ))}
               </div>
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((k, i) => (
-                  <button key={i} onClick={() => handlePinKey(String(k))}
-                    className={`py-4 rounded-xl text-white font-bold text-lg transition-all active:scale-90 ${k === '' ? 'opacity-0 pointer-events-none' : 'bg-white/10 hover:bg-white/20'}`}>
-                    {k}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => setShowPinPad(false)} className="text-white/40 text-sm hover:text-white/70 transition-colors">Cancel</button>
+
+              {isAuthenticating ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2">
+                  <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-white/60 text-xs mt-2">Verifying PIN...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map((k, i) => (
+                    <button
+                      key={i}
+                      disabled={pinLocked || isAuthenticating}
+                      onClick={() => handlePinKey(String(k))}
+                      className={`py-4 rounded-xl text-white font-bold text-lg transition-all active:scale-90 ${
+                        k === '' ? 'opacity-0 pointer-events-none' : 'bg-white/10 hover:bg-white/20 disabled:opacity-40'
+                      }`}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowPinPad(false);
+                  setPinInput('');
+                  setPinError(false);
+                  setPinErrorMessage('');
+                }}
+                className="text-white/40 text-sm hover:text-white/70 transition-colors"
+              >
+                Cancel
+              </button>
             </motion.div>
           </motion.div>
         )}
@@ -239,31 +380,70 @@ export function IdleScreen() {
             <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
               className="bg-[#12121a] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-white font-bold text-lg">⚙️ Operator Panel</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚙️</span>
+                  <h3 className="text-white font-bold text-lg">Operator Panel</h3>
+                </div>
                 <button onClick={() => setShowPanel(false)}>
                   <X className="w-5 h-5 text-white/40 hover:text-white" />
                 </button>
               </div>
+
               <div className="space-y-3">
-                <div className="bg-white/5 rounded-xl p-3">
-                  <p className="text-white/50 text-xs">Event</p>
-                  <p className="text-white font-semibold">{event?.name || '—'}</p>
+                <div className="bg-white/5 rounded-xl p-3 flex justify-between items-center">
+                  <div>
+                    <p className="text-white/50 text-xs">Event</p>
+                    <p className="text-white font-semibold text-sm truncate max-w-[200px]">{event?.name || '—'}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Unlocked</span>
+                  </div>
                 </div>
-                <button onClick={() => { resetSession(); setShowPanel(false); }}
-                  className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-all">
-                  🔄 Reset Session
+
+                {/* Offline Queue Status and Manual Trigger */}
+                <div className="bg-white/5 rounded-xl p-3 flex justify-between items-center">
+                  <div>
+                    <p className="text-white/50 text-xs">Offline Captures</p>
+                    <p className="text-white font-semibold text-sm">
+                      {offlinePendingCount === 0 ? 'All synced' : `${offlinePendingCount} pending sync`}
+                    </p>
+                  </div>
+                  <button
+                    disabled={isManualSyncing}
+                    onClick={handleManualSync}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isManualSyncing ? 'animate-spin' : ''}`} />
+                    <span>Sync</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    resetSession();
+                    setShowPanel(false);
+                    toast.success('Session reset');
+                  }}
+                  className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" /> Reset Session
                 </button>
-                {/* FIXED: goes directly to this event, not /admin */}
+
                 <a
                   href={`/admin/events/${event?.id}?operator=true`}
                   target="_blank"
+                  rel="noreferrer"
                   className="w-full py-3 rounded-xl bg-purple-600/20 text-purple-300 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-purple-600/30 transition-all"
                 >
                   <Settings className="w-4 h-4" /> Open Event Manager
                 </a>
-                <button onClick={() => { setShowPinPad(false); setShowPanel(false); }}
-                  className="w-full py-3 rounded-xl text-white/30 text-sm hover:text-white/60 transition-colors">
-                  Lock operator access
+
+                <button
+                  onClick={handleLockOperator}
+                  className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Lock className="w-4 h-4" /> Lock Operator Access
                 </button>
               </div>
             </motion.div>

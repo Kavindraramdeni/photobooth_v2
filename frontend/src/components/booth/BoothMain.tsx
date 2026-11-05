@@ -33,7 +33,7 @@ export function BoothMain() {
           await processOfflineQueue(
             event.id,
             async (item) => {
-              await uploadPhoto(item.blobData, item.eventId, item.sessionId || '', item.mode, item.clientCaptureId);
+              await uploadPhoto(item.blobData || item.blob, item.eventId, item.sessionId || '', item.mode, item.clientCaptureId);
             },
             (remaining) => setPendingSyncCount(remaining)
           );

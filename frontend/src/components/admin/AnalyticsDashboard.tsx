@@ -165,7 +165,7 @@ export function AnalyticsDashboard({ eventId }: { eventId: string }) {
           sub="most active time" color="#f59e0b" />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard emoji="🖨️" label="Prints" value={summary.totalPrints} />
         <StatCard emoji="📧" label="Emails Sent" value={summary.totalEmails} />
         <StatCard emoji="💬" label="SMS Sent" value={summary.totalSMS} />

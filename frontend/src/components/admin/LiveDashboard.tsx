@@ -163,7 +163,7 @@ export function LiveDashboard({ eventId }: { eventId: string }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatBubble label="Photos Today"  value={stats.totalToday}  pulse={connected} />
         <StatBubble label="This Hour"     value={stats.thisHour} />
         <StatBubble label="Total Shares"  value={stats.sharesTotal} />

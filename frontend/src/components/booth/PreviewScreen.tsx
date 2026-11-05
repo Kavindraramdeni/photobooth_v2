@@ -68,14 +68,14 @@ function ActionBtn({
       whileTap={{ scale: 0.93 }}
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-colors active:opacity-80 disabled:opacity-40 h-16 sm:h-auto sm:py-4 px-2 sm:px-3 min-w-[64px] sm:min-w-0 sm:w-full"
+      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-colors active:opacity-80 disabled:opacity-40 min-h-[44px] h-14 sm:h-auto sm:py-3.5 px-2.5 sm:px-3 min-w-[64px] sm:min-w-0 sm:w-full"
       style={color ? { background: color } : accent
         ? { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }
         : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }
       }
     >
-      <span className="w-6 h-6 flex items-center justify-center">{icon}</span>
-      <span className="leading-none text-center">{label}</span>
+      <span className="w-5 h-5 flex items-center justify-center">{icon}</span>
+      <span className="leading-none text-center text-[11px] sm:text-xs">{label}</span>
     </motion.button>
   );
 }
@@ -258,21 +258,24 @@ function selectFrame(frameUrl: string | null) {
       ── */}
       <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0">
 
-        {/* ── PHOTO AREA ─────────────────────────────────────────────────── */}
+        {/* ── PHOTO AREA ── */}
         <div className="
           relative flex items-center justify-center overflow-hidden
-          /* portrait: 55% height, no padding top */ 
-          flex-[0_0_55%] sm:flex-1
-          p-3 sm:p-4
+          flex-1 sm:flex-1
+          p-2 sm:p-4
+          min-h-0
         ">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-            className="relative w-full h-full flex items-center justify-center"
+            className="relative w-full h-full flex items-center justify-center max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <div className="relative inline-block" style={{ filter: currentFilter, transition: 'filter 0.25s ease' }}>
+            <div
+              className="relative inline-block max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] [&_img]:max-h-[50vh] sm:[&_img]:max-h-[60vh] lg:[&_img]:max-h-[70vh] [&_img]:object-contain flex flex-col items-center justify-center"
+              style={{ filter: currentFilter, transition: 'filter 0.25s ease' }}
+            >
               <TemplateRenderer
                 photoUrl={photo.url}
                 eventName={eventName}
@@ -467,7 +470,7 @@ function selectFrame(frameUrl: string | null) {
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all active:opacity-80"
+          className="w-full py-4 rounded-2xl font-bold text-white text-sm min-h-[48px] transition-all active:opacity-80"
           style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}cc)` }}
         >
           ✅ Done — Take Another

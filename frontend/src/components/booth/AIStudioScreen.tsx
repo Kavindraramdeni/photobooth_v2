@@ -31,10 +31,12 @@ function StyleCard({ style, isSelected, onSelect, disabled }: any) {
       whileTap={{ scale: 0.95 }}
       onClick={onSelect}
       disabled={disabled}
-      className="relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all"
+      className={`relative flex flex-col rounded-2xl overflow-hidden border-2 transition-all min-h-[90px] sm:min-h-[110px] w-full text-left ${
+        isSelected ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-black scale-[1.02]' : 'hover:border-white/20'
+      }`}
       style={{
-        borderColor: isSelected ? style.color : 'rgba(255,255,255,0.08)',
-        boxShadow: isSelected ? `0 0 20px ${style.color}50` : 'none',
+        borderColor: isSelected ? (style.color || '#a78bfa') : 'rgba(255,255,255,0.12)',
+        boxShadow: isSelected ? `0 0 20px ${style.color || '#a78bfa'}60` : 'none',
         aspectRatio: '3/4',
       }}
     >
@@ -49,22 +51,22 @@ function StyleCard({ style, isSelected, onSelect, disabled }: any) {
         <div className="absolute inset-0" style={{ background: style.gradient }} />
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
 
       {isSelected && (
         <div
           className="absolute inset-0 rounded-2xl border-2"
           style={{
-            borderColor: style.color,
-            boxShadow: `inset 0 0 20px ${style.color}30`,
+            borderColor: style.color || '#a78bfa',
+            boxShadow: `inset 0 0 20px ${style.color || '#a78bfa'}40`,
           }}
         />
       )}
 
-      <div className="absolute top-2 left-2 text-lg">{style.emoji}</div>
+      <div className="absolute top-2 left-2 text-lg sm:text-xl drop-shadow">{style.emoji}</div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-2">
-        <p className="text-white font-bold text-xs">{style.name}</p>
+      <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-2.5">
+        <p className="text-white font-bold text-xs sm:text-sm leading-tight truncate drop-shadow">{style.name}</p>
       </div>
     </motion.button>
   );
@@ -86,6 +88,7 @@ export function AIStudioScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState('');
 
   const selectedStyle = styles.find((s) => s.key === selected);
 
@@ -137,6 +140,9 @@ export function AIStudioScreen() {
       form.append('styleKey', selected);
       form.append('eventId', event.id);
       form.append('photoId', currentPhoto.id);
+      if (customPrompt.trim()) {
+        form.append('prompt', customPrompt.trim());
+      }
 
       const res = await fetch(`${API_BASE}/api/ai/generate`, {
         method: 'POST',
@@ -203,11 +209,11 @@ export function AIStudioScreen() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* LEFT - Original Photo Preview (2/5 width) */}
-        <div className="w-2/5 p-4 flex items-center justify-center bg-black/20">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+        {/* LEFT - Original Photo Preview (responsive: top on mobile, 2/5 on desktop) */}
+        <div className="w-full md:w-2/5 max-h-[30vh] sm:max-h-[35vh] md:max-h-none p-3 sm:p-4 flex items-center justify-center bg-black/20 flex-shrink-0">
           {currentPhoto?.url ? (
-            <div className="w-full h-full flex items-center justify-center bg-black rounded-2xl overflow-hidden">
+            <div className="w-full h-full flex items-center justify-center bg-black rounded-2xl overflow-hidden border border-white/10">
               <img
                 src={currentPhoto.url}
                 alt="Original photo"
@@ -222,10 +228,10 @@ export function AIStudioScreen() {
           )}
         </div>
 
-        {/* RIGHT - Style Selection & Generation (3/5 width) */}
-        <div className="w-3/5 flex flex-col bg-[#0a0a0f]">
+        {/* RIGHT - Style Selection & Generation (responsive: bottom on mobile, 3/5 on desktop) */}
+        <div className="w-full md:w-3/5 flex-1 flex flex-col bg-[#0a0a0f] min-h-0 overflow-hidden">
           {/* Status Bar */}
-          <div className="px-4 py-3 border-b border-white/10">
+          <div className="px-4 py-3 border-b border-white/10 flex-shrink-0">
             <p className="text-white/60 text-sm font-semibold">
               {step === 'select' && 'Choose a Style'}
               {step === 'generating' && '⏳ Generating...'}
@@ -241,7 +247,7 @@ export function AIStudioScreen() {
           {/* STEP 1: SELECT STYLES */}
           {step === 'select' && (
             <>
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0">
                 {stylesLoading ? (
                   <div className="flex justify-center items-center h-full">
                     <div className="text-white/60">
@@ -257,7 +263,7 @@ export function AIStudioScreen() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                     {styles.map((style) => (
                       <StyleCard
                         key={style.key}
@@ -275,16 +281,30 @@ export function AIStudioScreen() {
                 )}
               </div>
 
-              {/* Generate Button */}
-              <div className="p-4 border-t border-white/10">
+              {/* Fluid Custom Prompt Input */}
+              <div className="px-4 pt-3 pb-1 border-t border-white/5 bg-white/[0.02] flex-shrink-0">
+                <label className="block text-white/70 text-xs font-semibold mb-1.5">
+                  ✏️ Custom Prompt Modifier (optional)
+                </label>
+                <input
+                  type="text"
+                  value={customPrompt}
+                  onChange={e => setCustomPrompt(e.target.value)}
+                  placeholder="e.g., golden hour, cyberpunk lighting, oil painting..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder-white/30 focus:outline-none focus:border-violet-500 transition-colors"
+                />
+              </div>
+
+              {/* Generate Button with min 44px tap target */}
+              <div className="p-4 border-t border-white/10 flex-shrink-0">
                 <motion.button
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={handleGenerate}
                   disabled={!selected || aiGenerating}
-                  className={`w-full py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                  className={`w-full py-3.5 px-4 rounded-xl font-bold min-h-[44px] flex items-center justify-center gap-2 transition-all ${
                     !selected || aiGenerating
                       ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                      : 'bg-violet-600 hover:bg-violet-500 text-white'
+                      : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/30'
                   }`}
                 >
                   <Wand2 className="w-5 h-5" />
@@ -311,12 +331,12 @@ export function AIStudioScreen() {
           {/* STEP 3: RESULT */}
           {step === 'result' && (
             <>
-              <div className="flex-1 overflow-hidden p-4">
+              <div className="flex-1 overflow-hidden p-4 min-h-0 flex items-center justify-center">
                 {generatedUrl ? (
                   <img
                     src={generatedUrl}
                     alt="Generated AI photo"
-                    className="w-full h-full object-contain rounded-xl"
+                    className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -325,25 +345,25 @@ export function AIStudioScreen() {
                 )}
               </div>
 
-              {/* Result Actions */}
-              <div className="p-4 border-t border-white/10 space-y-2">
+              {/* Result Actions with min 44px tap target */}
+              <div className="p-4 border-t border-white/10 space-y-2.5 flex-shrink-0">
                 <motion.button
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={handleShareAI}
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 transition-all"
+                  className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold min-h-[44px] flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/20"
                 >
                   <Share2 className="w-5 h-5" />
                   Share This Photo
                 </motion.button>
 
                 <motion.button
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => {
                     setStep('select');
                     setGeneratedUrl(null);
                     setSelected(null);
                   }}
-                  className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center gap-2 transition-all"
+                  className="w-full py-3.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold min-h-[44px] flex items-center justify-center gap-2 transition-all"
                 >
                   <RotateCcw className="w-5 h-5" />
                   Try Another Style

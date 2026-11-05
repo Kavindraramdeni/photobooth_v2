@@ -12,6 +12,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 const API_BASE      = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:3001';
 const FRONTEND_BASE = process.env.NEXT_PUBLIC_APP_URL  || 'https://photobooth-v2-xi.vercel.app';
@@ -32,6 +33,9 @@ interface Event {
   slug: string;
   branding?: { primaryColor?: string; logoUrl?: string; eventName?: string };
   settings?: { galleryPassword?: string };
+  has_gallery_password?: boolean;
+  hasGalleryPassword?: boolean;
+  gallery_password?: string;
 }
 
 async function iosDownload(url: string, filename: string) {
@@ -97,8 +101,15 @@ export default function GalleryPage() {
       const ev: Event = evData.event;
       setEvent(ev);
 
-      // Check if password protected
-      if (ev.settings?.galleryPassword) {
+      // Check if password protected (reconcile across has_gallery_password, hasGalleryPassword, gallery_password, and settings)
+      const isPasswordProtected = Boolean(
+        ev.has_gallery_password ||
+        ev.hasGalleryPassword ||
+        ev.gallery_password ||
+        ev.settings?.galleryPassword
+      );
+
+      if (isPasswordProtected) {
         const stored = sessionStorage.getItem(`gallery-auth-${ev.id}`);
         if (stored !== 'ok') {
           setNeedsPassword(true);
@@ -238,7 +249,7 @@ export default function GalleryPage() {
       )}
 
       {/* Photo grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1 p-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4 p-2 sm:p-4 max-w-7xl mx-auto">
         {photos.map((photo, i) => (
           <motion.div
             key={photo.id}
@@ -246,7 +257,7 @@ export default function GalleryPage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: Math.min(i * 0.03, 0.5) }}
             onClick={() => setLightbox(photo)}
-            className="relative aspect-square cursor-pointer overflow-hidden bg-black group"
+            className="relative aspect-square cursor-pointer overflow-hidden rounded-xl sm:rounded-2xl bg-black border border-white/5 shadow-md group"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -273,74 +284,73 @@ export default function GalleryPage() {
             className="fixed inset-0 z-50 bg-black/95 flex flex-col"
             onClick={e => { if (e.target === e.currentTarget) setLightbox(null); }}
           >
-            {/* Lightbox header */}
+            {/* Lightbox header with touch-friendly buttons */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
-              <button onClick={() => setLightbox(null)} className="text-white/50 hover:text-white">
+              <button onClick={() => setLightbox(null)} className="text-white/60 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl hover:bg-white/10 active:scale-95 transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <span className="text-white/50 text-sm">
+              <span className="text-white/60 text-sm font-medium">
                 {lightbox.mode === 'gif' ? '🎬 GIF'
                   : lightbox.mode === 'boomerang' ? '🔄 Boomerang'
                   : lightbox.mode === 'strip' ? '🎞️ Strip'
                   : '📸 Photo'}
               </span>
-              <button onClick={() => setLightbox(null)} className="text-white/50 hover:text-white">
+              <button onClick={() => setLightbox(null)} className="text-white/60 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl hover:bg-white/10 active:scale-95 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Photo */}
-            <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+            {/* Photo with fluid sizing */}
+            <div className="flex-1 flex items-center justify-center p-3 sm:p-6 overflow-hidden">
               <motion.img
                 src={lightbox.url} alt="Photo"
                 initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                className="max-w-full max-h-full object-contain rounded-2xl"
-                style={{ maxHeight: 'calc(100dvh - 200px)' }}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border border-white/10"
+                style={{ maxHeight: 'calc(100dvh - 180px)' }}
               />
             </div>
 
-            {/* Actions */}
-            <div className="flex-shrink-0 px-4 pb-6 pt-2 space-y-2">
-              <div className="grid grid-cols-3 gap-2">
+            {/* Actions with touch-friendly min-h-[44px] targets */}
+            <div className="flex-shrink-0 px-4 pb-6 pt-2 space-y-2.5">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-md mx-auto w-full">
                 {/* Download */}
                 <button
                   onClick={() => iosDownload(lightbox.url, `${eventName.replace(/\s+/g, '-')}-${lightbox.id.slice(0, 6)}.${lightbox.mode === 'gif' || lightbox.mode === 'boomerang' ? 'gif' : 'jpg'}`)}
-                  className="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl bg-white/8 border border-white/15 text-white hover:bg-white/12 transition-colors">
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 sm:py-3.5 rounded-2xl bg-white/10 border border-white/15 text-white hover:bg-white/15 min-h-[44px] transition-colors active:scale-95 shadow-sm">
                   <Download className="w-5 h-5" />
-                  <span className="text-xs">Save</span>
+                  <span className="text-xs font-semibold">Save</span>
                 </button>
 
                 {/* Share / Copy */}
                 <button onClick={() => handleShare(lightbox)}
-                  className="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl bg-white/8 border border-white/15 text-white hover:bg-white/12 transition-colors">
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 sm:py-3.5 rounded-2xl bg-white/10 border border-white/15 text-white hover:bg-white/15 min-h-[44px] transition-colors active:scale-95 shadow-sm">
                   {copied ? <Check className="w-5 h-5 text-green-400" /> : <Share2 className="w-5 h-5" />}
-                  <span className="text-xs">{copied ? 'Copied!' : 'Share'}</span>
+                  <span className="text-xs font-semibold">{copied ? 'Copied!' : 'Share'}</span>
                 </button>
 
                 {/* QR */}
                 <button onClick={() => setShowQR(v => !v)}
-                  className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border transition-colors ${showQR ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-white/8 border-white/15 text-white hover:bg-white/12'}`}>
+                  className={`flex flex-col items-center justify-center gap-1.5 py-3 sm:py-3.5 rounded-2xl border min-h-[44px] transition-colors active:scale-95 shadow-sm ${showQR ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-white/10 border-white/15 text-white hover:bg-white/15'}`}>
                   <QrCode className="w-5 h-5" />
-                  <span className="text-xs">QR Code</span>
+                  <span className="text-xs font-semibold">QR Code</span>
                 </button>
               </div>
 
-              {/* QR code expanded — shows the short URL QR for re-scanning */}
-              {showQR && (lightbox.gallery_url || lightbox.short_code) && (
+              {/* QR code expanded — renders offline-capable native SVG */}
+              {showQR && (lightbox.gallery_url || lightbox.short_code || lightbox.url) && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-2xl p-4 flex flex-col items-center gap-2">
-                  {/* Use a QR code service to render; the actual QR is stored on the backend */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-                      lightbox.gallery_url || `${FRONTEND_BASE}/p/${lightbox.short_code}`
-                    )}&size=160x160&margin=6`}
-                    alt="QR code"
-                    className="w-40 h-40 rounded-lg"
+                  className="bg-white rounded-2xl p-4 flex flex-col items-center gap-2 shadow-2xl max-w-sm mx-auto w-full">
+                  <QRCodeSVG
+                    value={lightbox.gallery_url || (lightbox.short_code ? `${FRONTEND_BASE}/p/${lightbox.short_code}` : lightbox.url)}
+                    size={160}
+                    level="H"
+                    fgColor="#000000"
+                    bgColor="#ffffff"
+                    className="w-40 h-40"
                   />
-                  <p className="text-gray-500 text-xs text-center">Scan to view &amp; download this photo</p>
+                  <p className="text-gray-600 text-xs text-center font-medium">Scan to view &amp; download this photo</p>
                   <p className="text-gray-400 text-xs font-mono text-center break-all">
-                    {lightbox.short_code ? `${FRONTEND_BASE}/p/${lightbox.short_code}` : lightbox.gallery_url}
+                    {lightbox.short_code ? `${FRONTEND_BASE}/p/${lightbox.short_code}` : (lightbox.gallery_url || lightbox.url)}
                   </p>
                 </motion.div>
               )}
@@ -350,12 +360,12 @@ export default function GalleryPage() {
                   `📸 My photo from ${eventName}! ${lightbox.gallery_url || (lightbox.short_code ? `${FRONTEND_BASE}/p/${lightbox.short_code}` : lightbox.url)}`
                 )}`}
                 target="_blank" rel="noreferrer"
-                className="w-full py-3.5 rounded-2xl font-semibold text-white text-sm flex items-center justify-center gap-3"
+                className="w-full max-w-md mx-auto py-3.5 rounded-2xl font-semibold text-white text-sm min-h-[44px] flex items-center justify-center gap-2.5 shadow-sm transition-all active:scale-95"
                 style={{ background: '#25D366' }}>
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                 </svg>
-                Share via WhatsApp
+                <span>Share via WhatsApp</span>
               </a>
             </div>
           </motion.div>

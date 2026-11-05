@@ -11,7 +11,9 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('sb_access_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -35,57 +37,192 @@ api.interceptors.response.use(
   }
 );
 
-// ─── Photos ────────────────────────────────────────────────────────────────
+// ─── Booth Session & Operator Auth Helpers ─────────────────────────────────
+
+export function getBoothToken(eventId?: string): string | null {
+  if (typeof window === 'undefined') return null;
+  if (eventId) {
+    const eventSpecific =
+      sessionStorage.getItem(`booth_token_${eventId}`) ||
+      localStorage.getItem(`booth_token_${eventId}`);
+    if (eventSpecific) return eventSpecific;
+  }
+  return (
+    sessionStorage.getItem('booth_token') ||
+    sessionStorage.getItem('booth_session_token') ||
+    sessionStorage.getItem('operator_token') ||
+    localStorage.getItem('sb_operator_token') ||
+    localStorage.getItem('sb_access_token') ||
+    null
+  );
+}
+
+export function setBoothToken(token: string, eventId?: string): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem('booth_token', token);
+  sessionStorage.setItem('booth_session_token', token);
+  if (eventId) {
+    sessionStorage.setItem(`booth_token_${eventId}`, token);
+    localStorage.setItem(`booth_token_${eventId}`, token);
+  }
+}
+
+export function getBoothHeaders(eventId?: string, idempotencyKey?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = getBoothToken(eventId);
+  if (token) {
+    headers['x-booth-session'] = token;
+    headers['X-Booth-Session'] = token;
+  }
+  if (idempotencyKey) {
+    headers['X-Idempotency-Key'] = idempotencyKey;
+    headers['x-idempotency-key'] = idempotencyKey;
+  }
+  return headers;
+}
+
+/**
+ * Authenticates booth operator PIN against backend endpoint
+ * Returns scoped operator token
+ */
+export async function operatorLogin(
+  eventId: string,
+  pin: string
+): Promise<{ token: string; operator: { role: string; eventId: string; expiresAt: string } }> {
+  try {
+    const res = await api.post('/auth/operator-login', { eventId, pin });
+    if (res.data?.token && typeof window !== 'undefined') {
+      sessionStorage.setItem('operator_token', res.data.token);
+      localStorage.setItem('sb_operator_token', res.data.token);
+    }
+    return res.data;
+  } catch (err: any) {
+    // Fallback to legacy event endpoint if /auth route is not reachable
+    if (err.response?.status === 404) {
+      const fallback = await api.post(`/events/${eventId}/operator-login`, { pin });
+      if (fallback.data?.token && typeof window !== 'undefined') {
+        sessionStorage.setItem('operator_token', fallback.data.token);
+        localStorage.setItem('sb_operator_token', fallback.data.token);
+      }
+      return fallback.data;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Exchanges operator or owner credentials for a signed event booth session token
+ */
+export async function getBoothSession(
+  eventId: string,
+  operatorToken?: string
+): Promise<{ sessionToken: string; boothToken: string; eventId: string; expiresAt: string }> {
+  const token =
+    operatorToken ||
+    getBoothToken(eventId) ||
+    (typeof window !== 'undefined' ? localStorage.getItem('sb_access_token') : null);
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await api.post(`/events/${eventId}/booth-session`, {}, { headers });
+  const sessionToken = res.data?.sessionToken || res.data?.boothToken;
+  if (sessionToken) {
+    setBoothToken(sessionToken, eventId);
+  }
+  return res.data;
+}
+
+// ─── Photos & Media Upload ──────────────────────────────────────────────────
 
 export async function uploadPhoto(
   blob: Blob,
   eventId: string,
-  sessionId: string,
+  sessionId?: string,
   mode = 'single',
-  clientCaptureId?: string
+  clientPhotoId?: string
 ) {
   const form = new FormData();
   form.append('photo', blob, 'photo.jpg');
   form.append('eventId', eventId);
-  form.append('sessionId', sessionId);
+  if (sessionId) form.append('sessionId', sessionId);
   form.append('mode', mode);
-  if (clientCaptureId) {
-    form.append('clientCaptureId', clientCaptureId);
+
+  if (clientPhotoId) {
+    form.append('clientPhotoId', clientPhotoId);
+    form.append('client_photo_id', clientPhotoId);
+    form.append('clientCaptureId', clientPhotoId);
   }
 
-  const boothToken =
-    typeof window !== 'undefined'
-      ? sessionStorage.getItem(`booth_token_${eventId}`) || localStorage.getItem(`booth_token_${eventId}`)
-      : null;
-
-  const headers = boothToken ? { 'x-booth-session': boothToken } : undefined;
+  const headers = getBoothHeaders(eventId, clientPhotoId);
   const res = await api.post('/photos/upload', form, { headers });
   return res.data;
 }
 
-export async function createGIF(frames: Blob[], eventId: string, type: 'gif' | 'boomerang' = 'gif') {
+export async function createGIF(
+  frames: Blob[],
+  eventId: string,
+  type: 'gif' | 'boomerang' = 'gif',
+  clientPhotoId?: string,
+  sessionId?: string
+) {
   const form = new FormData();
   frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
   form.append('eventId', eventId);
   form.append('type', type);
-  const res = await api.post('/photos/gif', form);
+  if (sessionId) form.append('sessionId', sessionId);
+  if (clientPhotoId) {
+    form.append('clientPhotoId', clientPhotoId);
+    form.append('client_photo_id', clientPhotoId);
+    form.append('clientCaptureId', clientPhotoId);
+  }
+
+  const headers = getBoothHeaders(eventId, clientPhotoId);
+  const res = await api.post('/photos/gif', form, { headers });
   return res.data;
 }
 
-export async function createBurst(frames: Blob[], eventId: string, sessionId?: string) {
+export async function createBurst(
+  frames: Blob[],
+  eventId: string,
+  sessionId?: string,
+  clientPhotoId?: string
+) {
   const form = new FormData();
   frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
   form.append('eventId', eventId);
   if (sessionId) form.append('sessionId', sessionId);
-  const res = await api.post('/photos/burst', form);
+  if (clientPhotoId) {
+    form.append('clientPhotoId', clientPhotoId);
+    form.append('client_photo_id', clientPhotoId);
+    form.append('clientCaptureId', clientPhotoId);
+  }
+
+  const headers = getBoothHeaders(eventId, clientPhotoId);
+  const res = await api.post('/photos/burst', form, { headers });
   return res.data;
 }
 
-export async function createStrip(photos: Blob[], eventId: string) {
+export async function createStrip(
+  photos: Blob[],
+  eventId: string,
+  clientPhotoId?: string,
+  sessionId?: string
+) {
   const form = new FormData();
   photos.forEach((p, i) => form.append('photos', p, `photo_${i}.jpg`));
   form.append('eventId', eventId);
-  const res = await api.post('/photos/strip', form);
+  if (sessionId) form.append('sessionId', sessionId);
+  if (clientPhotoId) {
+    form.append('clientPhotoId', clientPhotoId);
+    form.append('client_photo_id', clientPhotoId);
+    form.append('clientCaptureId', clientPhotoId);
+  }
+
+  const headers = getBoothHeaders(eventId, clientPhotoId);
+  const res = await api.post('/photos/strip', form, { headers });
   return res.data;
 }
 
@@ -128,8 +265,12 @@ export async function generateAI(blob: Blob, styleKey: string, eventId: string, 
   form.append('photo', blob, 'photo.jpg');
   form.append('styleKey', styleKey);
   form.append('eventId', eventId);
-  if (photoId) form.append('photoId', photoId);
-  const res = await api.post('/ai/generate', form);
+  if (photoId) {
+    form.append('photoId', photoId);
+    form.append('clientPhotoId', photoId);
+  }
+  const headers = getBoothHeaders(eventId, photoId);
+  const res = await api.post('/ai/generate', form, { headers });
   return res.data;
 }
 
@@ -137,7 +278,8 @@ export async function generateSurpriseAI(blob: Blob, eventId: string) {
   const form = new FormData();
   form.append('photo', blob, 'photo.jpg');
   form.append('eventId', eventId);
-  const res = await api.post('/ai/surprise', form);
+  const headers = getBoothHeaders(eventId);
+  const res = await api.post('/ai/surprise', form, { headers });
   return res.data;
 }
 
@@ -227,14 +369,14 @@ export function exportAnalyticsCSV(
   eventName: string
 ) {
   const headers = ['Action', 'Mode', 'Details', 'Date'];
-  const data = rows.map(r => [
+  const data = rows.map((r) => [
     r.action,
     (r.metadata?.mode as string) || '',
     JSON.stringify(r.metadata).replace(/"/g, "'"),
     new Date(r.created_at).toLocaleString(),
   ]);
   const csv = [headers, ...data]
-    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
     .join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -281,8 +423,12 @@ export async function getEventPhotosWithHidden(eventId: string) {
 // ─── Leads ─────────────────────────────────────────────────────────────────
 
 export async function submitLead(data: {
-  eventId: string; photoId?: string;
-  email?: string; phone?: string; name?: string; consented?: boolean;
+  eventId: string;
+  photoId?: string;
+  email?: string;
+  phone?: string;
+  name?: string;
+  consented?: boolean;
 }) {
   const res = await api.post('/leads', data);
   return res.data;
@@ -299,9 +445,9 @@ export function exportLeadsCSV(
 ) {
   const rows = [
     ['Name', 'Email', 'Phone', 'Captured At'],
-    ...leads.map(l => [l.name || '', l.email || '', l.phone || '', new Date(l.created_at).toLocaleString()]),
+    ...leads.map((l) => [l.name || '', l.email || '', l.phone || '', new Date(l.created_at).toLocaleString()]),
   ];
-  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -367,7 +513,10 @@ export async function getTemplates(eventId: string) {
   return res.data.templates;
 }
 
-export async function createTemplate(eventId: string, data: { name: string; layout?: Record<string, unknown>; isDefault?: boolean }) {
+export async function createTemplate(
+  eventId: string,
+  data: { name: string; layout?: Record<string, unknown>; isDefault?: boolean }
+) {
   const res = await api.post(`/templates/event/${eventId}`, data);
   return res.data.template;
 }
