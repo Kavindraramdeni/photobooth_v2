@@ -159,6 +159,10 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
       return res.status(415).json({ error: 'Unsupported or invalid image format. Please upload a JPG, PNG, WEBP, HEIC, or GIF image.' });
     }
 
+    if (event.settings?.beautyLevel && Number(event.settings.beautyLevel) > 0) {
+      processedBuffer = await applyBeautyMode(processedBuffer, Number(event.settings.beautyLevel));
+    }
+
     if (event.branding) {
       processedBuffer = await applyBrandingOverlay(processedBuffer, event.branding);
     }
@@ -242,6 +246,7 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
         qrCode: qrDataUrl,
         whatsappUrl,
         downloadUrl: photoUrl,
+        storage_key: storageKey,
       },
     });
   } catch (error) {

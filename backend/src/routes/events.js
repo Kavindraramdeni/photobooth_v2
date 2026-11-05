@@ -174,6 +174,7 @@ router.post('/', requireAuth, async (req, res) => {
         client_email: clientEmail || '',
         branding: defaultBranding,
         settings: defaultSettings,
+        operator_pin: defaultSettings.operatorPin,
         status: 'active',
         created_at: new Date().toISOString(),
       })
@@ -196,7 +197,7 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, date, venue, clientName, clientEmail, branding, settings, status, gallery_password } = req.body;
+    const { name, date, venue, clientName, clientEmail, branding, settings, status, gallery_password, operator_pin } = req.body;
 
     // Strict allowlist — forbid changing owner_id, id, created_at
     const safeUpdates = {
@@ -209,6 +210,9 @@ router.put('/:id', requireAuth, async (req, res) => {
       ...(settings && { settings }),
       ...(status && { status }),
       ...(gallery_password !== undefined && { gallery_password }),
+      ...((operator_pin !== undefined || settings?.operatorPin !== undefined) && {
+        operator_pin: String(operator_pin !== undefined ? operator_pin : settings.operatorPin),
+      }),
       updated_at: new Date().toISOString(),
     };
 
@@ -222,6 +226,21 @@ router.put('/:id', requireAuth, async (req, res) => {
 
     if (error || !event) {
       return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
+    // Broadcast event-updated with sanitized settings and branding to Socket.IO room event-${id}
+    const io = req.app.get('io');
+    if (io) {
+      const safeBroadcastSettings = { ...(event.settings || {}) };
+      delete safeBroadcastSettings.operatorPin;
+      delete safeBroadcastSettings.webhookSecret;
+      delete safeBroadcastSettings.galleryPassword;
+
+      io.to(`event-${id}`).emit('event-updated', {
+        type: 'event-updated',
+        branding: event.branding,
+        settings: safeBroadcastSettings,
+      });
     }
 
     res.json({ success: true, event });

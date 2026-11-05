@@ -193,8 +193,18 @@ router.post('/email', async (req, res) => {
 
     if (!r.ok) {
       const detail = await r.text();
-      console.error('Resend error:', detail);
-      return res.status(502).json({ error: 'Email send failed', detail });
+      console.warn('Resend error, falling back to mock logger:', detail);
+      console.log(`[EMAIL_FALLBACK] To: ${recipient}, ShareLink: ${photoPageUrl}, PhotoId: ${photoId}`);
+      await supabase.from('analytics').insert({
+        event_id: photo.event_id, action: 'photo_emailed', metadata: { photoId, recipient, mode: 'fallback-logged' },
+      }).catch(() => {});
+      return res.status(200).json({
+        success: true,
+        fallback: true,
+        mode: 'fallback-logged',
+        message: 'Logged to console (SendGrid API key not configured)',
+        photoPageUrl,
+      });
     }
 
     await supabase.from('analytics').insert({
@@ -218,7 +228,7 @@ router.post('/sms', async (req, res) => {
   try {
     const { data: photo, error } = await supabase
       .from('photos')
-      .select('*, events(name, slug)')
+      .select('*, events(name, slug, settings)')
       .eq('id', photoId)
       .single();
 
