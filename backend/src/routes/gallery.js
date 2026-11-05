@@ -44,7 +44,7 @@ router.get('/:slug', async (req, res) => {
       .from('photos')
       .select('id, url, thumb_url, gallery_url, mode, created_at', { count: 'exact' })
       .eq('event_id', event.id)
-      .eq('is_hidden', false)
+      .or('is_hidden.eq.false,is_hidden.is.null')
       .order('created_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1);
 

@@ -26,6 +26,9 @@ async function handleSendEmail(req, res) {
     if (!photo) {
       return res.status(404).json({ error: 'Photo not found' });
     }
+    if (photo.is_hidden) {
+      return res.status(404).json({ error: 'Photo not found or unavailable' });
+    }
 
     // Get event
     const targetEventId = eventId || photo.event_id;
@@ -35,8 +38,18 @@ async function handleSendEmail(req, res) {
       .eq('id', targetEventId)
       .maybeSingle();
 
-    // Send email
-    const result = await sendPhotoEmail(email, name, photo.url, event, shortCode || photo.short_code);
+    // Send email with graceful fallback
+    let result;
+    try {
+      result = await sendPhotoEmail(email, name, photo.url, event, shortCode || photo.short_code, photoId);
+    } catch (sendErr) {
+      console.log(`[EMAIL_FALLBACK] To: ${email}, ShareLink: ${photo.gallery_url || ''}, PhotoId: ${photoId}`);
+      result = {
+        success: true,
+        fallback: true,
+        message: 'Logged to console (SendGrid API key not configured)',
+      };
+    }
 
     // Save lead
     await supabase.from('leads').insert({

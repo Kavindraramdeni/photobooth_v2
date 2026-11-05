@@ -6,12 +6,17 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "test": "node --test test/**/*.test.js",
     "backfill:photo-short-urls:dry": "node scripts/backfill-photo-short-urls.js",
     "backfill:photo-short-urls": "node scripts/backfill-photo-short-urls.js --apply"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.400.0",
+    "@aws-sdk/s3-request-presigner": "^3.400.0",
+    "@google/genai": "^1.0.0",
+    "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.38.0",
+    "archiver": "^6.0.1",
     "axios": "^1.5.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -25,10 +30,7 @@
     "sharp": "^0.33.5",
     "socket.io": "^4.6.1",
     "stripe": "^14.5.0",
-    "uuid": "^9.0.0",
-    "@aws-sdk/s3-request-presigner": "^3.400.0",
-    "archiver": "^6.0.1",
-    "@google/genai": "^1.0.0"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

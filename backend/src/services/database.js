@@ -1,8 +1,18 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY // Use service key for backend
-);
+const url = process.env.SUPABASE_URL || 'https://placeholder-project.supabase.co';
+const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || 'placeholder-service-key-for-offline-tests';
 
-module.exports = supabase;
+let activeClient = createClient(url, key);
+
+const proxy = {
+  from: (...args) => activeClient.from(...args),
+  get auth() {
+    return activeClient.auth;
+  },
+  __setClient: (client) => {
+    activeClient = client;
+  },
+};
+
+module.exports = proxy;

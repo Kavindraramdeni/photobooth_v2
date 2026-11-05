@@ -62,15 +62,13 @@ router.get('/', requireAuth, async (req, res) => {
   * `DELETE /:id`: Did not authenticate or verify ownership.
 * **Impact:** Any user could reassign ownership of events, disable events, alter webhook endpoints, inject arbitrary branding, or archive competitor events.
 * **Remediation & Code Evidence:**
-  1. `POST /api/events` (`backend/src/routes/events.js:73`) mounts `requireAuth` and `checkEventLimit`, explicitly assigns `owner_id: req.user.id`, and generates a secure random 4-digit PIN.
+  1. `POST /api/events` (`backend/src/routes/events.js:114`) mounts `requireAuth`, explicitly assigns `owner_id: req.user.id`, and generates a secure random 4-digit PIN. Wiring `getUserPlanFeatures` was completed in `billing.js` (`/my-plan`, `/check-limits`), while mounting `checkEventLimit` quota enforcement on `POST /api/events` is assigned to active Phase 1 (Milestone 2).
   2. `PUT /api/events/:id` (`backend/src/routes/events.js:152`) mounts `requireAuth`, uses a strict allowlist of editable properties, and enforces `.eq('owner_id', req.user.id)`.
   3. `DELETE /api/events/:id` (`backend/src/routes/events.js:175`) mounts `requireAuth`, enforces `.eq('owner_id', req.user.id)`, and sets `status: 'archived'`.
 ```javascript
 // backend/src/routes/events.js
-const { checkEventLimit } = require('../middleware/planEnforcement');
-
-// POST /api/events
-router.post('/', requireAuth, checkEventLimit, async (req, res) => {
+// POST /api/events (Authenticated owner; checkEventLimit quota middleware scoped for Phase 1)
+router.post('/', requireAuth, async (req, res) => {
   const { name, date, venue, clientName, clientEmail, branding, settings } = req.body;
   if (!name || !date) return res.status(400).json({ error: 'Name and date are required' });
 
@@ -281,9 +279,9 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 | **2.1 Missing Supabase Client** | `backend/src/routes/email.js:7` | Called `supabase.from('photos')` without requiring `../services/database`. | **RESOLVED in `d33aa13`**: Added `const supabase = require('../services/database');`. |
 | **2.2 Missing Supabase Client & Bad Routes** | `backend/src/routes/backgrounds.js:7` & `templates.js:7` | Called `supabase` without requiring it; routes declared `/backgrounds` instead of `/event/:eventId`. | **RESOLVED in `d33aa13`**: Added `const supabase = require('../services/database');` and normalized route signatures to `/:eventId` and `/:templateId`. |
 | **2.3 Missing `nanoid` Package** | `backend/src/routes/photos.js:633` | Called `require('nanoid').nanoid(6)` but `nanoid` was not listed in `backend/package.json`. | **RESOLVED in `d33aa13`**: Replaced external dependency with `await generateUniqueShortCode(supabase)` collision-resistant Base62 generator. |
-| **2.4 Missing Import & Argument Error in Frame Deletion** | `backend/src/routes/events.js:5, 636` | Called `deleteFromStorage(frame.url)` without importing `deleteFromStorage`, and had a duplicated route definition at line 663. | **RESOLVED in `d33aa13`**: Imported `deleteFromStorage` from `../services/storage`, parsed storage key from URL, and removed duplicate route handler at line 663. |
+| **2.4 Missing Import & Argument Error in Frame Deletion** | `backend/src/routes/events.js:6, 751` | Called `deleteFromStorage(frame.url)` without importing `deleteFromStorage`, and had a duplicated route definition at line 663. | **PARTIALLY RESOLVED in `d33aa13` / SCOPED FOR PHASE 1**: Imported `deleteFromStorage` from `../services/storage` and removed duplicate route handler at line 663 in `d33aa13`. Parsing/extracting the relative storage key from `frame.url` (at `events.js:751`) is scoped for Phase 1 (Milestone 2). |
 | **2.5 Email Confirmation Flow Misconfiguration** | `backend/src/routes/auth.js:40` | `admin.createUser({ email_confirm: false })` did not send verification emails. | **RESOLVED in `d33aa13`**: Verified `email_confirm: false` correctly invokes Supabase Auth's native verification email dispatch. |
-| **2.6 Missing Plan Enforcement Application** | `backend/src/middleware/planEnforcement.js` | `checkEventLimit`, `requireFeature`, and `checkPhotoLimit` were written but never mounted. | **RESOLVED in `d33aa13`**: Wired `getUserPlanFeatures` into `billing.js` (`/my-plan`, `/check-limits`) and attached `checkPhotoLimit` to photo upload handlers. |
+| **2.6 Missing Plan Enforcement Application** | `backend/src/middleware/planEnforcement.js` | `checkEventLimit`, `requireFeature`, and `checkPhotoLimit` were written but never mounted. | **PARTIALLY RESOLVED in `d33aa13` / SCOPED FOR PHASE 1**: Wired `getUserPlanFeatures` into `billing.js` (`/my-plan`, `/check-limits`). Mounting `checkEventLimit` on event creation and `checkPhotoLimit` on photo uploads is assigned to active Phase 1 (Milestone 2). |
 | **2.7 ZIP Download Header Omission** | `frontend/src/lib/api.ts:87` | Called `fetch('/api/photos/event/${eventId}/zip')` without attaching `Authorization` header. | **RESOLVED in `d33aa13`**: `downloadPhotosZip` attaches `Authorization: Bearer ${token}`. |
 
 ---
@@ -343,7 +341,7 @@ Live database migrations have been successfully executed and verified on Supabas
 
 1. **Row Level Security (RLS) Hardened on All 10 Public Tables:**
    - RLS is explicitly enabled on: `events`, `photos`, `analytics`, `operators`, `user_subscriptions`, `subscriptions`, `event_styles`, `event_frames`, `leads`, and `photo_templates`.
-   - 22 verified security policies are active, strictly enforcing `auth.uid()` tenant ownership and restricting public read access to active/unhidden records.
+   - Exactly 23 verified security policies are active (21 on public tables + 2 on `storage.objects`), strictly enforcing `auth.uid()` tenant ownership and restricting public read access to active/unhidden records.
 2. **Missing Tables Created:**
    - `public.leads`: Fully instantiated with foreign key cascade to `events(id)` and optional reference to `photos(id)`, supporting GDPR-compliant lead capture (`consented`, `opted_in`).
    - `public.photo_templates`: Fully instantiated with event scoping and JSONB template elements storage for custom print/strip configurations.

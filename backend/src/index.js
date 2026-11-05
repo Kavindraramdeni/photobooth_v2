@@ -52,6 +52,8 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/operator-login', authLimiter);
+app.use('/api/events/:id/operator-login', authLimiter);
 
 // ── Safe route loader ─────────────────────────────────────────────────────────
 const routeStatus = {};
@@ -201,7 +203,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => console.log(`🚀 SnapBooth Backend running on port ${PORT}`));
+if (require.main === module) {
+  httpServer.listen(PORT, () => console.log(`🚀 SnapBooth Backend running on port ${PORT}`));
+}
 
 // ─── Auto-seed demo event on startup ─────────────────────────────────────────
 async function seedDemoEvent() {
@@ -270,4 +274,8 @@ async function seedDemoEvent() {
   }
 }
 
-seedDemoEvent();
+if (require.main === module) {
+  seedDemoEvent();
+}
+
+module.exports = { app, httpServer };

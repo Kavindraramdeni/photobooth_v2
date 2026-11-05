@@ -1,18 +1,21 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const requireAuth = require('../middleware/requireAuth');
+const { signToken } = require('../utils/token');
+const supabase = require('../services/database');
 
 // Service-role client for admin operations (creating users etc.)
 const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_URL || 'https://placeholder-project.supabase.co',
+  process.env.SUPABASE_SERVICE_KEY || 'placeholder-service-key'
 );
 
 // Anon client for auth operations (login etc.)
 const supabaseAnon = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_URL || 'https://placeholder-project.supabase.co',
+  process.env.SUPABASE_ANON_KEY || 'placeholder-anon-key'
 );
 
 /**
@@ -220,6 +223,64 @@ router.post('/change-password', requireAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/operator-login
+ * Scoped operator PIN login returning 12-hour operator JWT
+ * Body: { eventId, pin }
+ */
+router.post('/operator-login', async (req, res) => {
+  try {
+    const { eventId, pin } = req.body;
+
+    if (!eventId || !pin) {
+      return res.status(401).json({ error: 'Invalid operator PIN' });
+    }
+
+    const { data: event, error } = await supabase
+      .from('events')
+      .select('id, name, slug, status, settings, operator_pin')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (error || !event) {
+      return res.status(401).json({ error: 'Invalid operator PIN' });
+    }
+
+    const expectedPin = String(event.operator_pin || event.settings?.operatorPin || '').trim();
+    if (!expectedPin) {
+      return res.status(401).json({ error: 'Invalid operator PIN' });
+    }
+
+    const inputPin = String(pin).trim();
+    const hashExpected = crypto.createHash('sha256').update(expectedPin).digest();
+    const hashProvided = crypto.createHash('sha256').update(inputPin).digest();
+
+    if (!crypto.timingSafeEqual(hashExpected, hashProvided)) {
+      return res.status(401).json({ error: 'Invalid operator PIN' });
+    }
+
+    const durationSeconds = 12 * 3600;
+    const expiresAt = new Date(Date.now() + durationSeconds * 1000).toISOString();
+    const token = signToken({
+      role: 'operator',
+      eventId: event.id,
+      sub: `operator:${event.id}`,
+    }, durationSeconds);
+
+    res.json({
+      token,
+      operator: {
+        role: 'operator',
+        eventId: event.id,
+        expiresAt,
+      },
+    });
+  } catch (err) {
+    console.error('Operator login error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

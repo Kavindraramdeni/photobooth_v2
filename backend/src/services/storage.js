@@ -130,7 +130,17 @@ if (!R2_CONFIGURED && SUPABASE_URL && SUPABASE_KEY) {
   })();
 }
 
+let mockStorage = null;
+
+function __setMockStorage(mock) {
+  mockStorage = mock;
+}
+
 async function uploadToStorage(buffer, key, contentType = 'image/jpeg') {
+  if (mockStorage && mockStorage.upload) {
+    return mockStorage.upload(buffer, key, contentType);
+  }
+
   if (R2_CONFIGURED) {
     const command = new PutObjectCommand({
       Bucket: BUCKET,
@@ -148,6 +158,10 @@ async function uploadToStorage(buffer, key, contentType = 'image/jpeg') {
 }
 
 async function getSignedDownloadUrl(key, expiresIn = 3600) {
+  if (mockStorage && mockStorage.getSignedUrl) {
+    return mockStorage.getSignedUrl(key, expiresIn);
+  }
+
   if (R2_CONFIGURED) {
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
     return await getSignedUrl(s3, command, { expiresIn });
@@ -157,6 +171,10 @@ async function getSignedDownloadUrl(key, expiresIn = 3600) {
 }
 
 async function deleteFromStorage(key) {
+  if (mockStorage && mockStorage.delete) {
+    return mockStorage.delete(key);
+  }
+
   if (R2_CONFIGURED) {
     const command = new DeleteObjectCommand({ Bucket: BUCKET, Key: key });
     await s3.send(command);
@@ -171,4 +189,4 @@ async function deleteFromStorage(key) {
   } catch { /* ignore delete errors */ }
 }
 
-module.exports = { uploadToStorage, getSignedDownloadUrl, deleteFromStorage };
+module.exports = { uploadToStorage, getSignedDownloadUrl, deleteFromStorage, __setMockStorage };

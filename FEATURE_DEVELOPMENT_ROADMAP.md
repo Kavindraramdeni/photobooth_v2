@@ -69,5 +69,5 @@ Focus on SaaS monetization, client CRM, multi-tenant agency tools, and automatio
 
 For in-depth architectural blueprints and revenue models on the **20 high-value differentiator features** (including *Instant Session QR Delivery*, *Live Social Wall*, *Digital Guestbook*, *Smart Print Manager*, *WhatsApp Delivery*, and *Sponsor Branding*), see:
 
-📄 **[INNOVATIVE_FEATURES_SPECIFICATIONS.md](file:///c:/Users/Kavin/antigravity/photobooth_v2-main/INNOVATIVE_FEATURES_SPECIFICATIONS.md)**
+📄 **[INNOVATIVE_FEATURES_SPECIFICATIONS.md](INNOVATIVE_FEATURES_SPECIFICATIONS.md)**
 

@@ -5,6 +5,18 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/database');
+const requireAuth = require('../middleware/requireAuth');
+
+// Helper to check event ownership for a given eventId
+async function checkEventOwner(eventId, userId) {
+  if (!eventId || !userId) return false;
+  const { data: event } = await supabase
+    .from('events')
+    .select('id, owner_id')
+    .eq('id', eventId)
+    .maybeSingle();
+  return event && event.owner_id === userId;
+}
 
 // GET /api/templates/event/:eventId or /api/templates/:eventId
 router.get(['/event/:eventId', '/:eventId'], async (req, res) => {
@@ -23,14 +35,19 @@ router.get(['/event/:eventId', '/:eventId'], async (req, res) => {
   }
 });
 
-// POST /api/templates/event/:eventId or /api/templates/:eventId
-router.post(['/event/:eventId', '/:eventId'], async (req, res) => {
+// POST /api/templates/event/:eventId or /api/templates/:eventId (Owner only)
+router.post(['/event/:eventId', '/:eventId'], requireAuth, async (req, res) => {
   try {
     const { name, elements, layout, width, height, is_default } = req.body;
     const eventId = req.params.eventId;
 
     if (!name) {
       return res.status(400).json({ error: 'Template name required' });
+    }
+
+    const isOwner = await checkEventOwner(eventId, req.user.id);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
     }
 
     const { data: template, error } = await supabase
@@ -54,10 +71,25 @@ router.post(['/event/:eventId', '/:eventId'], async (req, res) => {
   }
 });
 
-// PATCH /api/templates/:templateId
-router.patch('/:templateId', async (req, res) => {
+// PATCH /api/templates/:templateId (Owner only)
+router.patch('/:templateId', requireAuth, async (req, res) => {
   try {
     const { name, elements, layout, width, height, is_default } = req.body;
+
+    const { data: existingTemplate } = await supabase
+      .from('photo_templates')
+      .select('id, event_id')
+      .eq('id', req.params.templateId)
+      .maybeSingle();
+
+    if (!existingTemplate) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const isOwner = await checkEventOwner(existingTemplate.event_id, req.user.id);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
+    }
 
     const { data: template, error } = await supabase
       .from('photo_templates')
@@ -81,9 +113,24 @@ router.patch('/:templateId', async (req, res) => {
   }
 });
 
-// DELETE /api/templates/:templateId
-router.delete('/:templateId', async (req, res) => {
+// DELETE /api/templates/:templateId (Owner only)
+router.delete('/:templateId', requireAuth, async (req, res) => {
   try {
+    const { data: existingTemplate } = await supabase
+      .from('photo_templates')
+      .select('id, event_id')
+      .eq('id', req.params.templateId)
+      .maybeSingle();
+
+    if (!existingTemplate) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const isOwner = await checkEventOwner(existingTemplate.event_id, req.user.id);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
+    }
+
     const { error } = await supabase
       .from('photo_templates')
       .delete()

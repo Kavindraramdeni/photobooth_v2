@@ -81,7 +81,7 @@ stripped for public.  auth_insert active.            scoping in place.    is_hid
 │ • Connect missing API contracts: /billing/my-plan, check-limits.       │ [COMPLETED - d33aa13]
 │ • Connect /api/events/:id/gallery-auth and webhook-test.               │ [COMPLETED - d33aa13]
 │ • Fix reference errors: import supabase in email.js & templates.js.    │ [COMPLETED - d33aa13]
-│ • Wire planEnforcement.js limits into photo uploads and event creation.│ [COMPLETED - d33aa13]
+│ • Wire getUserPlanFeatures in billing.js; route limits in Phase 1 (M2).│ [COMPLETED - d33aa13]
 │ • Normalize event_styles column mapping in ai.js.                      │ [COMPLETED - d33aa13]
 └────────────────────────────────────────────────────────────────────────┘
                                     │

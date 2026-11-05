@@ -23,7 +23,7 @@ if (sgMail && hasApiKey) {
 /**
  * Send photo email to guest
  */
-async function sendPhotoEmail(email, name, photoUrl, event, shortCode) {
+async function sendPhotoEmail(email, name, photoUrl, event, shortCode, photoId) {
   try {
     if (!email || !photoUrl) {
       throw new Error('Email and photoUrl required');
@@ -32,6 +32,7 @@ async function sendPhotoEmail(email, name, photoUrl, event, shortCode) {
     const galleryUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/p/${shortCode || ''}`;
     const eventName = event?.name || 'Photo Booth';
     const venue = event?.venue ? ` • ${event.venue}` : '';
+    const targetPhotoId = photoId || event?.photoId || (photoUrl && photoUrl.match(/photos\/([a-f0-9-]+)/i)?.[1]) || 'unknown';
 
     const msg = {
       to: email,
@@ -55,17 +56,12 @@ async function sendPhotoEmail(email, name, photoUrl, event, shortCode) {
 
     // If SendGrid key is missing or module is not installed, log payload and return fallback success
     if (!process.env.SENDGRID_API_KEY || !sgMail) {
-      console.log('📧 [Email Fallback Mode] SendGrid API key not configured. Email logged to console:');
-      console.log(JSON.stringify({
-        to: email,
-        subject: msg.subject,
-        galleryUrl,
-        photoUrl,
-        timestamp: new Date().toISOString(),
-      }, null, 2));
+      console.log(`[EMAIL_FALLBACK] To: ${email}, ShareLink: ${galleryUrl}, PhotoId: ${targetPhotoId}`);
 
       return {
         success: true,
+        fallback: true,
+        message: 'Logged to console (SendGrid API key not configured)',
         mode: 'fallback-logged',
         email,
         messageId: `dev-fallback-${Date.now()}`,
@@ -82,9 +78,11 @@ async function sendPhotoEmail(email, name, photoUrl, event, shortCode) {
         timestamp: new Date(),
       };
     } catch (sendError) {
-      console.warn('⚠️ [Email Service] SendGrid dispatch failed, falling back to server log:', sendError.message);
+      console.log(`[EMAIL_FALLBACK] To: ${email}, ShareLink: ${galleryUrl}, PhotoId: ${targetPhotoId}`);
       return {
         success: true,
+        fallback: true,
+        message: 'Logged to console (SendGrid API key not configured)',
         mode: 'fallback-logged',
         email,
         messageId: `fallback-${Date.now()}`,

@@ -75,7 +75,7 @@ router.get('/:photoId', async (req, res) => {
       .eq('id', req.params.photoId)
       .single();
 
-    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (error || !photo || photo.is_hidden) return res.status(404).json({ error: 'Photo not found' });
 
     const eventName  = photo.events?.name || '';
     const galleryUrl = buildPhotoPageUrl(photo);
@@ -112,6 +112,7 @@ router.post('/email', async (req, res) => {
       .single();
 
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (photo.is_hidden) return res.status(404).json({ error: 'Photo not found or unavailable' });
 
     const eventName    = photo.events?.name || 'SnapBooth';
     const settings     = photo.events?.settings || {};
@@ -123,24 +124,18 @@ router.post('/email', async (req, res) => {
     const customSubject = settings.emailSubject || null;
     const customBody    = settings.emailBody || null;
 
-    if (!process.env.RESEND_API_KEY) {
-      console.log('📧 [Share Email Fallback Mode] Resend/SendGrid API key not set. Email logged to console:');
-      console.log(JSON.stringify({
-        recipient,
-        eventName,
-        photoUrl: photo.url,
-        photoPageUrl,
-        timestamp: new Date().toISOString(),
-      }, null, 2));
+    if (!process.env.RESEND_API_KEY && !process.env.SENDGRID_API_KEY) {
+      console.log(`[EMAIL_FALLBACK] To: ${recipient}, ShareLink: ${photoPageUrl}, PhotoId: ${photoId}`);
 
       await supabase.from('analytics').insert({
         event_id: photo.event_id, action: 'photo_emailed', metadata: { photoId, recipient, mode: 'fallback-logged' },
       }).catch(() => {});
 
-      return res.json({
+      return res.status(200).json({
         success: true,
+        fallback: true,
         mode: 'fallback-logged',
-        message: `Photo share link prepared and logged to server console for ${recipient}`,
+        message: 'Logged to console (SendGrid API key not configured)',
         photoPageUrl,
       });
     }
@@ -220,11 +215,6 @@ router.post('/sms', async (req, res) => {
 
   if (!photoId || !recipient) return res.status(400).json({ error: 'photoId and phone are required' });
 
-  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = process.env;
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
-    return res.status(503).json({ error: 'SMS service not configured (TWILIO_* env vars missing)' });
-  }
-
   try {
     const { data: photo, error } = await supabase
       .from('photos')
@@ -233,6 +223,12 @@ router.post('/sms', async (req, res) => {
       .single();
 
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (photo.is_hidden) return res.status(404).json({ error: 'Photo not found or unavailable' });
+
+    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = process.env;
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+      return res.status(503).json({ error: 'SMS service not configured (TWILIO_* env vars missing)' });
+    }
 
     const eventName   = photo.events?.name || 'SnapBooth';
     const photoPageUrl = buildPhotoPageUrl(photo);

@@ -7,6 +7,7 @@ const { uploadToStorage } = require('../services/storage');
 const { generateQRDataURL, buildGalleryUrl, generateUniqueShortCode } = require('../services/sharing');
 const supabase = require('../services/database');
 const requireAuth = require('../middleware/requireAuth');
+const requireBoothSession = require('../middleware/requireBoothSession');
 const { v4: uuidv4 } = require('uuid');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -75,10 +76,58 @@ router.get('/styles/:eventId', async (req, res) => {
 });
 
 /**
+ * Middleware: verify authenticated caller owns the event
+ * Resolves event from req.params.eventId, req.params.id, req.body.eventId, req.query.eventId,
+ * or via style lookup from req.params.styleId / req.body.styleId
+ */
+async function requireEventOwner(req, res, next) {
+  try {
+    let eventId = req.params.eventId || req.params.id || req.body?.eventId || req.query?.eventId;
+    const styleId = req.params.styleId || req.body?.styleId || req.query?.styleId;
+
+    if (!eventId && styleId) {
+      const { data: style, error: styleErr } = await supabase
+        .from('event_styles')
+        .select('id, event_id')
+        .eq('id', styleId)
+        .maybeSingle();
+
+      if (styleErr || !style) {
+        return res.status(404).json({ error: 'Style not found' });
+      }
+      eventId = style.event_id;
+    }
+
+    if (!eventId) {
+      return res.status(400).json({ error: 'Event ID required' });
+    }
+
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('id, owner_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventErr || !event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (!req.user || event.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
+    }
+
+    req.event = event;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/**
  * GET /api/ai/event-styles/:eventId
  * Admin: get all styles for an event (including disabled)
  */
-router.get('/event-styles/:eventId', requireAuth, async (req, res) => {
+router.get('/event-styles/:eventId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('event_styles')
@@ -97,7 +146,7 @@ router.get('/event-styles/:eventId', requireAuth, async (req, res) => {
  * POST /api/ai/event-styles
  * Admin: create a new custom style for an event
  */
-router.post('/event-styles', requireAuth, async (req, res) => {
+router.post('/event-styles', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { eventId, styleKey, name, emoji, prompt, previewUrl, displayOrder } = req.body;
     if (!eventId || !styleKey || !name || !prompt) {
@@ -130,7 +179,7 @@ router.post('/event-styles', requireAuth, async (req, res) => {
  * PATCH /api/ai/event-styles/:styleId
  * Admin: update a style
  */
-router.patch('/event-styles/:styleId', requireAuth, async (req, res) => {
+router.patch('/event-styles/:styleId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const allowed = ['name', 'emoji', 'prompt', 'preview_url', 'display_order', 'enabled'];
     const updates = {};
@@ -155,7 +204,7 @@ router.patch('/event-styles/:styleId', requireAuth, async (req, res) => {
  * DELETE /api/ai/event-styles/:styleId
  * Admin: delete a style
  */
-router.delete('/event-styles/:styleId', requireAuth, async (req, res) => {
+router.delete('/event-styles/:styleId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { error } = await supabase
       .from('event_styles')
@@ -176,6 +225,7 @@ router.delete('/event-styles/:styleId', requireAuth, async (req, res) => {
 router.post(
   '/event-styles/:styleId/upload-preview',
   requireAuth,
+  requireEventOwner,
   upload.single('file'),
   async (req, res) => {
     try {
@@ -203,7 +253,7 @@ router.post(
  * POST /api/ai/generate
  * Generate AI-transformed photo (HuggingFace img2img)
  */
-router.post('/generate', upload.single('file'), async (req, res) => {
+router.post('/generate', upload.single('file'), requireBoothSession, async (req, res) => {
   try {
     const { styleKey = 'anime', eventId, photoId, customPrompt } = req.body;
     if (!eventId) return res.status(400).json({ error: 'eventId required' });

@@ -10,8 +10,14 @@ const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShor
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
 const requireAuth = require('../middleware/requireAuth');
+const requireBoothSession = require('../middleware/requireBoothSession');
 const { checkPhotoLimit, requireFeature } = require('../middleware/planEnforcement');
 const { verifyToken } = require('../utils/token');
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUUID(str) {
+  return typeof str === 'string' && UUID_REGEX.test(str);
+}
 
 // ─── Webhook helper ───────────────────────────────────────────────────────────
 async function fireWebhook(event, payload) {
@@ -69,23 +75,11 @@ function normalizeUploadedPhoto(req, res, next) {
   });
 }
 
-router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
+router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, res) => {
   try {
-    const { eventId, mode = 'single', sessionId, clientCaptureId } = req.body;
+    const { eventId, mode = 'single', sessionId, clientCaptureId, clientPhotoId, client_photo_id } = req.body;
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
-
-    // Validate booth session token or operator token if provided
-    const rawAuth = req.headers['x-booth-session'] || req.headers.authorization;
-    if (rawAuth) {
-      const token = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7) : rawAuth;
-      const parsedToken = verifyToken(token);
-      if (parsedToken && (parsedToken.role === 'booth' || parsedToken.role === 'operator')) {
-        if (parsedToken.eventId !== eventId) {
-          return res.status(403).json({ error: 'Session token does not match this event' });
-        }
-      }
-    }
 
     // Get event branding from DB
     const { data: event } = await supabase
@@ -96,17 +90,24 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    // Deduplication check: if clientCaptureId already exists for this event, return existing photo
-    if (clientCaptureId) {
-      const { data: existing } = await supabase
+    // Deduplication check: if clientPhotoId / client_photo_id / clientCaptureId exists, return existing photo immediately
+    const clientKey = clientPhotoId || client_photo_id || clientCaptureId;
+    if (clientKey) {
+      let dedupeQuery = supabase
         .from('photos')
         .select('*')
-        .eq('event_id', eventId)
-        .contains('metadata', { clientCaptureId })
-        .maybeSingle();
+        .eq('event_id', eventId);
+
+      if (isUUID(clientKey)) {
+        dedupeQuery = dedupeQuery.or(`id.eq.${clientKey},metadata->>clientPhotoId.eq.${clientKey},metadata->>client_photo_id.eq.${clientKey},metadata->>clientCaptureId.eq.${clientKey}`);
+      } else {
+        dedupeQuery = dedupeQuery.or(`metadata->>clientPhotoId.eq.${clientKey},metadata->>client_photo_id.eq.${clientKey},metadata->>clientCaptureId.eq.${clientKey}`);
+      }
+
+      const { data: existing } = await dedupeQuery.maybeSingle();
 
       if (existing) {
-        return res.json({
+        return res.status(200).json({
           success: true,
           deduplicated: true,
           photo: existing,
@@ -143,7 +144,7 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
       }
     }
 
-    const photoId = uuidv4();
+    const photoId = (clientKey && isUUID(clientKey)) ? clientKey : uuidv4();
     const timestamp = Date.now();
     const storageKey = `events/${eventId}/photos/${photoId}_${timestamp}.jpg`;
 
@@ -194,7 +195,12 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
         storage_key: storageKey,
         short_code: shortCode,
         mode,
-        metadata: { clientCaptureId: clientCaptureId || null, sessionId: sessionId || null },
+        metadata: {
+          clientPhotoId: clientKey || null,
+          client_photo_id: clientKey || null,
+          clientCaptureId: clientCaptureId || clientKey || null,
+          sessionId: sessionId || null,
+        },
         created_at: new Date().toISOString(),
       })
       .select()
@@ -248,7 +254,7 @@ router.post('/upload', normalizeUploadedPhoto, async (req, res) => {
  * POST /api/photos/gif
  * Create GIF or Boomerang from multiple frames
  */
-router.post('/gif', upload.array('frames', 10), async (req, res) => {
+router.post('/gif', upload.array('frames', 10), requireBoothSession, async (req, res) => {
   try {
     const { eventId, type = 'gif', sessionId } = req.body;
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
@@ -316,7 +322,7 @@ router.post('/gif', upload.array('frames', 10), async (req, res) => {
  * POST /api/photos/strip
  * Create a 4-photo strip
  */
-router.post('/strip', upload.array('photos', 4), async (req, res) => {
+router.post('/strip', upload.array('photos', 4), requireBoothSession, async (req, res) => {
   try {
     const { eventId, sessionId } = req.body;
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
@@ -413,11 +419,27 @@ router.get('/:photoId', async (req, res) => {
   try {
     const { data: photo, error } = await supabase
       .from('photos')
-      .select('*, events(id, slug, name, branding)')
+      .select('*, events(id, slug, name, branding, owner_id)')
       .eq('id', req.params.photoId)
       .single();
 
     if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+
+    if (photo.is_hidden) {
+      let isOwner = false;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user && photo.events?.owner_id === user.id) {
+          isOwner = true;
+        }
+      }
+      if (!isOwner) {
+        return res.status(404).json({ error: 'Photo not found' });
+      }
+    }
+
     res.json({ photo });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -488,11 +510,11 @@ router.get('/short/:shortCode', async (req, res) => {
   try {
     const { data: photo, error } = await supabase
       .from('photos')
-      .select('*, events(name, branding)')
+      .select('*, events(name, branding, slug)')
       .eq('short_code', req.params.shortCode)
       .single();
 
-    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (error || !photo || photo.is_hidden) return res.status(404).json({ error: 'Photo not found' });
     res.json({ photo });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -512,7 +534,7 @@ router.get('/:photoId/stories', async (req, res) => {
       .eq('id', req.params.photoId)
       .single();
 
-    if (error || !photo) return res.status(404).json({ error: 'Photo not found' });
+    if (error || !photo || photo.is_hidden) return res.status(404).json({ error: 'Photo not found' });
 
     // Fetch original photo buffer
     const photoRes = await fetch(photo.url);
@@ -650,7 +672,7 @@ router.post('/burst', upload.fields([
   { name: 'frame_0' }, { name: 'frame_1' }, { name: 'frame_2' },
   { name: 'frame_3' }, { name: 'frame_4' }, { name: 'frame_5' },
   { name: 'frame_6' }, { name: 'frame_7' }, { name: 'frame_8' }, { name: 'frame_9' },
-]), async (req, res) => {
+]), requireBoothSession, async (req, res) => {
   try {
     const { eventId, sessionId } = req.body;
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });

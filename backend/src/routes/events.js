@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const supabase = require('../services/database');
@@ -252,8 +253,37 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * Middleware: verify the authenticated user is the owner of the event
+ */
+async function requireEventOwner(req, res, next) {
+  try {
+    const eventId = req.params.id;
+    if (!eventId) return res.status(400).json({ error: 'Event ID required' });
+
+    const { data: event, error } = await supabase
+      .from('events')
+      .select('id, owner_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (error || !event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (event.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied: you do not own this event' });
+    }
+
+    req.event = event;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/**
  * POST /api/events/:id/operator-login
- * Authenticate operator via 4-digit PIN and issue scoped operator token
+ * Authenticate operator via PIN and issue scoped operator token
  */
 router.post('/:id/operator-login', async (req, res) => {
   try {
@@ -261,95 +291,184 @@ router.post('/:id/operator-login', async (req, res) => {
     const { id } = req.params;
 
     if (!pin) {
-      return res.status(400).json({ ok: false, error: 'Operator PIN required' });
+      return res.status(401).json({ error: 'Invalid operator PIN' });
     }
 
     const { data: event, error } = await supabase
       .from('events')
-      .select('id, name, slug, status, settings, branding')
+      .select('id, name, slug, status, settings, branding, operator_pin')
       .eq('id', id)
       .maybeSingle();
 
     if (error || !event) {
-      return res.status(404).json({ ok: false, error: 'Event not found' });
+      return res.status(401).json({ error: 'Invalid operator PIN' });
     }
 
-    const expectedPin = String(event.settings?.operatorPin || '');
-    if (!expectedPin || expectedPin !== String(pin).trim()) {
-      return res.status(401).json({ ok: false, error: 'Invalid operator PIN' });
+    const expectedPin = String(event.operator_pin || event.settings?.operatorPin || '').trim();
+    if (!expectedPin) {
+      return res.status(401).json({ error: 'Invalid operator PIN' });
     }
 
-    const token = signToken({ role: 'operator', eventId: event.id }, 12 * 3600);
+    const inputPin = String(pin).trim();
+    const hashExpected = crypto.createHash('sha256').update(expectedPin).digest();
+    const hashProvided = crypto.createHash('sha256').update(inputPin).digest();
+
+    if (!crypto.timingSafeEqual(hashExpected, hashProvided)) {
+      return res.status(401).json({ error: 'Invalid operator PIN' });
+    }
+
+    const durationSeconds = 12 * 3600;
+    const expiresAt = new Date(Date.now() + durationSeconds * 1000).toISOString();
+    const token = signToken({
+      role: 'operator',
+      eventId: event.id,
+      sub: `operator:${event.id}`,
+    }, durationSeconds);
 
     res.json({
-      ok: true,
       token,
-      event: {
-        id: event.id,
-        name: event.name,
-        slug: event.slug,
-        status: event.status,
-        settings: event.settings,
-        branding: event.branding,
+      operator: {
+        role: 'operator',
+        eventId: event.id,
+        expiresAt,
       },
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
 /**
- * POST /api/events/:id/booth-token
- * Issue scoped booth session token for camera upload authorization
+ * POST /api/events/:id/booth-session
+ * Issue scoped booth session token for photo/media uploads (Owner or Operator JWT)
  */
-router.post('/:id/booth-token', async (req, res) => {
+router.post(['/:id/booth-session', '/:id/booth-token'], requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { operatorPin } = req.body || {};
 
     const { data: event, error } = await supabase
       .from('events')
-      .select('id, name, slug, status, settings')
+      .select('id, name, slug, status, owner_id')
       .eq('id', id)
       .maybeSingle();
 
     if (error || !event) {
-      return res.status(404).json({ ok: false, error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found' });
     }
 
     if (event.status !== 'active') {
-      return res.status(400).json({ ok: false, error: 'Event is not active' });
+      return res.status(400).json({ error: 'Event is not active' });
     }
 
-    // Verify authorization: either valid Bearer token, or valid operatorPin
-    let authorized = false;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const raw = authHeader.slice(7);
-      const parsed = verifyToken(raw);
-      if (parsed && (parsed.role === 'operator' || parsed.role === 'booth') && parsed.eventId === event.id) {
-        authorized = true;
-      }
+    const isOwner = req.user.id === event.owner_id;
+    const isOperator = req.user.role === 'operator' && req.user.eventId === event.id;
+
+    if (!isOwner && !isOperator) {
+      return res.status(403).json({ error: 'Access denied: not authorized for this event' });
     }
 
-    if (!authorized && operatorPin) {
-      const expected = String(event.settings?.operatorPin || '');
-      if (expected && expected === String(operatorPin).trim()) {
-        authorized = true;
-      }
-    }
-
-    // If booth is loading on an active event, issue booth token
-    const boothToken = signToken({ role: 'booth', eventId: event.id }, 24 * 3600);
+    const durationSeconds = 24 * 3600;
+    const expiresAt = new Date(Date.now() + durationSeconds * 1000).toISOString();
+    const sessionToken = signToken({
+      role: 'booth',
+      eventId: event.id,
+      sub: `booth:${event.id}`,
+    }, durationSeconds);
 
     res.json({
-      ok: true,
-      boothToken,
-      expiresIn: 86400,
+      sessionToken,
+      boothToken: sessionToken,
       eventId: event.id,
+      expiresAt,
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/events/:id/staff
+ * List staff members for an event (Owner only)
+ */
+router.get('/:id/staff', requireAuth, requireEventOwner, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: event } = await supabase
+      .from('events')
+      .select('settings')
+      .eq('id', id)
+      .single();
+
+    let staff = event?.settings?.staff || [];
+    try {
+      const { data: dbStaff } = await supabase
+        .from('event_staff')
+        .select('*')
+        .eq('event_id', id);
+      if (dbStaff && dbStaff.length > 0) {
+        staff = dbStaff;
+      }
+    } catch { /* ignore if table not present */ }
+
+    res.json({ staff });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:id/staff
+ * Add staff member to an event (Owner only)
+ */
+router.post('/:id/staff', requireAuth, requireEventOwner, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, role = 'operator', name = '' } = req.body;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Valid email required' });
+    }
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('settings')
+      .eq('id', id)
+      .single();
+
+    const currentSettings = event?.settings || {};
+    const existingStaff = currentSettings.staff || [];
+    const newStaff = {
+      id: uuidv4(),
+      eventId: id,
+      email: email.trim().toLowerCase(),
+      role: ['operator', 'moderator', 'assistant'].includes(role) ? role : 'operator',
+      name: name.trim(),
+      created_at: new Date().toISOString(),
+    };
+
+    const updatedStaff = [...existingStaff.filter(s => s.email !== newStaff.email), newStaff];
+
+    const { error: updateError } = await supabase
+      .from('events')
+      .update({
+        settings: { ...currentSettings, staff: updatedStaff },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    try {
+      await supabase.from('event_staff').upsert({
+        event_id: id,
+        email: newStaff.email,
+        role: newStaff.role,
+      });
+    } catch { /* ignore if table not present */ }
+
+    res.status(201).json({ success: true, staff: newStaff });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -385,7 +504,7 @@ router.post('/:id/gallery-auth', async (req, res) => {
  * POST /api/events/:id/webhook-test
  * Dispatch test payload to webhook URL
  */
-router.post('/:id/webhook-test', requireAuth, async (req, res) => {
+router.post('/:id/webhook-test', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { webhookUrl } = req.body;
     if (!webhookUrl) return res.status(400).json({ ok: false, error: 'webhookUrl required' });
@@ -412,9 +531,9 @@ router.post('/:id/webhook-test', requireAuth, async (req, res) => {
 
 /**
  * GET /api/events/:id/stats
- * Get analytics summary for an event
+ * Get analytics summary for an event (Owner only)
  */
-router.get('/:id/stats', async (req, res) => {
+router.get('/:id/stats', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -468,9 +587,9 @@ router.get('/:id/styles', async (req, res) => {
 
 /**
  * POST /api/events/:id/styles
- * Create a style for this event
+ * Create a style for this event (Owner only)
  */
-router.post('/:id/styles', async (req, res) => {
+router.post('/:id/styles', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { name, prompt, emoji, preview_image_url, sort_order, style_key } = req.body;
     if (!name || !prompt) return res.status(400).json({ error: 'name and prompt required' });
@@ -491,8 +610,9 @@ router.post('/:id/styles', async (req, res) => {
 
 /**
  * PUT /api/events/:id/styles/:styleId
+ * Update event style (Owner only)
  */
-router.put('/:id/styles/:styleId', async (req, res) => {
+router.put('/:id/styles/:styleId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { name, prompt, emoji, preview_image_url, sort_order, is_active } = req.body;
     const updates = {};
@@ -519,8 +639,9 @@ router.put('/:id/styles/:styleId', async (req, res) => {
 
 /**
  * DELETE /api/events/:id/styles/:styleId
+ * Delete event style (Owner only)
  */
-router.delete('/:id/styles/:styleId', async (req, res) => {
+router.delete('/:id/styles/:styleId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { error } = await supabase
       .from('event_styles')
@@ -538,7 +659,7 @@ router.delete('/:id/styles/:styleId', async (req, res) => {
 /**
  * POST /api/events/:id/styles/:styleId/image
  * Receives multipart/form-data with field 'file'
- * Resizes to portrait 3:4, stores in R2, updates DB
+ * Resizes to portrait 3:4, stores in R2, updates DB (Owner only)
  */
 const multer = require('multer');
 const sharp = require('sharp');
@@ -549,7 +670,7 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024 },
 });
 
-router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res) => {
+router.post('/:id/styles/:styleId/image', requireAuth, requireEventOwner, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -562,7 +683,7 @@ router.post('/:id/styles/:styleId/image', upload.single('file'), async (req, res
 
     const url = await uploadToStorage(processed, key, 'image/jpeg');
 
-    console.log("UPLOAD URL:", url); // 👈 ADD THIS
+    console.log("UPLOAD URL:", url);
 
     const { error } = await supabase
       .from('event_styles')
@@ -599,7 +720,7 @@ const uploadAsset = multer({
  * - Event logo (type=logo) → stored in branding
  * - Frame overlay (type=frame) → stored in event_frames
  */
-router.post('/:id/upload-asset', uploadAsset.single('file'), async (req, res) => {
+router.post('/:id/upload-asset', requireAuth, requireEventOwner, uploadAsset.single('file'), async (req, res) => {
   try {
     // Validate inputs
     if (!req.file) {
@@ -735,9 +856,9 @@ router.post('/:id/upload-asset', uploadAsset.single('file'), async (req, res) =>
 
 /**
  * DELETE /api/events/:id/frames/:frameId
- * Delete a frame overlay
+ * Delete a frame overlay (Owner only)
  */
-router.delete('/:id/frames/:frameId', async (req, res) => {
+router.delete('/:id/frames/:frameId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { data: frame } = await supabase
       .from('event_frames')
@@ -748,7 +869,16 @@ router.delete('/:id/frames/:frameId', async (req, res) => {
 
     if (frame?.url) {
       try {
-        await deleteFromStorage(frame.url);
+        let storageKey = frame.url;
+        if (storageKey.includes('/events/')) {
+          storageKey = storageKey.slice(storageKey.indexOf('events/'));
+        } else if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
+          try {
+            const urlObj = new URL(storageKey);
+            storageKey = urlObj.pathname.replace(/^\/storage\/v1\/object\/(?:public\/)?[^/]+\//, '').replace(/^\//, '');
+          } catch { /* use as is */ }
+        }
+        await deleteFromStorage(storageKey);
       } catch { /* ignore storage errors */ }
     }
 
@@ -792,9 +922,9 @@ router.get('/:id/frames', async (req, res) => {
 
 /**
  * POST /api/events/:id/frames
- * Add a new frame overlay
+ * Add a new frame overlay (Owner only)
  */
-router.post('/:id/frames', _upload.single('file'), async (req, res) => {
+router.post('/:id/frames', requireAuth, requireEventOwner, _upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Frame image required' });
     const { name } = req.body;
@@ -825,9 +955,9 @@ router.post('/:id/frames', _upload.single('file'), async (req, res) => {
 
 /**
  * PATCH /api/events/:id/frames/:frameId
- * Update frame (toggle active, set default, etc.)
+ * Update frame (toggle active, set default, etc.) (Owner only)
  */
-router.patch('/:id/frames/:frameId', async (req, res) => {
+router.patch('/:id/frames/:frameId', requireAuth, requireEventOwner, async (req, res) => {
   try {
     const { isActive, isDefault } = req.body;
     const update = {};
@@ -858,9 +988,9 @@ router.patch('/:id/frames/:frameId', async (req, res) => {
 
 /**
  * POST /api/events/:id/frames/:frameId/default
- * Set as default overlay
+ * Set as default overlay (Owner only)
  */
-router.post('/:id/frames/:frameId/default', async (req, res) => {
+router.post('/:id/frames/:frameId/default', requireAuth, requireEventOwner, async (req, res) => {
   try {
     await supabase.from('event_frames')
       .update({ is_default: false })
