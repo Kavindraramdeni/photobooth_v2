@@ -264,29 +264,21 @@ export function PreviewScreen() {
   ];
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#07070d] select-none overflow-hidden relative">
-      {/* Dynamic Ambient Glow Behind Photo */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[650px] rounded-full blur-[160px] opacity-20"
-          style={{ background: primaryColor }}
-        />
-      </div>
-
+    <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 glass-panel z-20">
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/10 glass-crystal z-20">
         <button
           onClick={() => setScreen('idle')}
-          className="text-white/60 hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-pill flex items-center gap-1 active:scale-95"
+          className="text-slate-600 dark:text-white/60 hover:text-purple-600 dark:hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-crystal-pill flex items-center gap-1 active:scale-95 shadow-sm"
         >
           ← Main Screen
         </button>
         <div className="text-center">
           <div className="inline-flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <h2 className="text-white font-black text-sm tracking-wide uppercase">Your {modeLabel}</h2>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h2 className="text-slate-900 dark:text-white font-black text-sm tracking-wide uppercase">Your {modeLabel}</h2>
           </div>
-          {event?.name && <p className="text-white/35 text-[11px] font-medium truncate max-w-[200px]">{event.name}</p>}
+          {event?.name && <p className="text-slate-500 dark:text-white/40 text-[11px] font-bold truncate max-w-[200px]">{event.name}</p>}
         </div>
         <div className="w-20" />
       </div>

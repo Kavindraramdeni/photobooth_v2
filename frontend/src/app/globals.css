@@ -3,15 +3,43 @@
 @tailwind utilities;
 
 :root {
+  /* Default Clean Apple Light Studio Palette */
+  --booth-bg: #f8f9fc;
+  --booth-bg-silver: #f1f3f9;
+  --booth-surface: rgba(255, 255, 255, 0.88);
+  --booth-surface-elevated: #ffffff;
+  --booth-border: rgba(0, 0, 0, 0.08);
+  --booth-border-hover: rgba(0, 0, 0, 0.16);
+  --booth-text-main: #0f172a;
+  --booth-text-muted: #64748b;
+  --booth-primary: #7c3aed;
+  --booth-primary-hover: #6d28d9;
+  --booth-accent: #a855f7;
+  --booth-gold: #f59e0b;
+}
+
+/* Dark Mode Tokens */
+.theme-dark {
   --booth-bg: #07070d;
-  --booth-surface: #0f0f18;
+  --booth-bg-silver: #0d0d16;
+  --booth-surface: rgba(18, 18, 28, 0.78);
   --booth-surface-elevated: #161624;
   --booth-border: rgba(255, 255, 255, 0.08);
   --booth-border-hover: rgba(255, 255, 255, 0.16);
-  --booth-primary: #8b5cf6;
-  --booth-primary-hover: #7c3aed;
-  --booth-accent: #c084fc;
-  --booth-gold: #f59e0b;
+  --booth-text-main: #ffffff;
+  --booth-text-muted: rgba(255, 255, 255, 0.6);
+}
+
+/* Champagne Gold Luxury Tokens */
+.theme-champagne {
+  --booth-bg: #faf7f2;
+  --booth-bg-silver: #f3ede2;
+  --booth-surface: rgba(255, 253, 248, 0.9);
+  --booth-surface-elevated: #ffffff;
+  --booth-border: rgba(217, 180, 130, 0.25);
+  --booth-border-hover: rgba(180, 130, 60, 0.4);
+  --booth-text-main: #2a2218;
+  --booth-text-muted: #786b59;
 }
 
 * {
@@ -21,9 +49,9 @@
 html, body {
   height: 100%;
   background: var(--booth-bg);
-  color: #ffffff;
+  color: var(--booth-text-main);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.012em;
 }
 
 /* Prevent iOS rubber-band scroll */
@@ -43,49 +71,77 @@ body.booth-mode {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Luxury Glassmorphism & Surface Utilities ── */
-.glass-panel {
-  background: rgba(18, 18, 28, 0.72);
+/* ── Apple-Grade Crystal Frosted Glass ── */
+.glass-crystal {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.theme-dark .glass-crystal {
+  background: rgba(18, 18, 28, 0.75);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.6);
 }
 
-.glass-panel-subtle {
-  background: rgba(255, 255, 255, 0.03);
+.glass-crystal-pill {
+  background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04);
 }
 
-.glass-pill {
-  background: rgba(255, 255, 255, 0.07);
+.theme-dark .glass-crystal-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Universal Wallpaper backdrop wrapper */
+.wallpaper-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.wallpaper-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(248, 249, 252, 0.65);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.glass-pill:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+.theme-dark .wallpaper-overlay {
+  background: rgba(7, 7, 13, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 /* Tactile arcade buttons */
 .btn-arcade {
   position: relative;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
 }
 
 .btn-arcade:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 14px 32px -4px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.45);
 }
 
 .btn-arcade:active {
   transform: translateY(1px);
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
 }
 
 /* Photobooth specific animations */
@@ -102,20 +158,10 @@ body.booth-mode {
   100% { opacity: 0; }
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes float-gentle {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-}
-
 @keyframes ring-pulse {
-  0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); }
-  70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 20px rgba(139, 92, 246, 0); }
-  100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+  0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
+  70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 20px rgba(124, 58, 237, 0); }
+  100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
 }
 
 .countdown-number {
@@ -126,28 +172,14 @@ body.booth-mode {
   animation: flash 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.shimmer-bg {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.8s infinite;
-}
-
-.float-animation {
-  animation: float-gentle 4s ease-in-out infinite;
-}
-
-.ring-pulse-animation {
-  animation: ring-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-::-webkit-scrollbar-track { background: rgba(10, 10, 16, 0.6); }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.04); }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.25); }
 
 /* Touch-optimized button sizes */
 .btn-touch {
@@ -167,36 +199,11 @@ body.booth-mode {
   position: relative;
 }
 
-/* AI loading gradient */
-.ai-gradient {
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
-}
-
-.mesh-ambient {
-  background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.18) 0%, transparent 60%),
-              radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
-              radial-gradient(circle at 0% 100%, rgba(236, 72, 153, 0.12) 0%, transparent 50%),
-              #07070d;
-}
-
-/* Glow effects */
-.glow-purple {
-  box-shadow: 0 0 24px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.2);
-}
-
-.glow-gold {
-  box-shadow: 0 0 24px rgba(245, 158, 11, 0.4), 0 0 60px rgba(245, 158, 11, 0.2);
-}
-
-.glow-cyan {
-  box-shadow: 0 0 24px rgba(6, 182, 212, 0.4), 0 0 60px rgba(6, 182, 212, 0.2);
-}
-
 /* Photo preview card */
 .photo-card {
   border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 /* Hide scrollbar while keeping scroll behavior */
@@ -204,7 +211,6 @@ body.booth-mode {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }

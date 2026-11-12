@@ -56,7 +56,7 @@ const supabase = require('../services/database');
 const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl } = require('../services/sharing');
 
 function frontendUrl() {
-  return process.env.FRONTEND_URL || 'https://photobooth-v2-xi.vercel.app';
+  return process.env.FRONTEND_URL || 'https://photobooth-v2-ten.vercel.app';
 }
 
 function buildPhotoPageUrl(photo) {

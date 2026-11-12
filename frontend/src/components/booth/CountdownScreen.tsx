@@ -276,7 +276,7 @@ export function CountdownScreen() {
   const activeBadge = modeBadge[mode] || { label: 'Photo', icon: '📸' };
 
   return (
-    <div className="w-full h-full flex flex-col bg-black relative select-none overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-transparent relative select-none overflow-hidden">
       {/* Viewfinder Main Stage */}
       <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
         <Webcam
@@ -480,30 +480,30 @@ export function CountdownScreen() {
       </div>
 
       {/* Dynamic Status Bottom Bar */}
-      <div className="h-20 bg-[#07070d] border-t border-white/10 px-8 flex items-center justify-between z-20">
+      <div className="h-20 glass-crystal border-t border-black/5 dark:border-white/10 px-8 flex items-center justify-between z-20">
         <div className="w-24">
-          <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">
+          <p className="text-slate-500 dark:text-white/40 text-xs font-bold uppercase tracking-wider">
             {event?.branding?.eventName || 'SnapBooth'}
           </p>
         </div>
 
         <div className="text-center">
           {phase === 'ready' && (
-            <p className="text-white/80 font-bold text-sm tracking-wide animate-pulse">Get ready in position...</p>
+            <p className="text-slate-700 dark:text-white/80 font-black text-sm tracking-wide animate-pulse">Get ready in position...</p>
           )}
           {phase === 'countdown' && (
-            <p className="text-purple-300 font-extrabold text-base tracking-wide">Look directly at the lens! 😊</p>
+            <p className="text-purple-600 dark:text-purple-300 font-black text-base tracking-wide">Look directly at the lens! 😊</p>
           )}
           {phase === 'capturing' && (
-            <p className="text-emerald-400 font-black text-base tracking-wide">Captured! ✨</p>
+            <p className="text-emerald-500 dark:text-emerald-400 font-black text-base tracking-wide">Captured! ✨</p>
           )}
           {phase === 'processing' && (
-            <p className="text-white/60 font-semibold text-sm">Finishing touches...</p>
+            <p className="text-slate-500 dark:text-white/60 font-bold text-sm">Finishing touches...</p>
           )}
         </div>
 
         <div className="w-24 text-right">
-          <span className="text-xs font-mono text-white/30">1080p • 60fps</span>
+          <span className="text-xs font-mono text-slate-400 dark:text-white/30 font-bold">1080p • 60fps</span>
         </div>
       </div>
     </div>

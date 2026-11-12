@@ -244,23 +244,92 @@ function BrandIdentityCard({
 }) {
   const primaryColor = String(branding['primaryColor'] ?? '#7c3aed');
   const secondaryColor = String(branding['secondaryColor'] ?? '#a78bfa');
+  const themeMode = String(branding['themeMode'] ?? 'light');
+  const wallpaperUrl = String(branding['wallpaperUrl'] ?? '');
   const logoUrl = String(branding['logoUrl'] ?? '');
   const footerText = String(branding['footerText'] ?? '');
   const overlayText = String(branding['overlayText'] ?? '');
   const showDate = Boolean(branding['showDate'] ?? false);
 
+  // Simple luminosity check to alert on low contrast
+  const hexToLuma = (hex: string) => {
+    const c = hex.replace('#', '');
+    const rgb = parseInt(c, 16);
+    const r = (rgb >> 16) & 0xff;
+    const g = (rgb >> 8) & 0xff;
+    const b = (rgb >> 0) & 0xff;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const isPrimaryTooLight = hexToLuma(primaryColor.length === 7 ? primaryColor : '#7c3aed') > 215;
+
   return (
     <Card
-      title="Brand Identity"
-      subtitle="Customise colours, logo, and on-photo text"
+      title="Brand Identity & Atmosphere"
+      subtitle="Theme mode, universal wallpaper, colors, and logo"
       icon={Palette}
     >
       <div className="space-y-6">
+        {/* Theme Mode Selector */}
+        <div>
+          <FieldLabel>Kiosk Canvas Theme</FieldLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { id: 'light', name: 'Apple Light Studio', desc: 'Crisp white, soft silver crystal glass', icon: '☀️' },
+              { id: 'dark', name: 'Dark Luxury Obsidian', desc: 'Midnight black with neon glows', icon: '🌙' },
+              { id: 'champagne', name: 'Champagne Gold', desc: 'Warm wedding luxury palette', icon: '🥂' },
+            ].map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onBrandingChange('themeMode', t.id)}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  themeMode === t.id
+                    ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10 ring-2 ring-purple-500/30'
+                    : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'
+                }`}
+              >
+                <span className="text-xl mb-1 block">{t.icon}</span>
+                <p className="text-white font-bold text-xs">{t.name}</p>
+                <p className="text-white/40 text-[10px] mt-0.5 leading-relaxed">{t.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Universal Wallpaper Background */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <FieldLabel>Universal Event Wallpaper (All Screens)</FieldLabel>
+            <span className="text-[10px] text-purple-400 font-semibold">Visible across booth &amp; guest screens</span>
+          </div>
+          <UploadZone
+            label="Event Wallpaper"
+            accept="image/png,image/jpeg,image/webp,video/mp4"
+            currentUrl={wallpaperUrl}
+            onUploaded={(url) => {
+              onBrandingChange('wallpaperUrl', url);
+              if (!branding['idleMediaUrl']) {
+                onBrandingChange('idleMediaUrl', url);
+              }
+            }}
+            eventId={event.id}
+            assetType="idle"
+            API_BASE={API_BASE}
+          />
+        </div>
+
+        <div className="h-px bg-white/[0.06]" />
+
         {/* Colours */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Primary Color */}
           <div>
-            <FieldLabel>Primary Color</FieldLabel>
+            <div className="flex items-center justify-between mb-1">
+              <FieldLabel>Primary Accent Color</FieldLabel>
+              {isPrimaryTooLight && (
+                <span className="text-[10px] text-amber-400 font-bold">⚠️ Low contrast on white</span>
+              )}
+            </div>
             <div className="flex gap-2 items-center">
               <label className="relative cursor-pointer flex-shrink-0">
                 <input
@@ -270,7 +339,7 @@ function BrandIdentityCard({
                   className="sr-only"
                 />
                 <div
-                  className="w-10 h-10 rounded-xl border-2 border-zinc-700 shadow-inner transition-shadow hover:shadow-violet-500/30"
+                  className="w-10 h-10 rounded-xl border-2 border-white/20 shadow-md transition-shadow hover:shadow-purple-500/30"
                   style={{ backgroundColor: primaryColor }}
                 />
               </label>
@@ -282,7 +351,7 @@ function BrandIdentityCard({
                   const v = e.target.value;
                   if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onBrandingChange('primaryColor', v);
                 }}
-                className="flex-1 bg-zinc-950/50 border border-zinc-800 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-violet-500 transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-purple-400 transition-colors"
                 placeholder="#7c3aed"
               />
             </div>
@@ -290,7 +359,7 @@ function BrandIdentityCard({
 
           {/* Secondary Color */}
           <div>
-            <FieldLabel>Secondary Color</FieldLabel>
+            <FieldLabel>Secondary Accent Color</FieldLabel>
             <div className="flex gap-2 items-center">
               <label className="relative cursor-pointer flex-shrink-0">
                 <input
@@ -300,7 +369,7 @@ function BrandIdentityCard({
                   className="sr-only"
                 />
                 <div
-                  className="w-10 h-10 rounded-xl border-2 border-zinc-700 shadow-inner transition-shadow hover:shadow-violet-500/30"
+                  className="w-10 h-10 rounded-xl border-2 border-white/20 shadow-md transition-shadow hover:shadow-purple-500/30"
                   style={{ backgroundColor: secondaryColor }}
                 />
               </label>
@@ -312,7 +381,7 @@ function BrandIdentityCard({
                   const v = e.target.value;
                   if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onBrandingChange('secondaryColor', v);
                 }}
-                className="flex-1 bg-zinc-950/50 border border-zinc-800 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-violet-500 transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-purple-400 transition-colors"
                 placeholder="#a78bfa"
               />
             </div>

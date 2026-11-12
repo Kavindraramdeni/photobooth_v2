@@ -15,7 +15,7 @@ import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode, Sparkles, Image as
 import { QRCodeSVG } from 'qrcode.react';
 
 const API_BASE      = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:3001';
-const FRONTEND_BASE = process.env.NEXT_PUBLIC_APP_URL  || 'https://photobooth-v2-xi.vercel.app';
+const FRONTEND_BASE = process.env.NEXT_PUBLIC_APP_URL  || 'https://photobooth-v2-ten.vercel.app';
 
 interface Photo {
   id:         string;
@@ -237,11 +237,29 @@ export default function GalleryPage() {
   );
 
   // ── Gallery grid ──────────────────────────────────────────────────────────
+  const wallpaperUrl = (event?.branding as any)?.wallpaperUrl || (event?.branding as any)?.idleMediaUrl;
+
   return (
-    <div className="min-h-screen bg-[#07070d] text-white">
+    <div className="min-h-screen bg-[#f8f9fc] text-slate-900 relative">
+      {/* Background: Event Wallpaper or Soft Silver Studio Canvas */}
+      {wallpaperUrl ? (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={wallpaperUrl} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-white/75 backdrop-blur-[10px]" />
+        </div>
+      ) : (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-gradient-to-b from-[#ffffff] via-[#f4f6fa] to-[#e9ecf4]">
+          <div
+            className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full blur-[160px] opacity-15"
+            style={{ background: primaryColor }}
+          />
+        </div>
+      )}
+
       {/* Sticky Glass Header */}
-      <div className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 glass-panel border-b border-white/10">
-        <a href="/" className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-pill">
+      <div className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 glass-crystal border-b border-black/5">
+        <a href="/" className="flex items-center gap-1.5 text-slate-600 hover:text-purple-600 transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-crystal-pill shadow-sm">
           <ArrowLeft className="w-4 h-4" /> Home
         </a>
         <div className="text-center">
@@ -249,9 +267,9 @@ export default function GalleryPage() {
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={event.branding.logoUrl} alt={eventName} className="h-8 w-auto mx-auto object-contain drop-shadow" />
           ) : (
-            <p className="text-white font-black text-base tracking-tight">{eventName}</p>
+            <p className="text-slate-900 font-black text-base tracking-tight">{eventName}</p>
           )}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white/70 text-[10px] font-bold mt-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/5 text-slate-600 text-[10px] font-bold mt-1">
             <span>{photos.length}</span>
             <span>photo{photos.length !== 1 ? 's' : ''} captured</span>
           </div>

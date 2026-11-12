@@ -156,24 +156,32 @@ export default function ShortUrlPage() {
     </div>
   );
 
+  const wallpaperUrl = (ev?.branding as any)?.wallpaperUrl || (ev?.branding as any)?.idleMediaUrl;
+
   return (
-    <div className="min-h-screen bg-[#07070d] flex flex-col select-none relative overflow-x-hidden">
-      {/* Ambient Backdrop Extracted Glow */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div
-          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full blur-[160px] opacity-25"
-          style={{ background: primaryColor }}
-        />
-        <div
-          className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full blur-[140px] opacity-20 bg-indigo-600"
-        />
-      </div>
+    <div className="min-h-screen bg-[#f8f9fc] text-slate-900 flex flex-col select-none relative overflow-x-hidden">
+      {/* Background: Wallpaper or Clean Apple Light Studio Soft Silver Canvas */}
+      {wallpaperUrl ? (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={wallpaperUrl} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[8px]" />
+        </div>
+      ) : (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-gradient-to-b from-[#ffffff] via-[#f4f6fa] to-[#e9ecf4]">
+          <div
+            className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full blur-[160px] opacity-15"
+            style={{ background: primaryColor }}
+          />
+          <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full blur-[140px] opacity-10 bg-purple-400" />
+        </div>
+      )}
 
       {/* Header */}
-      <div className="relative z-20 flex items-center justify-between px-6 py-4 border-b border-white/10 glass-panel">
+      <div className="relative z-20 flex items-center justify-between px-6 py-4 border-b border-black/5 glass-crystal">
         <a
           href={event?.slug ? `/gallery/${event.slug}` : (event?.id ? `/gallery/${event.id}` : '#')}
-          className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-pill"
+          className="flex items-center gap-1.5 text-slate-600 hover:text-purple-600 transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-crystal-pill shadow-sm"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Gallery</span>
@@ -182,9 +190,9 @@ export default function ShortUrlPage() {
         <div className="text-center">
           {logoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={logoUrl} alt={eventName} className="h-8 w-auto object-contain mx-auto drop-shadow" />
+            <img src={logoUrl} alt={eventName} className="h-8 w-auto object-contain mx-auto drop-shadow-sm" />
           ) : (
-            <p className="text-white font-black text-sm tracking-tight">{eventName}</p>
+            <p className="text-slate-900 font-black text-sm tracking-tight">{eventName}</p>
           )}
         </div>
 

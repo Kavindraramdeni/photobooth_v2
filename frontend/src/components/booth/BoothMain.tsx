@@ -20,6 +20,12 @@ export function BoothMain() {
 
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
+  const branding = event?.branding;
+  const themeMode = (branding?.themeMode as string) || 'light';
+  const wallpaperUrl = (branding?.wallpaperUrl as string) || (branding?.idleMediaUrl as string) || null;
+  const isVideo = wallpaperUrl?.match(/\.(mp4|webm|mov)(\?|$)/i);
+  const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
+
   // Background sync for offline photo queue
   useEffect(() => {
     if (!event) return;
@@ -45,7 +51,7 @@ export function BoothMain() {
 
     triggerSync();
     window.addEventListener('online', triggerSync);
-    const interval = setInterval(triggerSync, 30000); // Check every 30s
+    const interval = setInterval(triggerSync, 30000);
 
     return () => {
       window.removeEventListener('online', triggerSync);
@@ -88,11 +94,10 @@ export function BoothMain() {
     };
   }, [event]);
 
-  // Session timeout - auto-reset after inactivity
+  // Session timeout
   const resetTimeout = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    const timeout = (event?.settings.sessionTimeout || 60) * 1000;
+    const timeout = (event?.settings?.sessionTimeout || 60) * 1000;
 
     if (screen !== 'idle') {
       timeoutRef.current = setTimeout(() => {
@@ -122,35 +127,90 @@ export function BoothMain() {
   const screens = {
     idle: <IdleScreen />,
     countdown: <CountdownScreen />,
-    capture: <CountdownScreen />, // same component handles capture state
+    capture: <CountdownScreen />,
     preview: <PreviewScreen />,
-    ai: <AIStudioScreen />,      // legacy 'ai' screen now uses AIStudioScreen
+    ai: <AIStudioScreen />,
     aistudio: <AIStudioScreen />,
     share: <ShareScreen />,
-    print: <ShareScreen />, // print is part of share screen
+    print: <ShareScreen />,
   };
 
+  const themeClass = themeMode === 'dark' ? 'theme-dark' : themeMode === 'champagne' ? 'theme-champagne' : 'theme-light';
+
   return (
-    <div className="booth-container relative" onTouchStart={resetTimeout} onClick={resetTimeout}>
+    <div
+      className={`booth-container relative ${themeClass}`}
+      onTouchStart={resetTimeout}
+      onClick={resetTimeout}
+    >
+      {/* Universal Background Layer: Event Wallpaper or Apple Light Studio */}
+      {wallpaperUrl ? (
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+          {isVideo ? (
+            <video
+              src={wallpaperUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={wallpaperUrl}
+              alt="Event Wallpaper"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          {/* Frosted glass overlay to ensure readability */}
+          <div
+            className={`absolute inset-0 ${
+              themeMode === 'dark'
+                ? 'bg-black/55 backdrop-blur-[6px]'
+                : 'bg-white/60 backdrop-blur-[6px]'
+            }`}
+          />
+        </div>
+      ) : (
+        /* Clean Apple Light Studio Canvas with Soft Silver Radial Mesh */
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-gradient-to-b from-[#ffffff] via-[#f4f6fa] to-[#e9ecf4]">
+          {/* Subtle soft silver orbs */}
+          <div
+            className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full blur-[140px] opacity-15"
+            style={{ background: primaryColor }}
+          />
+          <div className="absolute -bottom-32 right-10 w-[500px] h-[500px] rounded-full blur-[140px] opacity-10 bg-blue-400" />
+          <div className="absolute top-1/3 -left-20 w-[450px] h-[450px] rounded-full blur-[140px] opacity-10 bg-purple-300" />
+          {/* Micro dot pattern */}
+          <div className="absolute inset-0 bg-[radial-gradient(#00000008_1px,transparent_1px)] [background-size:24px_24px]" />
+        </div>
+      )}
+
       <FlashOverlay />
+
       {pendingSyncCount > 0 && (
-        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-medium backdrop-blur-md animate-pulse">
-          <span className="w-2 h-2 rounded-full bg-amber-400" />
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-semibold backdrop-blur-md animate-pulse shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-amber-500" />
           Offline Sync: {pendingSyncCount} photo{pendingSyncCount > 1 ? 's' : ''} queued
         </div>
       )}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={screen}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="w-full h-full"
-        >
-          {screens[screen] || screens.idle}
-        </motion.div>
-      </AnimatePresence>
+
+      {/* Screen Viewport */}
+      <div className="relative z-10 w-full h-full flex flex-col">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={screen}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="w-full h-full"
+          >
+            {screens[screen] || screens.idle}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

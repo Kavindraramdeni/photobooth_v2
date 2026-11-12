@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCcw, ExternalLink, Tablet, Smartphone, Camera,
-  Image as ImageIcon, Sparkles, Share2, CheckCircle2, QrCode
+  Image as ImageIcon, Sparkles, Share2, CheckCircle2, QrCode, Sun, Moon
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -24,12 +24,15 @@ export function LiveKioskSimulator({
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [simScreen, setSimScreen] = useState<'idle' | 'capture' | 'preview' | 'share'>('idle');
 
-  const primaryColor = String(branding['primaryColor'] ?? '#8b5cf6');
-  const secondaryColor = String(branding['secondaryColor'] ?? '#c084fc');
+  const primaryColor = String(branding['primaryColor'] ?? '#7c3aed');
+  const secondaryColor = String(branding['secondaryColor'] ?? '#a855f7');
   const logoUrl = String(branding['logoUrl'] ?? '');
   const footerText = String(branding['footerText'] ?? 'SnapBooth Experience');
   const frameUrl = String(branding['frameUrl'] ?? '');
+  const wallpaperUrl = String(branding['wallpaperUrl'] ?? branding['idleMediaUrl'] ?? '');
+  const themeMode = String(branding['themeMode'] ?? 'light');
 
+  const isLight = themeMode !== 'dark';
   const samplePhotoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
 
   return (
@@ -37,15 +40,15 @@ export function LiveKioskSimulator({
       {/* Simulator Control Header */}
       <div className="w-full flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-white font-bold text-xs uppercase tracking-wider">Live Kiosk Simulator</span>
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-slate-800 dark:text-white font-black text-xs uppercase tracking-wider">Live Kiosk Simulator</span>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Orientation Toggle */}
           <button
             onClick={() => setOrientation(o => (o === 'portrait' ? 'landscape' : 'portrait'))}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl glass-pill text-xs font-semibold text-white/80 hover:text-white transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl glass-crystal-pill text-xs font-bold text-slate-700 dark:text-white/80 hover:text-purple-600 transition-all active:scale-95 shadow-sm"
             title="Rotate iPad"
           >
             {orientation === 'portrait' ? <Tablet className="w-3.5 h-3.5" /> : <Smartphone className="w-3.5 h-3.5 rotate-90" />}
@@ -57,9 +60,9 @@ export function LiveKioskSimulator({
             href={`/booth?event=${slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold transition-all"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-600 text-white hover:bg-purple-500 text-xs font-bold transition-all shadow-sm"
           >
-            <span>Open</span>
+            <span>Open Booth</span>
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -67,7 +70,11 @@ export function LiveKioskSimulator({
 
       {/* Virtual Device Frame (iPad Pro Style) */}
       <div
-        className={`relative transition-all duration-500 ease-out p-3.5 sm:p-4 rounded-[40px] bg-[#1a1a24] border-4 border-[#2d2d3d] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.08)] ${
+        className={`relative transition-all duration-500 ease-out p-3.5 sm:p-4 rounded-[42px] ${
+          isLight
+            ? 'bg-[#e2e8f0] border-4 border-[#cbd5e1] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.15)]'
+            : 'bg-[#1a1a24] border-4 border-[#2d2d3d] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.8)]'
+        } ${
           orientation === 'portrait'
             ? 'w-[320px] sm:w-[350px] h-[520px] sm:h-[570px]'
             : 'w-[480px] sm:w-[540px] h-[340px] sm:h-[370px]'
@@ -81,24 +88,47 @@ export function LiveKioskSimulator({
               : 'left-1.5 top-1/2 -translate-y-1/2 h-16 w-3'
           }`}
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-[#0d0d12] border border-white/10" />
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-white/20" />
         </div>
 
         {/* Screen Bezel Inside */}
-        <div className="w-full h-full rounded-[28px] overflow-hidden relative bg-[#07070d] flex flex-col border border-white/5 shadow-inner">
+        <div
+          className={`w-full h-full rounded-[30px] overflow-hidden relative flex flex-col border shadow-inner ${
+            isLight
+              ? 'bg-gradient-to-b from-[#ffffff] via-[#f8fafd] to-[#eef2f8] text-slate-900 border-black/5'
+              : 'bg-[#07070d] text-white border-white/5'
+          }`}
+        >
+          {/* Wallpaper Layer inside Simulator */}
+          {wallpaperUrl && (
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={wallpaperUrl} alt="" className="w-full h-full object-cover" />
+              <div
+                className={`absolute inset-0 ${
+                  isLight ? 'bg-white/60 backdrop-blur-[4px]' : 'bg-black/60 backdrop-blur-[4px]'
+                }`}
+              />
+            </div>
+          )}
+
           {/* Status Bar */}
-          <div className="h-6 px-4 flex items-center justify-between text-[10px] text-white/40 font-mono flex-shrink-0 bg-black/40 z-20">
+          <div
+            className={`h-6 px-4 flex items-center justify-between text-[10px] font-mono flex-shrink-0 z-20 ${
+              isLight ? 'text-slate-500 bg-white/40' : 'text-white/40 bg-black/40'
+            }`}
+          >
             <span>9:41</span>
             <div className="flex items-center gap-1.5">
               <span>5G</span>
-              <div className="w-4 h-2 rounded-sm border border-white/40 p-0.5">
-                <div className="w-full h-full bg-white/60 rounded-xs" />
+              <div className="w-4 h-2 rounded-sm border border-current p-0.5">
+                <div className="w-full h-full bg-current rounded-xs" />
               </div>
             </div>
           </div>
 
           {/* Screen Content Switcher */}
-          <div className="flex-1 relative overflow-hidden flex flex-col">
+          <div className="flex-1 relative overflow-hidden flex flex-col z-10">
             <AnimatePresence mode="wait">
               {/* 1. IDLE SCREEN SIMULATION */}
               {simScreen === 'idle' && (
@@ -109,14 +139,11 @@ export function LiveKioskSimulator({
                   exit={{ opacity: 0 }}
                   className="w-full h-full flex flex-col items-center justify-between p-4 relative"
                 >
-                  <div
-                    className="absolute inset-0 opacity-20 pointer-events-none"
-                    style={{ background: `radial-gradient(circle at center, ${primaryColor} 0%, transparent 70%)` }}
-                  />
-
-                  {/* Top gear */}
+                  {/* Top Gear */}
                   <div className="w-full flex justify-end">
-                    <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-[10px]">⚙️</div>
+                    <div className="w-6 h-6 rounded-lg glass-crystal-pill flex items-center justify-center text-[10px] shadow-sm">
+                      ⚙️
+                    </div>
                   </div>
 
                   {/* Brand Branding */}
@@ -125,9 +152,11 @@ export function LiveKioskSimulator({
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={logoUrl} alt="Logo" className="h-10 max-w-[120px] object-contain mx-auto mb-2 drop-shadow" />
                     ) : (
-                      <h4 className="text-white font-black text-base drop-shadow">{eventName}</h4>
+                      <h4 className="font-black text-base drop-shadow-sm">{eventName}</h4>
                     )}
-                    <p className="text-white/40 text-[10px] font-medium">Touch to Start</p>
+                    <p className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-white/40'}`}>
+                      Touch to Start
+                    </p>
                   </div>
 
                   {/* Modes Grid Preview */}
@@ -135,20 +164,26 @@ export function LiveKioskSimulator({
                     {['Photo', '4-Strip', 'AI Magic'].map((m, idx) => (
                       <div
                         key={m}
-                        className="p-2 rounded-xl bg-white/5 border border-white/10 text-center flex flex-col items-center justify-center gap-1 shadow-sm"
+                        className={`p-2 rounded-2xl text-center flex flex-col items-center justify-center gap-1 shadow-md transition-all ${
+                          isLight
+                            ? 'bg-white/85 border border-black/5 hover:border-black/10'
+                            : 'bg-white/5 border border-white/10'
+                        }`}
                       >
                         <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-white"
+                          className="w-8 h-8 rounded-xl flex items-center justify-center text-xs text-white shadow-sm btn-arcade"
                           style={{ background: idx === 0 ? primaryColor : idx === 1 ? secondaryColor : '#10b981' }}
                         >
                           {idx === 0 ? '📷' : idx === 1 ? '🎞️' : '✨'}
                         </div>
-                        <span className="text-[9px] font-bold text-white/90">{m}</span>
+                        <span className="text-[9px] font-black">{m}</span>
                       </div>
                     ))}
                   </div>
 
-                  <p className="text-white/30 text-[9px] tracking-wider uppercase">SnapBooth Kiosk</p>
+                  <p className={`text-[9px] tracking-wider uppercase font-bold ${isLight ? 'text-slate-400' : 'text-white/30'}`}>
+                    SnapBooth Apple Light Studio
+                  </p>
                 </motion.div>
               )}
 
@@ -159,27 +194,27 @@ export function LiveKioskSimulator({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full relative flex items-center justify-center bg-zinc-950"
+                  className="w-full h-full relative flex items-center justify-center bg-black"
                 >
                   {/* Fake Camera Feed */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={samplePhotoUrl} alt="Feed" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                  <img src={samplePhotoUrl} alt="Feed" className="absolute inset-0 w-full h-full object-cover opacity-75" />
 
                   {/* Viewfinder brackets */}
-                  <div className="absolute inset-4 border border-white/20 rounded-2xl pointer-events-none" />
+                  <div className="absolute inset-4 border border-white/30 rounded-2xl pointer-events-none" />
 
                   {/* Circular countdown ring */}
                   <div className="relative flex items-center justify-center z-10">
                     <div
-                      className="w-16 h-16 rounded-full border-2 flex items-center justify-center bg-black/60 backdrop-blur-sm shadow-xl"
+                      className="w-16 h-16 rounded-full border-4 flex items-center justify-center bg-white/20 backdrop-blur-md shadow-2xl"
                       style={{ borderColor: primaryColor }}
                     >
-                      <span className="text-2xl font-black text-white">3</span>
+                      <span className="text-2xl font-black text-white drop-shadow">3</span>
                     </div>
                   </div>
 
                   <div className="absolute bottom-3 inset-x-0 text-center">
-                    <span className="text-[10px] font-bold text-white bg-black/50 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-white bg-black/60 px-3 py-1 rounded-full backdrop-blur-xs">
                       Smile for the Camera! 😊
                     </span>
                   </div>
@@ -193,10 +228,10 @@ export function LiveKioskSimulator({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full flex flex-col p-3 bg-black relative"
+                  className="w-full h-full flex flex-col p-3 relative"
                 >
                   <div className="flex-1 relative flex items-center justify-center min-h-0">
-                    <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-xl max-h-full">
+                    <div className="relative rounded-2xl overflow-hidden shadow-xl max-h-full border border-black/10 dark:border-white/20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={samplePhotoUrl} alt="Preview" className="w-full h-full object-contain max-h-[220px]" />
 
@@ -217,16 +252,20 @@ export function LiveKioskSimulator({
 
                   {/* Action buttons simulated */}
                   <div className="mt-2 grid grid-cols-3 gap-1.5 flex-shrink-0">
-                    <div className="p-1.5 rounded-lg bg-white/10 text-center text-[9px] font-bold text-white">
+                    <div className={`p-1.5 rounded-xl text-center text-[9px] font-bold shadow-sm ${
+                      isLight ? 'bg-white/90 text-slate-800 border border-black/5' : 'bg-white/10 text-white'
+                    }`}>
                       🪄 Filters
                     </div>
                     <div
-                      className="p-1.5 rounded-lg text-center text-[9px] font-bold text-white shadow-sm"
+                      className="p-1.5 rounded-xl text-center text-[9px] font-black text-white shadow-md btn-arcade"
                       style={{ background: primaryColor }}
                     >
                       📱 Get Photo
                     </div>
-                    <div className="p-1.5 rounded-lg bg-white/10 text-center text-[9px] font-bold text-white">
+                    <div className={`p-1.5 rounded-xl text-center text-[9px] font-bold shadow-sm ${
+                      isLight ? 'bg-white/90 text-slate-800 border border-black/5' : 'bg-white/10 text-white'
+                    }`}>
                       🔄 Retake
                     </div>
                   </div>
@@ -240,19 +279,21 @@ export function LiveKioskSimulator({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full flex flex-col items-center justify-center p-3 relative bg-[#07070d]"
+                  className="w-full h-full flex flex-col items-center justify-center p-3 relative"
                 >
-                  <div className="bg-white p-2.5 rounded-xl shadow-lg mb-2">
-                    <QRCodeSVG value="https://snapbooth.ai" size={80} level="M" />
+                  <div className="bg-white p-3 rounded-2xl shadow-xl mb-2 border border-black/5 ring-4 ring-purple-500/20">
+                    <QRCodeSVG value="https://photobooth-v2-ten.vercel.app" size={80} level="M" fgColor="#07070d" />
                   </div>
-                  <p className="text-[10px] font-bold text-white">Scan to Save Photo</p>
-                  <p className="text-[8px] text-white/40 mb-3">Instant download to phone</p>
+                  <p className="text-[10px] font-black">Scan to Save Photo</p>
+                  <p className={`text-[8px] mb-3 ${isLight ? 'text-slate-500' : 'text-white/40'}`}>
+                    Instant download to phone
+                  </p>
 
                   <div className="grid grid-cols-2 gap-1.5 w-full max-w-[200px]">
-                    <div className="py-1 rounded-md bg-[#25D366] text-white text-[8px] font-bold text-center">
+                    <div className="py-1.5 rounded-xl bg-[#25D366] text-white text-[8px] font-black text-center shadow-sm">
                       WhatsApp
                     </div>
-                    <div className="py-1 rounded-md bg-sky-600 text-white text-[8px] font-bold text-center">
+                    <div className="py-1.5 rounded-xl bg-sky-600 text-white text-[8px] font-black text-center shadow-sm">
                       AirDrop
                     </div>
                   </div>
@@ -262,7 +303,11 @@ export function LiveKioskSimulator({
           </div>
 
           {/* iPad Bottom Interactive Simulator Switcher */}
-          <div className="h-9 bg-black/80 border-t border-white/10 px-2 flex items-center justify-around flex-shrink-0 z-20">
+          <div
+            className={`h-9 border-t px-2 flex items-center justify-around flex-shrink-0 z-20 ${
+              isLight ? 'bg-white/80 border-black/5' : 'bg-black/80 border-white/10'
+            }`}
+          >
             {[
               { id: 'idle', label: 'Idle' },
               { id: 'capture', label: 'Camera' },
@@ -272,9 +317,11 @@ export function LiveKioskSimulator({
               <button
                 key={tab.id}
                 onClick={() => setSimScreen(tab.id as any)}
-                className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all ${
+                className={`px-2 py-1 rounded-lg text-[9px] font-black transition-all ${
                   simScreen === tab.id
-                    ? 'bg-purple-600 text-white'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : isLight
+                    ? 'text-slate-500 hover:text-slate-900'
                     : 'text-white/40 hover:text-white'
                 }`}
               >

@@ -105,9 +105,30 @@ export function ShareScreen() {
   if (!currentPhoto) return null;
   const photo = currentPhoto;
 
-  const primaryColor = event?.branding?.primaryColor || '#8b5cf6';
+  const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
-  const photoUrl = photo.galleryUrl || photo.url;
+
+  // Bulletproof phone-scannable QR URL resolver
+  const computeQrUrl = () => {
+    let raw = photo.galleryUrl || (photo as any).gallery_url || '';
+    if (raw.includes('photobooth-v2-xi.vercel.app')) {
+      raw = raw.replace('photobooth-v2-xi.vercel.app', 'photobooth-v2-ten.vercel.app');
+    }
+    if (!raw || raw.startsWith('blob:')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://photobooth-v2-ten.vercel.app';
+      const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+      const baseHost = isLocalhost ? 'https://photobooth-v2-ten.vercel.app' : origin;
+      if ((photo as any).short_code) {
+        raw = `${baseHost}/p/${(photo as any).short_code}`;
+      } else if (event?.slug) {
+        raw = `${baseHost}/gallery/${event.slug}`;
+      } else {
+        raw = `${baseHost}/gallery/snapbooth-demo`;
+      }
+    }
+    return raw;
+  };
+  const photoUrl = computeQrUrl();
   const settings = event?.settings as Record<string, unknown> | undefined;
   const allowEmail = (settings?.allowEmailShare as boolean) !== false;
   const allowInstagram = (settings?.allowInstagram as boolean) !== false;
@@ -236,19 +257,19 @@ export function ShareScreen() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#07070d] select-none overflow-hidden relative">
+    <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 glass-panel z-20" onClick={resetTimer}>
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/10 glass-crystal z-20" onClick={resetTimer}>
         <button
           onClick={() => setScreen('preview')}
-          className="text-white/60 hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-pill flex items-center gap-1 active:scale-95"
+          className="text-slate-600 dark:text-white/60 hover:text-purple-600 dark:hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-crystal-pill flex items-center gap-1.5 active:scale-95 shadow-sm"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Preview
         </button>
         <div className="text-center">
-          <h2 className="text-white font-black text-sm tracking-wide uppercase">Download &amp; Share</h2>
+          <h2 className="text-slate-900 dark:text-white font-black text-sm tracking-wide uppercase">Download &amp; Share</h2>
           {timeoutSecs > 0 && (
-            <p className="text-white/30 text-[10px] mt-0.5 font-medium">
+            <p className="text-slate-400 dark:text-white/30 text-[10px] mt-0.5 font-bold">
               Auto-closes in {timeLeft}s
             </p>
           )}
@@ -258,7 +279,7 @@ export function ShareScreen() {
 
       {/* Timeout Progress Line */}
       {timeoutSecs > 0 && (
-        <div className="h-1 bg-white/5 flex-shrink-0">
+        <div className="h-1 bg-black/5 dark:bg-white/5 flex-shrink-0">
           <div
             className="h-full transition-all duration-1000 ease-linear"
             style={{ width: `${(timeLeft / timeoutSecs) * 100}%`, background: primaryColor }}
@@ -275,7 +296,7 @@ export function ShareScreen() {
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-              className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh]"
+              className="relative rounded-3xl overflow-hidden shadow-2xl border border-black/5 dark:border-white/15 max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] bg-white/20 dark:bg-black/20"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -292,11 +313,11 @@ export function ShareScreen() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-5 glass-panel border border-white/15 rounded-3xl p-6 shadow-2xl"
+            className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-5 glass-crystal rounded-3xl p-6 shadow-2xl border border-black/5 dark:border-white/15"
           >
             {/* High-Contrast QR Code Card */}
             <div className="flex flex-col items-center gap-3">
-              <div className="bg-white p-4 rounded-3xl shadow-xl flex items-center justify-center ring-4 ring-purple-500/30">
+              <div className="bg-white p-4 rounded-3xl shadow-xl flex items-center justify-center ring-4 ring-purple-500/20">
                 <QRCodeSVG
                   value={photoUrl}
                   size={190}
@@ -307,8 +328,8 @@ export function ShareScreen() {
                 />
               </div>
               <div className="text-center">
-                <p className="text-white font-bold text-sm">Scan with Phone Camera</p>
-                <p className="text-white/40 text-xs mt-0.5">Instant full-resolution download</p>
+                <p className="text-slate-900 dark:text-white font-black text-sm">Scan with Phone Camera</p>
+                <p className="text-slate-500 dark:text-white/40 text-xs mt-0.5 font-medium">Instant full-resolution download</p>
               </div>
             </div>
 

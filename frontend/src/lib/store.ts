@@ -33,6 +33,9 @@ export interface Event {
     logoUrl: string | null;
     idleMediaUrl?: string | null;
     frameUrl?: string | null;
+    themeMode?: 'light' | 'dark' | 'champagne';
+    wallpaperUrl?: string | null;
+    fontFamily?: string;
   };
   settings: {
     countdownSeconds: number;

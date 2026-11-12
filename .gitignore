@@ -31,3 +31,5 @@ Thumbs.db
 
 # Agent scratch & internal orchestration
 .agents/
+*.tsbuildinfo
+

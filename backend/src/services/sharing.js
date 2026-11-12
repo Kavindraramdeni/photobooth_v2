@@ -14,7 +14,7 @@ try { sharp = require('sharp'); } catch(e) { console.error('[sharing] sharp load
 // ─── URL builders ─────────────────────────────────────────────────────────────
 
 function frontendUrl() {
-  return (process.env.FRONTEND_URL || 'https://photobooth-v2-xi.vercel.app').replace(/\/$/, '');
+  return (process.env.FRONTEND_URL || 'https://photobooth-v2-ten.vercel.app').replace(/\/$/, '');
 }
 
 /**

@@ -248,7 +248,7 @@ export function IdleScreen() {
   const pinDots = Array.from({ length: 4 }, (_, i) => i);
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-between p-6 sm:p-10 relative overflow-hidden select-none bg-[#07070d]">
+    <div className="w-full h-full flex flex-col items-center justify-between p-6 sm:p-10 relative overflow-hidden select-none bg-transparent">
       {/* Attract screen — shows after inactivity */}
       <AttractScreenWrapper
         eventName={eventName}
@@ -257,46 +257,18 @@ export function IdleScreen() {
         timeoutMs={120_000}
       />
 
-      {/* Dynamic Ambient Background */}
-      {idleMediaUrl ? (
-        isVideo ? (
-          <video src={idleMediaUrl} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />
-        ) : (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={idleMediaUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-        )
-      ) : (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-[#07070d]" />
-          {/* Subtle animated mesh gradients */}
-          <div
-            className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[120px] opacity-25 mix-blend-screen"
-            style={{ background: primaryColor }}
-          />
-          <div
-            className="absolute -bottom-40 -right-40 w-[650px] h-[650px] rounded-full blur-[140px] opacity-20 mix-blend-screen bg-indigo-600"
-          />
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full blur-[160px] opacity-15 mix-blend-screen bg-fuchsia-600"
-          />
-          {/* Subtle noise/grid texture */}
-          <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:24px_24px] opacity-40" />
-        </div>
-      )}
-      {idleMediaUrl && <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" />}
-
       {/* Top Header Bar */}
       <div className="w-full max-w-5xl flex items-center justify-between relative z-20">
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
-          <span className="text-white/40 text-xs font-semibold uppercase tracking-widest">Live Booth Ready</span>
+        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full glass-crystal-pill">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
+          <span className="text-slate-700 dark:text-white/70 text-xs font-bold uppercase tracking-wider">Live Booth Ready</span>
         </div>
 
-        {/* Operator gear button with glass styling */}
+        {/* Operator gear button with crystal glass styling */}
         <button
           onClick={handleOperatorGear}
           aria-label="Operator Settings"
-          className="p-3 rounded-2xl glass-pill text-white/50 hover:text-white transition-all duration-200 active:scale-95 hover:border-white/20"
+          className="p-3 rounded-2xl glass-crystal-pill text-slate-700 dark:text-white/60 hover:text-purple-600 dark:hover:text-white transition-all duration-200 active:scale-95 shadow-sm"
         >
           <Settings className="w-5 h-5" />
         </button>
@@ -308,11 +280,11 @@ export function IdleScreen() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center glass-panel rounded-3xl p-10 max-w-md w-full border border-white/10"
+            className="text-center glass-crystal rounded-3xl p-10 max-w-md w-full border border-black/10 dark:border-white/10 shadow-2xl"
           >
-            <AlertCircle className="w-16 h-16 text-amber-400 mx-auto mb-4" />
-            <h2 className="text-white text-2xl font-black mb-2">Booth Inactive</h2>
-            <p className="text-white/70 text-base">{gateMessage}</p>
+            <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+            <h2 className="text-slate-900 dark:text-white text-2xl font-black mb-2">Booth Inactive</h2>
+            <p className="text-slate-600 dark:text-white/70 text-base">{gateMessage}</p>
           </motion.div>
         ) : (
           <>
@@ -325,18 +297,18 @@ export function IdleScreen() {
             >
               {logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={logoUrl} alt={eventName} className="h-20 sm:h-24 w-auto object-contain mx-auto drop-shadow-2xl" />
+                <img src={logoUrl} alt={eventName} className="h-20 sm:h-24 w-auto object-contain mx-auto drop-shadow-xl" />
               ) : (
                 <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-pill text-xs font-bold text-white/80 uppercase tracking-widest mb-2 border border-white/10">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Photobooth Experience
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-crystal-pill text-xs font-black text-purple-700 dark:text-purple-300 uppercase tracking-widest mb-2 shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-500" /> Photobooth Experience
                   </div>
-                  <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight drop-shadow-2xl">
+                  <h1 className="text-5xl sm:text-7xl font-black text-slate-900 dark:text-white tracking-tight drop-shadow-sm">
                     {eventName}
                   </h1>
                 </div>
               )}
-              <p className="text-white/50 text-sm sm:text-base font-medium mt-3 tracking-wide">
+              <p className="text-slate-500 dark:text-white/60 text-base sm:text-lg font-bold mt-3 tracking-wide">
                 Touch below to capture your moment
               </p>
             </motion.div>
@@ -349,33 +321,30 @@ export function IdleScreen() {
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => handleStart(modes[0].mode)}
-                className="group relative w-60 h-60 sm:w-72 sm:h-72 rounded-full flex flex-col items-center justify-center text-white font-black text-2xl shadow-2xl transition-all cursor-pointer ring-8 ring-white/10 hover:ring-white/20"
+                className="group relative w-60 h-60 sm:w-72 sm:h-72 rounded-full flex flex-col items-center justify-center text-white font-black text-2xl shadow-2xl transition-all cursor-pointer ring-8 ring-purple-500/20 hover:ring-purple-500/40 btn-arcade"
                 style={{
                   background: `linear-gradient(135deg, ${primaryColor}, #4f46e5)`,
-                  boxShadow: `0 0 80px ${primaryColor}77`,
+                  boxShadow: `0 20px 60px ${primaryColor}55`,
                 }}
               >
-                <div className="absolute inset-0 rounded-full animate-ping opacity-20 pointer-events-none" style={{ background: primaryColor }} />
+                <div className="absolute inset-0 rounded-full animate-ping opacity-25 pointer-events-none" style={{ background: primaryColor }} />
                 <Camera className="w-20 h-20 mb-3 group-hover:scale-110 transition-transform duration-300" />
                 <span className="tracking-wider">TAP TO START</span>
-                <span className="text-white/70 text-xs font-medium mt-1 uppercase tracking-widest">Touch screen</span>
+                <span className="text-white/80 text-xs font-semibold mt-1 uppercase tracking-widest">Touch screen</span>
               </motion.button>
             ) : (
               /* Multi-Mode Arcade Grid with Tactile 3D Feel */
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4 w-full max-w-4xl px-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5 w-full max-w-4xl px-2">
                 {modes.map((m, i) => (
                   <motion.button
                     key={m.mode}
                     initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 + 0.06 * i, type: 'spring', damping: 20 }}
-                    whileHover={{ scale: 1.03, y: -4 }}
+                    transition={{ delay: 0.12 + 0.05 * i, type: 'spring', damping: 20 }}
+                    whileHover={{ scale: 1.04, y: -4 }}
                     whileTap={{ scale: 0.94 }}
                     onClick={() => handleStart(m.mode)}
-                    className="relative group flex flex-col items-center justify-between p-5 sm:p-6 rounded-3xl glass-panel border border-white/10 hover:border-white/25 transition-all duration-300 cursor-pointer overflow-hidden min-h-[170px] sm:min-h-[190px]"
-                    style={{
-                      boxShadow: `0 12px 36px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)`,
-                    }}
+                    className="relative group flex flex-col items-center justify-between p-5 sm:p-6 rounded-3xl glass-crystal hover:border-purple-400/50 transition-all duration-300 cursor-pointer overflow-hidden min-h-[175px] sm:min-h-[195px] shadow-lg hover:shadow-2xl"
                   >
                     {/* Glowing highlight blob on hover */}
                     <div
@@ -384,25 +353,25 @@ export function IdleScreen() {
                     />
 
                     {/* Mode pill badge */}
-                    <span className="self-end text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/70 group-hover:bg-white/20 transition-colors">
+                    <span className="self-end text-[10px] uppercase font-black tracking-wider px-2.5 py-0.5 rounded-full bg-slate-900/5 dark:bg-white/10 text-slate-700 dark:text-white/80 group-hover:bg-purple-500/10 group-hover:text-purple-600 transition-colors">
                       {m.badge}
                     </span>
 
                     {/* Icon with glowing backdrop */}
                     <div className="relative my-2">
                       <div
-                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-white bg-gradient-to-br ${m.gradient} shadow-lg shadow-black/40 group-hover:scale-110 transition-transform duration-300`}
+                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-white bg-gradient-to-br ${m.gradient} shadow-lg shadow-purple-600/20 group-hover:scale-110 transition-transform duration-300 btn-arcade`}
                       >
                         {m.icon}
                       </div>
                     </div>
 
-                    {/* Text Details */}
+                    {/* Text Details - High Contrast readable from 2 meters */}
                     <div className="text-center w-full z-10">
-                      <h3 className="text-white font-bold text-base sm:text-lg tracking-tight group-hover:text-purple-300 transition-colors">
+                      <h3 className="text-slate-900 dark:text-white font-black text-base sm:text-lg tracking-tight group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors">
                         {m.label}
                       </h3>
-                      <p className="text-white/40 text-[11px] font-medium truncate mt-0.5">
+                      <p className="text-slate-500 dark:text-white/50 text-[11px] font-bold truncate mt-0.5">
                         {m.desc}
                       </p>
                     </div>
@@ -421,9 +390,9 @@ export function IdleScreen() {
       </div>
 
       {/* Bottom Footer Info */}
-      <div className="relative z-20 flex flex-col items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
-        <p className="text-white/40 text-xs font-semibold tracking-wider uppercase">
-          Powered by <span className="text-white/70">SnapBooth AI</span>
+      <div className="relative z-20 flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity">
+        <p className="text-slate-500 dark:text-white/40 text-xs font-bold tracking-wider uppercase">
+          Powered by <span className="text-slate-800 dark:text-white/70">SnapBooth AI</span>
         </p>
       </div>
 
