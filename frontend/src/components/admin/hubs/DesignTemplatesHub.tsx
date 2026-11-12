@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { FramesManager } from '@/components/admin/FramesManager';
+import { LiveKioskSimulator } from './LiveKioskSimulator';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,16 +125,16 @@ function Card({
 }) {
   return (
     <div
-      className={`bg-zinc-900/40 backdrop-blur-xl border border-white/[0.04] rounded-2xl overflow-hidden shadow-2xl ${className}`}
+      className={`glass-panel border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl transition-all ${className}`}
     >
       {(title || subtitle) && (
-        <div className="px-6 py-4 border-b border-white/[0.04] bg-white/[0.01]">
-          <h3 className="text-white font-semibold text-sm flex items-center gap-2">
-            {Icon && <Icon className="w-4 h-4 text-violet-400" />}
+        <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
+          <h3 className="text-white font-bold text-sm flex items-center gap-2.5">
+            {Icon && <Icon className="w-4 h-4 text-purple-400" />}
             {title}
           </h3>
           {subtitle && (
-            <p className="text-zinc-500 text-xs mt-0.5">{subtitle}</p>
+            <p className="text-white/40 text-xs mt-0.5 font-medium">{subtitle}</p>
           )}
         </div>
       )}
@@ -737,35 +738,50 @@ export function DesignTemplatesHub({
   dirty,
   API_BASE,
 }: DesignTemplatesHubProps) {
+  const eventName = String(branding['eventName'] ?? event.name ?? 'SnapBooth AI');
+
   return (
-    <div className="space-y-6">
-      {/* Brand Identity */}
-      <BrandIdentityCard
-        branding={branding}
-        onBrandingChange={onBrandingChange}
-        event={event}
-        API_BASE={API_BASE}
-      />
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* LEFT: Controls (7 cols on lg, full on mobile) */}
+      <div className="lg:col-span-7 space-y-6">
+        {/* Brand Identity */}
+        <BrandIdentityCard
+          branding={branding}
+          onBrandingChange={onBrandingChange}
+          event={event}
+          API_BASE={API_BASE}
+        />
 
-      {/* Photo Template */}
-      <PhotoTemplateCard branding={branding} onBrandingChange={onBrandingChange} />
+        {/* Photo Template */}
+        <PhotoTemplateCard branding={branding} onBrandingChange={onBrandingChange} />
 
-      {/* Idle Attract Screen */}
-      <IdleAttractCard
-        branding={branding}
-        onBrandingChange={onBrandingChange}
-        event={event}
-        API_BASE={API_BASE}
-      />
+        {/* Idle Attract Screen */}
+        <IdleAttractCard
+          branding={branding}
+          onBrandingChange={onBrandingChange}
+          event={event}
+          API_BASE={API_BASE}
+        />
 
-      {/* Frame Overlays */}
-      <FrameOverlaysCard event={event} />
+        {/* Frame Overlays */}
+        <FrameOverlaysCard event={event} />
 
-      {/* AI Art Styles */}
-      <AIArtStylesCard event={event} API_BASE={API_BASE} />
+        {/* AI Art Styles */}
+        <AIArtStylesCard event={event} API_BASE={API_BASE} />
 
-      {/* Save Bar */}
-      <SaveBar dirty={dirty} saving={saving} onSave={onSave} />
+        {/* Save Bar */}
+        <SaveBar dirty={dirty} saving={saving} onSave={onSave} />
+      </div>
+
+      {/* RIGHT: Live Kiosk Simulator (5 cols on lg, sticky on desktop) */}
+      <div className="lg:col-span-5 order-first lg:order-last">
+        <LiveKioskSimulator
+          branding={branding}
+          settings={settings}
+          eventName={eventName}
+          slug={event.slug}
+        />
+      </div>
     </div>
   );
 }

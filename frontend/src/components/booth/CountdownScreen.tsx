@@ -7,8 +7,9 @@ import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
 import toast from 'react-hot-toast';
+import { Sparkles, Camera, ArrowLeft } from 'lucide-react';
 
-// ── Web Audio API sounds (no files needed) ───────────────────────────────────
+// ── Web Audio API sounds ─────────────────────────────────────────────────────
 function playBeep(frequency = 880, duration = 0.12, volume = 0.3) {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -29,7 +30,6 @@ function playBeep(frequency = 880, duration = 0.12, volume = 0.3) {
 function playShutter() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    // Click sound: short noise burst
     const bufferSize = ctx.sampleRate * 0.05;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -37,7 +37,7 @@ function playShutter() {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const gain = ctx.createGain();
-    gain.gain.value = 0.4;
+    gain.gain.value = 0.45;
     source.connect(gain);
     gain.connect(ctx.destination);
     source.start();
@@ -62,20 +62,19 @@ export function CountdownScreen() {
   const [phase, setPhase] = useState<'ready' | 'countdown' | 'capturing' | 'processing'>('ready');
   const [shotsTaken, setShotsTaken] = useState(0);
 
-  // Camera warm-up: wait for sensor to settle auto-exposure
+  // Camera warm-up
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
   const totalShots = mode === 'strip' ? STRIP_COUNT : mode === 'gif' ? GIF_COUNT : mode === 'boomerang' ? BOOMERANG_COUNT : 1;
   const countdownSeconds = event?.settings?.countdownSeconds ?? 3;
-  const soundEnabled = (event?.settings?.countdownSound as boolean) !== false; // on by default
-  const roamingMode = (event?.settings?.roamingMode as boolean) ?? false; // no countdown, instant capture
+  const soundEnabled = (event?.settings?.countdownSound as boolean) !== false;
+  const roamingMode = (event?.settings?.roamingMode as boolean) ?? false;
 
   const captureFrame = useCallback((): Blob | null => {
     const imageSrc = webcamRef.current?.getScreenshot();
     if (!imageSrc) return null;
 
-    // Convert base64 to blob
     const arr = imageSrc.split(',');
     const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
     const bstr = atob(arr[1]);
@@ -84,10 +83,10 @@ export function CountdownScreen() {
     return new Blob([u8arr], { type: mime });
   }, []);
 
-  // Composite captured frame with the event frame overlay (if set)
+  // Composite captured frame with the event frame overlay
   const compositeWithFrame = useCallback(async (blob: Blob): Promise<Blob> => {
     const frameUrl = event?.branding?.frameUrl as string | null | undefined;
-    if (!frameUrl) return blob; // no overlay configured — return as-is
+    if (!frameUrl) return blob;
 
     return new Promise((resolve) => {
       const photo = new Image();
@@ -101,19 +100,17 @@ export function CountdownScreen() {
         canvas.height = photo.naturalHeight;
         const ctx = canvas.getContext('2d')!;
 
-        // Draw webcam photo
         ctx.drawImage(photo, 0, 0);
 
-        // Draw frame overlay on top (stretched to fill)
         frame.onload = () => {
           ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
           canvas.toBlob(
             (composited) => resolve(composited || blob),
             'image/jpeg',
-            0.92
+            0.94
           );
         };
-        frame.onerror = () => resolve(blob); // fallback: use original
+        frame.onerror = () => resolve(blob);
         frame.src = frameUrl;
       };
       photo.onerror = () => resolve(blob);
@@ -129,10 +126,8 @@ export function CountdownScreen() {
       try {
         if (!event) throw new Error('No event loaded');
 
-        // Apply frame overlay to every captured frame
         const composited = await Promise.all(frames.map((f) => compositeWithFrame(f)));
 
-        // Generate client-side UUID per capture session
         const clientPhotoId =
           typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()
@@ -142,7 +137,6 @@ export function CountdownScreen() {
         const format: 'single' | 'strip' | 'gif' =
           mode === 'strip' ? 'strip' : mode === 'gif' || mode === 'boomerang' ? 'gif' : 'single';
 
-        // 1. Immediately save to IndexedDB offline queue BEFORE initiating network upload
         const offlineRecord: OfflinePhotoRecord = {
           clientPhotoId,
           eventId: event.id,
@@ -161,7 +155,6 @@ export function CountdownScreen() {
           console.warn('[CountdownScreen] IndexedDB pre-save warning:', dbErr);
         }
 
-        // 2. Attempt network upload
         try {
           let result;
 
@@ -182,17 +175,13 @@ export function CountdownScreen() {
             setScreen('preview');
           }
         } catch (uploadError: any) {
-          // Network upload failed (offline, timeout, or server unavailable)
-          // DO NOT discard captured frames or reset without saving.
           console.warn('[CountdownScreen] Network upload failed, using local offline queue preview:', uploadError);
 
-          // Inform user clearly
-          toast.success('Saved to offline queue. Will auto-sync when online.', {
+          toast.success('Saved to offline storage! Ready to view.', {
             icon: '💾',
             duration: 4000,
           });
 
-          // Transition guest smoothly to preview/aistudio screen with local preview URL
           setCurrentPhoto({
             id: clientPhotoId,
             url: localPreviewUrl,
@@ -211,7 +200,7 @@ export function CountdownScreen() {
         }
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        toast.error(`Failed to process capture: ${msg}`);
+        toast.error(`Capture failed: ${msg}`);
         setScreen('idle');
       } finally {
         setProcessing(false);
@@ -221,9 +210,9 @@ export function CountdownScreen() {
     [event, mode, sessionId, setCurrentPhoto, setScreen, setProcessing, clearFrames, compositeWithFrame]
   );
 
-  // Main countdown + capture logic — only fires once isCameraReady is true
+  // Main countdown + capture loop
   useEffect(() => {
-    if (!isCameraReady) return; // wait for onUserMedia + warm-up delay
+    if (!isCameraReady) return;
 
     let cancelled = false;
 
@@ -234,26 +223,24 @@ export function CountdownScreen() {
         if (cancelled) return;
 
         if (roamingMode) {
-          // Roaming mode: no countdown, capture immediately
           setPhase('capturing');
           setCountdown(null);
           triggerFlash();
           if (soundEnabled) playShutter();
           await sleep(150);
         } else {
-          // Normal countdown
           setPhase('countdown');
           for (let i = countdownSeconds; i >= 1; i--) {
             if (cancelled) return;
             setCountdown(i);
-            if (soundEnabled) playBeep(i === 1 ? 1100 : 880, 0.15, 0.35);
+            if (soundEnabled) playBeep(i === 1 ? 1200 : 880, 0.14, 0.35);
             await sleep(1000);
           }
           setCountdown(null);
           setPhase('capturing');
           triggerFlash();
           if (soundEnabled) playShutter();
-          await sleep(100);
+          await sleep(120);
         }
 
         const frame = captureFrame();
@@ -261,7 +248,7 @@ export function CountdownScreen() {
         setShotsTaken(shot + 1);
 
         if (shot < totalShots - 1) {
-          await sleep(800); // brief pause between shots
+          await sleep(850);
         }
       }
 
@@ -270,7 +257,7 @@ export function CountdownScreen() {
       }
     }
 
-    const t = setTimeout(runSession, 200);
+    const t = setTimeout(runSession, 300);
     return () => {
       cancelled = true;
       clearTimeout(t);
@@ -278,15 +265,25 @@ export function CountdownScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraReady]);
 
+  const modeBadge: Record<string, { label: string; icon: string }> = {
+    single: { label: 'Single Shot', icon: '📸' },
+    strip: { label: `Photo Strip (${shotsTaken}/${STRIP_COUNT})`, icon: '🎞️' },
+    gif: { label: `GIF Burst (${shotsTaken}/${GIF_COUNT})`, icon: '🎬' },
+    boomerang: { label: `Boomerang (${shotsTaken}/${BOOMERANG_COUNT})`, icon: '🔄' },
+    burst: { label: `Burst (${shotsTaken}/${GIF_COUNT})`, icon: '⚡' },
+    aistudio: { label: 'AI Studio Portrait', icon: '✨' },
+  };
+  const activeBadge = modeBadge[mode] || { label: 'Photo', icon: '📸' };
+
   return (
-    <div className="w-full h-full flex flex-col bg-black relative">
-      {/* Webcam - fills most of screen */}
-      <div className="flex-1 relative overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-black relative select-none overflow-hidden">
+      {/* Viewfinder Main Stage */}
+      <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
         <Webcam
           ref={webcamRef}
           audio={false}
           screenshotFormat="image/jpeg"
-          screenshotQuality={0.95}
+          screenshotQuality={0.96}
           videoConstraints={{
             facingMode: 'user',
             width: { ideal: 1920 },
@@ -295,132 +292,219 @@ export function CountdownScreen() {
           className="w-full h-full object-cover"
           mirrored={true}
           onUserMedia={() => {
-            // Camera stream is live — wait 400ms for auto-exposure to settle
             setTimeout(() => setIsCameraReady(true), 400);
           }}
           onUserMediaError={(err) => {
             const msg = err instanceof Error ? err.message : String(err);
             setCameraError(
               msg.includes('NotAllowed') || msg.includes('Permission')
-                ? 'Camera permission denied. Please allow camera access and try again.'
-                : 'Could not start camera. Check it isn\'t in use by another app.'
+                ? 'Camera permission denied. Please allow camera access in browser settings.'
+                : 'Could not access camera hardware. Verify no other application is using it.'
             );
           }}
         />
 
-        {/* Camera warm-up overlay — shown until stream is ready */}
-        <AnimatePresence>
-          {!isCameraReady && !cameraError && (
-            <motion.div
-              initial={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
-              className="absolute inset-0 bg-black flex flex-col items-center justify-center gap-4"
-            >
-              <motion.div
-                animate={{ scale: [1, 1.15, 1] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-                className="text-5xl"
-              >
-                📷
-              </motion.div>
-              <p className="text-white/50 text-sm">Starting camera…</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Framing Guides: Corner Brackets (Luxury Viewfinder Aesthetic) */}
+        <div className="absolute inset-8 sm:inset-14 pointer-events-none border border-white/10 rounded-3xl">
+          {/* Top-Left */}
+          <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-purple-400 rounded-tl-xl shadow-[0_0_12px_rgba(168,85,247,0.8)]" />
+          {/* Top-Right */}
+          <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-purple-400 rounded-tr-xl shadow-[0_0_12px_rgba(168,85,247,0.8)]" />
+          {/* Bottom-Left */}
+          <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-purple-400 rounded-bl-xl shadow-[0_0_12px_rgba(168,85,247,0.8)]" />
+          {/* Bottom-Right */}
+          <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-purple-400 rounded-br-xl shadow-[0_0_12px_rgba(168,85,247,0.8)]" />
 
-        {/* Camera error overlay */}
-        {cameraError && (
-          <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="text-5xl">🚫</div>
-            <p className="text-white font-semibold text-base">{cameraError}</p>
-            <button
-              onClick={() => setScreen('idle')}
-              className="px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold text-sm"
-            >
-              Go Back
-            </button>
+          {/* Center Crosshair Guides */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 pointer-events-none opacity-20">
+            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white" />
+            <div className="absolute left-0 right-0 top-1/2 h-px bg-white" />
           </div>
-        )}
+        </div>
 
-        {/* Processing overlay */}
-        {phase === 'processing' && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
-            <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-white text-xl font-semibold">
-              {mode === 'gif' || mode === 'boomerang' ? 'Creating your GIF...' : 'Processing photo...'}
-            </p>
+        {/* Top Control Bar */}
+        <div className="absolute top-6 inset-x-6 flex items-center justify-between z-20">
+          <button
+            onClick={() => setScreen('idle')}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-pill text-white/80 hover:text-white transition-all text-xs font-bold active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4" /> Cancel
+          </button>
+
+          {/* Mode Pill */}
+          <div className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-panel border border-white/15 text-white text-xs font-bold shadow-lg">
+            <span>{activeBadge.icon}</span>
+            <span>{activeBadge.label}</span>
           </div>
-        )}
+        </div>
 
-        {/* Shot progress for multi-shot modes */}
+        {/* Shot Dots for Multi-Shot */}
         {totalShots > 1 && phase !== 'processing' && (
-          <div className="absolute top-6 left-0 right-0 flex justify-center gap-3">
+          <div className="absolute top-20 inset-x-0 flex justify-center gap-3 z-20">
             {Array.from({ length: totalShots }).map((_, i) => (
               <div
                 key={i}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  i < shotsTaken ? 'bg-purple-400 scale-125' : 'bg-white/30'
+                className={`transition-all duration-300 rounded-full ${
+                  i < shotsTaken
+                    ? 'w-4 h-4 bg-purple-400 shadow-[0_0_12px_rgba(192,132,252,0.9)] scale-110'
+                    : i === shotsTaken
+                    ? 'w-4 h-4 bg-white/70 animate-pulse'
+                    : 'w-3 h-3 bg-white/20'
                 }`}
               />
             ))}
           </div>
         )}
 
-        {/* Mode label */}
-        <div className="absolute top-4 right-4 bg-black/60 rounded-xl px-3 py-1.5">
-          <span className="text-white/80 text-sm font-medium uppercase tracking-wider">
-            {mode === 'boomerang' ? '🔄 Boomerang' : mode === 'gif' ? '🎬 GIF' : mode === 'strip' ? '🎞️ Strip' : '📸 Photo'}
-          </span>
-        </div>
-      </div>
+        {/* Camera Warm-up Overlay */}
+        <AnimatePresence>
+          {!isCameraReady && !cameraError && (
+            <motion.div
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 bg-[#07070d] flex flex-col items-center justify-center gap-4 z-30"
+            >
+              <div className="relative">
+                <div className="w-20 h-20 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center text-2xl">
+                  📷
+                </div>
+              </div>
+              <p className="text-white/60 text-sm font-semibold tracking-wide">Starting Camera Engine...</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Countdown overlay */}
-      <AnimatePresence>
-        {countdown !== null && (
+        {/* Camera Error Message */}
+        {cameraError && (
+          <div className="absolute inset-0 bg-[#07070d]/95 flex flex-col items-center justify-center gap-5 p-8 text-center z-40">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-3xl">
+              ⚠️
+            </div>
+            <div className="max-w-md">
+              <h3 className="text-white font-bold text-lg mb-2">Camera Unavailable</h3>
+              <p className="text-white/60 text-sm mb-6">{cameraError}</p>
+            </div>
+            <button
+              onClick={() => setScreen('idle')}
+              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all"
+            >
+              Return to Start
+            </button>
+          </div>
+        )}
+
+        {/* High-Impact Animated Radial Countdown */}
+        <AnimatePresence>
+          {countdown !== null && (
+            <motion.div
+              key={countdown}
+              initial={{ scale: 1.8, opacity: 0, filter: 'blur(10px)' }}
+              animate={{ scale: 1, opacity: 1, filter: 'blur(0px)' }}
+              exit={{ scale: 0.6, opacity: 0, filter: 'blur(6px)' }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+            >
+              <div className="relative flex items-center justify-center">
+                {/* SVG Countdown Ring */}
+                <svg className="w-56 h-56 sm:w-64 sm:h-64 -rotate-90">
+                  <circle
+                    cx="50%"
+                    cy="50%"
+                    r="90"
+                    className="stroke-white/10"
+                    strokeWidth="8"
+                    fill="transparent"
+                  />
+                  <circle
+                    cx="50%"
+                    cy="50%"
+                    r="90"
+                    className="stroke-purple-500 transition-all duration-1000 ease-linear shadow-[0_0_20px_rgba(168,85,247,0.8)]"
+                    strokeWidth="8"
+                    strokeDasharray="565"
+                    strokeDashoffset={565 - (565 * (countdown / countdownSeconds))}
+                    strokeLinecap="round"
+                    fill="transparent"
+                  />
+                </svg>
+
+                {/* Inner Number */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full glass-panel border border-white/20 flex items-center justify-center shadow-2xl">
+                    <span className="text-7xl sm:text-8xl font-black text-white tracking-tighter drop-shadow-[0_4px_24px_rgba(168,85,247,0.7)]">
+                      {countdown}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Shutter Click Indicator */}
+        {phase === 'capturing' && (
           <motion.div
-            key={countdown}
-            initial={{ scale: 2, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.5, opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
           >
-            <div className="w-48 h-48 rounded-full bg-black/60 backdrop-blur flex items-center justify-center border-4 border-purple-500 glow-purple">
-              <span className="text-8xl font-black text-white">{countdown}</span>
+            <div className="w-36 h-36 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center border-4 border-white shadow-2xl">
+              <Camera className="w-16 h-16 text-white" />
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Capture flash indicator */}
-      {phase === 'capturing' && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-        >
-          <div className="w-32 h-32 rounded-full bg-white/20 flex items-center justify-center">
-            <span className="text-6xl">📸</span>
+        {/* Processing Spinner Stage */}
+        {phase === 'processing' && (
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center z-40">
+            <div className="relative mb-6">
+              <div className="w-24 h-24 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Sparkles className="w-10 h-10 text-purple-400 animate-pulse" />
+              </div>
+            </div>
+            <h3 className="text-white text-2xl font-black mb-2 tracking-tight">
+              {mode === 'gif' || mode === 'boomerang'
+                ? 'Rendering High-FPS Animation...'
+                : mode === 'strip'
+                ? 'Assembling 4-Pose Print Strip...'
+                : mode === 'aistudio'
+                ? 'Generating AI Transformations...'
+                : 'Developing Photo...'}
+            </h3>
+            <p className="text-white/50 text-sm font-medium">Applying high-fidelity color grading</p>
           </div>
-        </motion.div>
-      )}
+        )}
+      </div>
 
-      {/* Bottom status bar */}
-      <div className="bg-black px-6 py-4 flex items-center justify-between">
-        <button
-          onClick={() => setScreen('idle')}
-          className="text-white/50 text-sm px-4 py-2 rounded-xl border border-white/20 hover:border-white/40 transition-colors"
-        >
-          Cancel
-        </button>
-        <div className="text-center">
-          {phase === 'ready' && <p className="text-white/60">Get ready...</p>}
-          {phase === 'countdown' && <p className="text-white font-semibold">Smile! 😊</p>}
-          {phase === 'capturing' && <p className="text-purple-400 font-bold">Click! ✨</p>}
-          {phase === 'processing' && <p className="text-white/60">Almost done...</p>}
+      {/* Dynamic Status Bottom Bar */}
+      <div className="h-20 bg-[#07070d] border-t border-white/10 px-8 flex items-center justify-between z-20">
+        <div className="w-24">
+          <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">
+            {event?.branding?.eventName || 'SnapBooth'}
+          </p>
         </div>
-        <div className="w-20" />
+
+        <div className="text-center">
+          {phase === 'ready' && (
+            <p className="text-white/80 font-bold text-sm tracking-wide animate-pulse">Get ready in position...</p>
+          )}
+          {phase === 'countdown' && (
+            <p className="text-purple-300 font-extrabold text-base tracking-wide">Look directly at the lens! 😊</p>
+          )}
+          {phase === 'capturing' && (
+            <p className="text-emerald-400 font-black text-base tracking-wide">Captured! ✨</p>
+          )}
+          {phase === 'processing' && (
+            <p className="text-white/60 font-semibold text-sm">Finishing touches...</p>
+          )}
+        </div>
+
+        <div className="w-24 text-right">
+          <span className="text-xs font-mono text-white/30">1080p • 60fps</span>
+        </div>
       </div>
     </div>
   );

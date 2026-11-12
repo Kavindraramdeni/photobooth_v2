@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Wand2, Share2, CheckCircle, Rocket, Printer, Image as ImageIcon, X, Mail } from 'lucide-react';
+import { RefreshCw, Wand2, Share2, CheckCircle2, Rocket, Printer, Image as ImageIcon, X, Mail, Sparkles, ChevronRight } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
@@ -52,30 +52,42 @@ function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
 }
 
-// ── Action button — used in both portrait row and landscape panel ─────────────
+// ── Tactile Arcade Action Button ─────────────────────────────────────────────
 function ActionBtn({
-  onClick, icon, label, color, accent = false, disabled = false,
+  onClick, icon, label, gradient, glow, disabled = false, badge,
 }: {
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-  color?: string;
-  accent?: boolean;
+  gradient?: string;
+  glow?: string;
   disabled?: boolean;
+  badge?: string;
 }) {
   return (
     <motion.button
-      whileTap={{ scale: 0.93 }}
+      whileHover={{ scale: 1.04, y: -2 }}
+      whileTap={{ scale: 0.94 }}
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-colors active:opacity-80 disabled:opacity-40 min-h-[44px] h-14 sm:h-auto sm:py-3.5 px-2.5 sm:px-3 min-w-[64px] sm:min-w-0 sm:w-full"
-      style={color ? { background: color } : accent
-        ? { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }
-        : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }
-      }
+      className="relative group flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-all duration-200 disabled:opacity-40 min-h-[58px] sm:h-auto sm:py-3.5 px-3 min-w-[76px] sm:min-w-0 sm:w-full overflow-hidden glass-panel border border-white/10 hover:border-white/25"
+      style={glow ? { boxShadow: `0 8px 24px -6px ${glow}` } : {}}
     >
-      <span className="w-5 h-5 flex items-center justify-center">{icon}</span>
-      <span className="leading-none text-center text-[11px] sm:text-xs">{label}</span>
+      {badge && (
+        <span className="absolute top-1.5 right-1.5 text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-full bg-white/20 text-white/90">
+          {badge}
+        </span>
+      )}
+      <div
+        className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${
+          gradient ? `bg-gradient-to-br ${gradient}` : 'bg-white/10'
+        } shadow-md`}
+      >
+        {icon}
+      </div>
+      <span className="leading-none text-center text-xs font-semibold tracking-tight text-white/90 group-hover:text-white">
+        {label}
+      </span>
     </motion.button>
   );
 }
@@ -89,7 +101,6 @@ export function PreviewScreen() {
   const [frames, setFrames] = useState<Array<{ id: string; name: string; url: string; isDefault?: boolean; isActive?: boolean }>>([]);
   const isDemo = useIsDemo();
 
-  // Guard: redirect safely via effect, never during render
   useEffect(() => {
     if (!currentPhoto) setScreen('idle');
   }, [currentPhoto, setScreen]);
@@ -98,9 +109,9 @@ export function PreviewScreen() {
   const photo = currentPhoto;
 
   const settings = event?.settings;
-  const primaryColor = event?.branding?.primaryColor || '#7c3aed';
+  const primaryColor = event?.branding?.primaryColor || '#8b5cf6';
   const isGIF = mode === 'gif' || mode === 'boomerang';
-  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Strip' : 'Photo';
+  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Photo Strip' : 'Portrait';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
 
   function handleShareClick() {
@@ -115,36 +126,33 @@ export function PreviewScreen() {
     try {
       printPhotoOnly(photo.url, eventName, printScale);
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
-      toast.success('Sent to printer!');
-    } catch { toast.error('Print failed — try again'); }
+      toast.success('Sent to printer! 🖨️');
+    } catch { toast.error('Print failed — please check printer setup'); }
   }
 
-  // ── Auto-print: fires once on mount if operator enabled it ─────────────────
   const autoPrinted = useRef(false);
   const [showEffects, setShowEffects] = useState(false);
   const [activeFilter, setActiveFilter] = useState('none');
 
-  // CSS filters applied live on the preview image
   const EFFECTS = [
     { key: 'none',       label: 'Original',  style: 'none' },
-    { key: 'bw',         label: 'B&W',        style: 'grayscale(100%)' },
-    { key: 'warm',       label: 'Warm',       style: 'sepia(60%) saturate(140%) brightness(105%)' },
-    { key: 'cool',       label: 'Cool',       style: 'hue-rotate(200deg) saturate(120%)' },
-    { key: 'vivid',      label: 'Vivid',      style: 'saturate(180%) contrast(110%)' },
-    { key: 'fade',       label: 'Fade',       style: 'contrast(85%) brightness(110%) saturate(80%)' },
-    { key: 'drama',      label: 'Drama',      style: 'contrast(140%) brightness(90%) saturate(110%)' },
-    { key: 'golden',     label: 'Golden',     style: 'sepia(80%) hue-rotate(-20deg) saturate(160%) brightness(108%)' },
+    { key: 'bw',         label: 'B&W Glam',  style: 'grayscale(100%) contrast(115%)' },
+    { key: 'warm',       label: 'Sunset',    style: 'sepia(45%) saturate(140%) brightness(105%)' },
+    { key: 'cool',       label: 'Editorial', style: 'hue-rotate(190deg) saturate(110%) contrast(105%)' },
+    { key: 'vivid',      label: 'Vibrant',   style: 'saturate(170%) contrast(110%)' },
+    { key: 'fade',       label: 'Matte',     style: 'contrast(88%) brightness(110%) saturate(85%)' },
+    { key: 'golden',     label: 'Golden Hour', style: 'sepia(70%) hue-rotate(-20deg) saturate(150%) brightness(106%)' },
   ];
   const currentFilter = EFFECTS.find(e => e.key === activeFilter)?.style || 'none';
+
   useEffect(() => {
     const autoPrint = event?.settings?.autoPrint as boolean | undefined;
     if (autoPrint && !autoPrinted.current && photo?.url && event) {
       autoPrinted.current = true;
-      // Small delay so the photo renders first
       setTimeout(() => {
         printPhotoOnly(photo.url, eventName, printScale);
         trackAction(event.id, 'photo_printed', { photoId: photo.id, auto: true });
-        toast.success('🖨️ Auto-printing...', { duration: 2000 });
+        toast.success('🖨️ Auto-printing...', { duration: 2500 });
       }, 800);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -167,7 +175,6 @@ export function PreviewScreen() {
     }
   }
 
-  
   async function applyFrameToCurrentPhoto(frameUrl: string | null) {
     if (!currentPhoto?.url || !frameUrl) return;
     try {
@@ -182,11 +189,12 @@ export function PreviewScreen() {
       if (!ctx) return;
       ctx.drawImage(photoBitmap, 0, 0, canvas.width, canvas.height);
       ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.94);
       setCurrentPhoto({ ...currentPhoto, url: dataUrl, galleryUrl: dataUrl, downloadUrl: dataUrl });
     } catch {}
   }
-function selectFrame(frameUrl: string | null) {
+
+  function selectFrame(frameUrl: string | null) {
     if (!event) return;
     setEvent({
       ...event,
@@ -197,84 +205,105 @@ function selectFrame(frameUrl: string | null) {
     });
     setShowFrames(false);
     if (frameUrl) applyFrameToCurrentPhoto(frameUrl);
-    toast.success(frameUrl ? 'Frame applied' : 'Frame cleared');
+    toast.success(frameUrl ? 'Frame overlay applied!' : 'Frame cleared');
   }
 
-  // Build action list dynamically
   const actions = [
     {
-      id: 'effects', icon: <Wand2 className="w-5 h-5" />, label: 'Effects',
-      color: 'linear-gradient(135deg,#0ea5e9,#6366f1)',
+      id: 'share',
+      icon: <Share2 className="w-5 h-5" />,
+      label: 'Get Photo',
+      gradient: 'from-purple-600 via-indigo-600 to-blue-600',
+      glow: 'rgba(139, 92, 246, 0.5)',
+      badge: 'QR / SMS',
+      onClick: handleShareClick,
+    },
+    {
+      id: 'effects',
+      icon: <Wand2 className="w-5 h-5" />,
+      label: 'Filters',
+      gradient: 'from-amber-500 to-rose-500',
+      glow: 'rgba(245, 158, 11, 0.4)',
       onClick: () => setShowEffects(v => !v),
     },
     ...(settings?.allowFrameOverlays ? [{
-      id: 'frames', icon: <ImageIcon className="w-5 h-5" />, label: 'Frames',
-      color: 'linear-gradient(135deg,#7c3aed,#a855f7)',
+      id: 'frames',
+      icon: <ImageIcon className="w-5 h-5" />,
+      label: 'Frames',
+      gradient: 'from-teal-500 to-emerald-600',
+      glow: 'rgba(20, 184, 166, 0.4)',
       onClick: async () => {
         setShowFrames(true);
         if (frames.length === 0) await loadFrames();
       },
     }] : []),
     ...(settings?.allowEmailShare !== false ? [{
-      id: 'email', icon: <Mail className="w-5 h-5" />, label: 'Email',
-      color: 'linear-gradient(135deg,#10b981,#059669)', onClick: () => setShowEmailModal(true),
+      id: 'email',
+      icon: <Mail className="w-5 h-5" />,
+      label: 'Email',
+      gradient: 'from-emerald-600 to-green-700',
+      glow: 'rgba(16, 185, 129, 0.4)',
+      onClick: () => setShowEmailModal(true),
     }] : []),
-    {
-      id: 'share', icon: <Share2 className="w-5 h-5" />, label: 'Share & QR',
-      color: '#2563eb', onClick: handleShareClick,
-    },
     ...(settings?.allowPrint !== false ? [{
-      id: 'print', icon: <Printer className="w-5 h-5" />, label: 'Print',
-      color: undefined, onClick: handlePrint,
+      id: 'print',
+      icon: <Printer className="w-5 h-5" />,
+      label: 'Print',
+      gradient: undefined,
+      glow: undefined,
+      onClick: handlePrint,
     }] : []),
     ...(settings?.allowRetakes !== false ? [{
-      id: 'retake', icon: <RefreshCw className="w-5 h-5" />, label: 'Retake',
-      color: undefined, onClick: () => setScreen('countdown'),
+      id: 'retake',
+      icon: <RefreshCw className="w-5 h-5" />,
+      label: 'Retake',
+      gradient: undefined,
+      glow: undefined,
+      onClick: () => setScreen('countdown'),
     }] : []),
   ];
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#080810] select-none overflow-hidden">
-
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3
-                      border-b border-white/[0.07] bg-[#0d0d1a]">
-        <button
-          onClick={() => setScreen('idle')}
-          className="text-white/40 hover:text-white/80 transition-colors text-sm font-medium px-2 py-1.5 rounded-lg hover:bg-white/5"
-        >
-          ← Back
-        </button>
-        <div className="text-center">
-          <h2 className="text-white font-bold text-base leading-tight">Your {modeLabel}</h2>
-          {event?.name && <p className="text-white/25 text-[11px] mt-0.5">{event.name}</p>}
-        </div>
-        <div className="w-16" />
+    <div className="w-full h-full flex flex-col bg-[#07070d] select-none overflow-hidden relative">
+      {/* Dynamic Ambient Glow Behind Photo */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[650px] rounded-full blur-[160px] opacity-20"
+          style={{ background: primaryColor }}
+        />
       </div>
 
-      {/* ── Body — responsive split ─────────────────────────────────────────
-           Portrait  (< sm): flex-col  — photo top, actions bottom row
-           Landscape (≥ sm): flex-row  — photo left, actions right panel
-      ── */}
-      <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0">
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 glass-panel z-20">
+        <button
+          onClick={() => setScreen('idle')}
+          className="text-white/60 hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-pill flex items-center gap-1 active:scale-95"
+        >
+          ← Main Screen
+        </button>
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <h2 className="text-white font-black text-sm tracking-wide uppercase">Your {modeLabel}</h2>
+          </div>
+          {event?.name && <p className="text-white/35 text-[11px] font-medium truncate max-w-[200px]">{event.name}</p>}
+        </div>
+        <div className="w-20" />
+      </div>
 
-        {/* ── PHOTO AREA ── */}
-        <div className="
-          relative flex items-center justify-center overflow-hidden
-          flex-1 sm:flex-1
-          p-2 sm:p-4
-          min-h-0
-        ">
+      {/* Main Preview Area */}
+      <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0 z-10 relative">
+        {/* Photo Stage */}
+        <div className="relative flex-1 flex items-center justify-center p-4 sm:p-8 min-h-0">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.92, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-            className="relative w-full h-full flex items-center justify-center max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh]"
+            transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+            className="relative w-full h-full flex items-center justify-center max-h-[58vh] sm:max-h-[70vh] lg:max-h-[76vh]"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <div
-              className="relative inline-block max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] [&_img]:max-h-[50vh] sm:[&_img]:max-h-[60vh] lg:[&_img]:max-h-[70vh] [&_img]:object-contain flex flex-col items-center justify-center"
-              style={{ filter: currentFilter, transition: 'filter 0.25s ease' }}
+              className="relative inline-block max-h-full rounded-3xl overflow-hidden shadow-2xl border border-white/15"
+              style={{ filter: currentFilter, transition: 'filter 0.3s ease' }}
             >
               <TemplateRenderer
                 photoUrl={photo.url}
@@ -283,151 +312,134 @@ function selectFrame(frameUrl: string | null) {
               />
 
               {event?.branding?.frameUrl && (
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={event.branding.frameUrl as string}
-                  alt="Selected frame overlay"
-                  className="absolute inset-0 w-full h-full object-cover rounded-2xl pointer-events-none select-none"
+                  alt="Frame overlay"
+                  className="absolute inset-0 w-full h-full object-cover rounded-3xl pointer-events-none select-none"
                   draggable={false}
                 />
               )}
             </div>
 
-            {/* ✅ Captured badge */}
+            {/* Captured Success Badge */}
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.35, type: 'spring' }}
-              className="absolute top-3 right-3 flex items-center gap-1.5 bg-green-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg"
+              transition={{ delay: 0.3, type: 'spring' }}
+              className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/90 text-white text-xs font-bold shadow-lg backdrop-blur-md"
             >
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span>Captured!</span>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Perfect Shot</span>
             </motion.div>
 
-            {/* Retake circle — landscape only, floats bottom-center of photo */}
+            {/* Floating Retake Button in Landscape */}
             {settings?.allowRetakes !== false && (
               <motion.button
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45 }}
-                whileTap={{ scale: 0.88 }}
+                transition={{ delay: 0.4 }}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={() => setScreen('countdown')}
-                className="
-                  hidden sm:flex /* landscape only — portrait has it in actions row */
-                  absolute bottom-5 left-1/2 -translate-x-1/2
-                  flex-col items-center gap-1 group
-                "
+                className="hidden sm:flex absolute bottom-6 left-1/2 -translate-x-1/2 flex-col items-center gap-1.5 group cursor-pointer z-20"
               >
-                <div className="w-14 h-14 rounded-full bg-black/40 border-2 border-white/30
-                                flex items-center justify-center backdrop-blur-md
-                                group-hover:bg-black/60 group-hover:border-white/50 transition-all shadow-xl">
-                  <RefreshCw className="w-6 h-6 text-white" />
+                <div className="w-14 h-14 rounded-full glass-panel border border-white/20 flex items-center justify-center shadow-xl group-hover:border-purple-400 group-hover:bg-purple-600/30 transition-all duration-300">
+                  <RefreshCw className="w-6 h-6 text-white group-hover:rotate-180 transition-transform duration-500" />
                 </div>
-                <span className="text-white/50 text-[11px] font-medium">Retake</span>
+                <span className="text-white/60 text-xs font-bold tracking-wide">Retake</span>
               </motion.button>
             )}
           </motion.div>
         </div>
 
-        {/* ── ACTIONS ────────────────────────────────────────────────────────
-             Portrait:  horizontal scrollable row at the bottom of photo section
-             Landscape: fixed-width vertical panel on the right
-        ── */}
-
-        {/* PORTRAIT row (hidden on sm+) */}
-        <div className="
-          flex sm:hidden
-          flex-shrink-0 overflow-x-auto overflow-y-hidden
-          gap-2 px-3 py-2
-          border-t border-white/[0.06] bg-[#0d0d1a]/70
-          scrollbar-none
-        "
-          style={{ WebkitOverflowScrolling: 'touch' }}
-        >
+        {/* Action Panel: Horizontal scroll on mobile, Vertical dock on desktop */}
+        {/* Mobile Action Row */}
+        <div className="flex sm:hidden flex-shrink-0 overflow-x-auto gap-2.5 px-4 py-3 glass-panel border-t border-white/10 scrollbar-none">
           {actions.map((a, i) => (
-            <motion.div
-              key={a.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.06 }}
-              className="flex-shrink-0"
-            >
+            <div key={a.id} className="flex-shrink-0">
               <ActionBtn
                 onClick={a.onClick}
                 icon={a.icon}
                 label={a.label}
-                color={a.color}
+                gradient={a.gradient}
+                glow={a.glow}
+                badge={a.badge}
               />
-            </motion.div>
+            </div>
           ))}
         </div>
 
-        {/* LANDSCAPE panel (hidden on mobile, shown on sm+) */}
+        {/* Desktop / Tablet Vertical Dock */}
         <motion.div
-          initial={{ opacity: 0, x: 16 }}
+          initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.12 }}
-          className="hidden sm:flex flex-shrink-0 flex-col gap-2.5 py-4 px-2.5 border-l border-white/[0.06] bg-[#0d0d1a]/60 overflow-y-auto"
-          style={{ width: '140px', minWidth: '140px' }}
+          transition={{ delay: 0.15 }}
+          className="hidden sm:flex flex-shrink-0 flex-col gap-3 py-6 px-4 border-l border-white/10 glass-panel overflow-y-auto w-36"
         >
           {actions.map((a, i) => (
             <motion.div
               key={a.id}
-              initial={{ opacity: 0, x: 10 }}
+              initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 + i * 0.07 }}
+              transition={{ delay: 0.15 + i * 0.05 }}
             >
               <ActionBtn
                 onClick={a.onClick}
                 icon={a.icon}
                 label={a.label}
-                color={a.color}
+                gradient={a.gradient}
+                glow={a.glow}
+                badge={a.badge}
               />
             </motion.div>
           ))}
-
-          {/* Effects — coming soon */}
-          <div className="flex flex-col items-center gap-1.5 py-4 rounded-2xl
-                          text-white/15 text-xs border border-white/[0.06] border-dashed mt-auto">
-            <span className="text-lg">🎨</span>
-            <span>Effects</span>
-            <span className="text-[9px] opacity-70">Soon</span>
-          </div>
         </motion.div>
       </div>
 
-      {/* ── Effects Panel (slides up) ───────────────────────────────────── */}
+      {/* Filter Tray Modal Sheet */}
       <AnimatePresence>
         {showEffects && (
           <motion.div
-            initial={{ y: 140, opacity: 0 }}
+            initial={{ y: 160, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 140, opacity: 0 }}
+            exit={{ y: 160, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="absolute bottom-0 left-0 right-0 z-30 bg-[#0d0d1a]/97 backdrop-blur-xl border-t border-white/10 px-4 pt-4 pb-6"
+            className="absolute bottom-20 inset-x-4 z-40 glass-panel border border-white/15 rounded-3xl p-5 shadow-2xl"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">🪄 Live Effects</span>
-              <button onClick={() => setShowEffects(false)}
-                className="text-white/30 hover:text-white/80 text-xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">
-                ✕
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <span className="text-white font-bold text-sm">Select Color Grading Filter</span>
+              </div>
+              <button
+                onClick={() => setShowEffects(false)}
+                className="p-1.5 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
               {EFFECTS.map(ef => (
-                <button key={ef.key}
+                <button
+                  key={ef.key}
                   onClick={() => setActiveFilter(ef.key)}
-                  className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all ${
+                  className={`flex-shrink-0 flex flex-col items-center gap-2 p-2.5 rounded-2xl border transition-all duration-200 cursor-pointer ${
                     activeFilter === ef.key
-                      ? 'border-sky-400 bg-sky-500/20 text-sky-200'
-                      : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
-                  }`}>
-                  <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 relative">
+                      ? 'border-purple-400 bg-purple-500/20 shadow-[0_0_16px_rgba(168,85,247,0.4)]'
+                      : 'border-white/10 glass-pill hover:border-white/25'
+                  }`}
+                >
+                  <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt=""
-                      className="absolute inset-0 w-full h-full object-cover"
-                      style={{ filter: ef.style }} />
+                    <img
+                      src={photo.url}
+                      alt={ef.label}
+                      className="w-full h-full object-cover"
+                      style={{ filter: ef.style }}
+                    />
                   </div>
-                  <span className="text-[10px] font-semibold leading-none whitespace-nowrap">{ef.label}</span>
+                  <span className="text-xs font-bold text-white/80">{ef.label}</span>
                 </button>
               ))}
             </div>
@@ -435,83 +447,98 @@ function selectFrame(frameUrl: string | null) {
         )}
       </AnimatePresence>
 
-      {/* ── Bottom bar ─────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-4 pb-safe-or-5 pt-2
-                      border-t border-white/[0.06] bg-[#0d0d1a]/50 space-y-2"
-           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}>
-
-        {/* Demo CTA */}
+      {/* Bottom Bar: Done / Next Guest */}
+      <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 glass-panel z-20 space-y-2">
         {isDemo && (
           <motion.a
             href="/signup"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
             whileTap={{ scale: 0.98 }}
-            className="block w-full rounded-2xl overflow-hidden"
+            className="block w-full rounded-2xl overflow-hidden shadow-lg"
             style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7 50%,#ec4899)' }}
           >
-            <div className="flex items-center justify-between px-4 py-3 gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Rocket className="w-5 h-5 text-white flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-white font-bold text-xs leading-tight truncate">Love it? This is YOUR booth.</p>
-                  <p className="text-white/70 text-[10px] truncate">Free trial — no card needed</p>
+            <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-3">
+                <Rocket className="w-5 h-5 text-white" />
+                <div>
+                  <p className="text-white font-bold text-xs leading-tight">Host this photobooth at your next event</p>
+                  <p className="text-white/70 text-[10px]">Create an account in 30 seconds</p>
                 </div>
               </div>
-              <span className="flex-shrink-0 bg-white text-purple-700 font-black text-xs px-3 py-1.5 rounded-lg">
-                Try Free →
+              <span className="bg-white text-purple-700 font-black text-xs px-3 py-1.5 rounded-xl">
+                Get Started →
               </span>
             </div>
           </motion.a>
         )}
 
-        {/* Done — centred, full width */}
         <motion.button
-          whileTap={{ scale: 0.97 }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
           onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-bold text-white text-sm min-h-[48px] transition-all active:opacity-80"
-          style={{ background: `linear-gradient(135deg,${primaryColor},${primaryColor}cc)` }}
+          className="w-full py-4 rounded-2xl font-black text-white text-base tracking-wide flex items-center justify-center gap-2 shadow-xl cursor-pointer"
+          style={{ background: `linear-gradient(135deg, ${primaryColor}, #4f46e5)` }}
         >
-          ✅ Done — Take Another
+          <CheckCircle2 className="w-5 h-5" /> Done — Take Another Photo
         </motion.button>
       </div>
 
-      {/* Lead capture modal */}
+      {/* Frame Selection Modal */}
       <AnimatePresence>
         {showFrames && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm p-4 sm:p-6 flex items-end sm:items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md p-6 flex items-center justify-center"
             onClick={() => setShowFrames(false)}
           >
             <motion.div
-              initial={{ y: 24, opacity: 0.9 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0.9 }}
-              className="w-full max-w-2xl bg-[#12121a] border border-white/10 rounded-3xl p-5"
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 20 }}
+              className="w-full max-w-xl glass-panel border border-white/15 rounded-3xl p-6 shadow-2xl"
               onClick={e => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-bold">Choose Frame</h3>
-                <button onClick={() => setShowFrames(false)} className="text-white/50 hover:text-white">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-teal-400" />
+                  <h3 className="text-white font-bold text-lg">Choose Frame Overlay</h3>
+                </div>
+                <button
+                  onClick={() => setShowFrames(false)}
+                  className="p-1.5 rounded-xl text-white/40 hover:text-white hover:bg-white/10"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
               {framesLoading ? (
-                <p className="text-white/60 text-sm">Loading frames...</p>
+                <div className="py-12 flex flex-col items-center justify-center gap-3">
+                  <div className="w-8 h-8 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-white/60 text-xs">Loading available frames...</p>
+                </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <button onClick={() => selectFrame(null)}
-                    className="h-28 rounded-xl border border-white/15 text-white/80 text-sm hover:bg-white/5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 max-h-[50vh] overflow-y-auto">
+                  <button
+                    onClick={() => selectFrame(null)}
+                    className="h-32 rounded-2xl border-2 border-dashed border-white/20 text-white/70 hover:border-white/40 font-bold text-sm flex flex-col items-center justify-center gap-2 glass-pill"
+                  >
+                    <X className="w-6 h-6 text-white/40" />
                     No Frame
                   </button>
                   {frames.map(frame => (
-                    <button key={frame.id} onClick={() => selectFrame(frame.url)}
-                      className={`relative h-28 rounded-xl overflow-hidden border ${
-                        event?.branding?.frameUrl === frame.url ? 'border-violet-500' : 'border-white/10'
-                      }`}>
+                    <button
+                      key={frame.id}
+                      onClick={() => selectFrame(frame.url)}
+                      className={`relative h-32 rounded-2xl overflow-hidden border-2 transition-all group ${
+                        event?.branding?.frameUrl === frame.url ? 'border-purple-400 ring-4 ring-purple-500/30' : 'border-white/10 hover:border-white/30'
+                      }`}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={frame.url} alt={frame.name} className="w-full h-full object-cover" />
-                      <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] py-1 px-2 truncate">{frame.name}</div>
+                      <img src={frame.url} alt={frame.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute inset-x-0 bottom-0 bg-black/70 backdrop-blur-xs text-white text-xs font-semibold py-1.5 px-3 truncate">
+                        {frame.name}
+                      </div>
                     </button>
                   ))}
                 </div>
