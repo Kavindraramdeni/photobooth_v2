@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Wand2, Share2, CheckCircle2, Rocket, Printer, Image as ImageIcon, X, Mail, Sparkles, ChevronRight } from 'lucide-react';
+import { RefreshCw, Wand2, Share2, Printer, Image as ImageIcon, X, Mail, ArrowLeft, Check } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
 import { EmailCaptureModal } from '@/components/booth/EmailCaptureModal';
 import { TemplateRenderer } from '@/components/booth/TemplateRenderer';
-import { useIsDemo } from '@/app/booth/BoothPageClient';
 import toast from 'react-hot-toast';
 
-// ── Print — single page, no blank pages ───────────────────────────────────────
+// ── Print helper — single page, robust layout ─────────────────────────────────
 function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   const existing = document.getElementById('__snapbooth_print_frame');
   if (existing) existing.remove();
@@ -52,54 +51,42 @@ function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
   setTimeout(() => { document.getElementById('__snapbooth_print_frame')?.remove(); }, 30000);
 }
 
-// ── Tactile Arcade Action Button ─────────────────────────────────────────────
-function ActionBtn({
-  onClick, icon, label, gradient, glow, disabled = false, badge,
-}: {
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  gradient?: string;
-  glow?: string;
-  disabled?: boolean;
-  badge?: string;
-}) {
-  return (
-    <motion.button
-      whileHover={{ scale: 1.04, y: -2 }}
-      whileTap={{ scale: 0.94 }}
-      onClick={onClick}
-      disabled={disabled}
-      className="relative group flex flex-col items-center justify-center gap-1.5 rounded-2xl font-bold text-white text-xs select-none transition-all duration-200 disabled:opacity-40 min-h-[58px] sm:h-auto sm:py-3.5 px-3 min-w-[76px] sm:min-w-0 sm:w-full overflow-hidden glass-panel border border-white/10 hover:border-white/25"
-      style={glow ? { boxShadow: `0 8px 24px -6px ${glow}` } : {}}
-    >
-      {badge && (
-        <span className="absolute top-1.5 right-1.5 text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-full bg-white/20 text-white/90">
-          {badge}
-        </span>
-      )}
-      <div
-        className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${
-          gradient ? `bg-gradient-to-br ${gradient}` : 'bg-white/10'
-        } shadow-md`}
-      >
-        {icon}
-      </div>
-      <span className="leading-none text-center text-xs font-semibold tracking-tight text-white/90 group-hover:text-white">
-        {label}
-      </span>
-    </motion.button>
-  );
-}
-
 export function PreviewScreen() {
   const { currentPhoto, event, mode, setScreen, resetSession, setEvent, setCurrentPhoto } = useBoothStore();
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showFrames, setShowFrames] = useState(false);
   const [framesLoading, setFramesLoading] = useState(false);
-  const [frames, setFrames] = useState<Array<{ id: string; name: string; url: string; isDefault?: boolean; isActive?: boolean }>>([]);
-  const isDemo = useIsDemo();
+  const [frames, setFrames] = useState<Array<{ id: string; name: string; url: string; isActive?: boolean }>>([]);
+  const [showEffects, setShowEffects] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('none');
+
+  // Auto-reset ring (30 seconds)
+  const RESET_SECONDS = 30;
+  const [secondsLeft, setSecondsLeft] = useState(RESET_SECONDS);
+  const resetTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const restartAutoResetTimer = useCallback(() => {
+    if (resetTimerRef.current) clearInterval(resetTimerRef.current);
+    setSecondsLeft(RESET_SECONDS);
+    resetTimerRef.current = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (resetTimerRef.current) clearInterval(resetTimerRef.current);
+          resetSession();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [resetSession]);
+
+  useEffect(() => {
+    restartAutoResetTimer();
+    return () => {
+      if (resetTimerRef.current) clearInterval(resetTimerRef.current);
+    };
+  }, [restartAutoResetTimer]);
 
   useEffect(() => {
     if (!currentPhoto) setScreen('idle');
@@ -108,18 +95,32 @@ export function PreviewScreen() {
   if (!currentPhoto) return null;
   const photo = currentPhoto;
 
+  const branding = event?.branding;
   const settings = event?.settings;
-  const primaryColor = event?.branding?.primaryColor || '#8b5cf6';
-  const isGIF = mode === 'gif' || mode === 'boomerang';
-  const modeLabel = mode === 'boomerang' ? 'Boomerang' : mode === 'gif' ? 'GIF' : mode === 'strip' ? 'Photo Strip' : 'Portrait';
-  const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
+  const primaryColor = (branding?.primaryColor as string) || '#6366f1';
+  const themeMode = (branding?.themeMode as string) || 'dark';
+  const isLight = themeMode === 'light';
+  const eventName = (branding?.eventName as string) || event?.name || 'SnapBooth';
+  const printScale = (settings?.printScale as number) || 98;
 
-  function handleShareClick() {
-    if (event?.settings?.leadCapture) setShowLeadModal(true);
-    else setScreen('share');
+  const EFFECTS = [
+    { key: 'none', label: 'Original', style: 'none' },
+    { key: 'bw', label: 'B&W Glam', style: 'grayscale(100%) contrast(115%)' },
+    { key: 'warm', label: 'Sunset', style: 'sepia(45%) saturate(140%) brightness(105%)' },
+    { key: 'cool', label: 'Editorial', style: 'hue-rotate(190deg) saturate(110%) contrast(105%)' },
+    { key: 'vivid', label: 'Vibrant', style: 'saturate(170%) contrast(110%)' },
+    { key: 'fade', label: 'Matte', style: 'contrast(88%) brightness(110%) saturate(85%)' },
+    { key: 'golden', label: 'Golden Hour', style: 'sepia(70%) hue-rotate(-20deg) saturate(150%) brightness(106%)' },
+  ];
+  const currentFilter = EFFECTS.find(e => e.key === activeFilter)?.style || 'none';
+
+  function handleDone() {
+    if (settings?.leadCapture) {
+      setShowLeadModal(true);
+    } else {
+      setScreen('share');
+    }
   }
-
-  const printScale = (event?.settings?.printScale as number) || 98;
 
   async function handlePrint() {
     if (!event) return;
@@ -127,35 +128,10 @@ export function PreviewScreen() {
       printPhotoOnly(photo.url, eventName, printScale);
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer! 🖨️');
-    } catch { toast.error('Print failed — please check printer setup'); }
-  }
-
-  const autoPrinted = useRef(false);
-  const [showEffects, setShowEffects] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('none');
-
-  const EFFECTS = [
-    { key: 'none',       label: 'Original',  style: 'none' },
-    { key: 'bw',         label: 'B&W Glam',  style: 'grayscale(100%) contrast(115%)' },
-    { key: 'warm',       label: 'Sunset',    style: 'sepia(45%) saturate(140%) brightness(105%)' },
-    { key: 'cool',       label: 'Editorial', style: 'hue-rotate(190deg) saturate(110%) contrast(105%)' },
-    { key: 'vivid',      label: 'Vibrant',   style: 'saturate(170%) contrast(110%)' },
-    { key: 'fade',       label: 'Matte',     style: 'contrast(88%) brightness(110%) saturate(85%)' },
-    { key: 'golden',     label: 'Golden Hour', style: 'sepia(70%) hue-rotate(-20deg) saturate(150%) brightness(106%)' },
-  ];
-  const currentFilter = EFFECTS.find(e => e.key === activeFilter)?.style || 'none';
-
-  useEffect(() => {
-    const autoPrint = event?.settings?.autoPrint as boolean | undefined;
-    if (autoPrint && !autoPrinted.current && photo?.url && event) {
-      autoPrinted.current = true;
-      setTimeout(() => {
-        printPhotoOnly(photo.url, eventName, printScale);
-        trackAction(event.id, 'photo_printed', { photoId: photo.id, auto: true });
-        toast.success('🖨️ Auto-printing...', { duration: 2500 });
-      }, 800);
+    } catch {
+      toast.error('Printer out of paper or disconnected');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   async function loadFrames() {
     if (!event?.id) return;
@@ -169,7 +145,7 @@ export function PreviewScreen() {
       if (!res.ok) throw new Error(data.error || 'Failed to load frames');
       setFrames((data.frames || []).filter((f: { isActive?: boolean }) => f.isActive !== false));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load frames');
+      toast.error(e instanceof Error ? e.message : 'Frames unavailable');
     } finally {
       setFramesLoading(false);
     }
@@ -205,224 +181,231 @@ export function PreviewScreen() {
     });
     setShowFrames(false);
     if (frameUrl) applyFrameToCurrentPhoto(frameUrl);
-    toast.success(frameUrl ? 'Frame overlay applied!' : 'Frame cleared');
   }
 
-  const actions = [
-    {
-      id: 'share',
-      icon: <Share2 className="w-5 h-5" />,
-      label: 'Get Photo',
-      gradient: 'from-purple-600 via-indigo-600 to-blue-600',
-      glow: 'rgba(139, 92, 246, 0.5)',
-      badge: 'QR / SMS',
-      onClick: handleShareClick,
-    },
-    {
-      id: 'effects',
-      icon: <Wand2 className="w-5 h-5" />,
-      label: 'Filters',
-      gradient: 'from-amber-500 to-rose-500',
-      glow: 'rgba(245, 158, 11, 0.4)',
-      onClick: () => setShowEffects(v => !v),
-    },
-    ...(settings?.allowFrameOverlays ? [{
-      id: 'frames',
-      icon: <ImageIcon className="w-5 h-5" />,
-      label: 'Frames',
-      gradient: 'from-teal-500 to-emerald-600',
-      glow: 'rgba(20, 184, 166, 0.4)',
-      onClick: async () => {
-        setShowFrames(true);
-        if (frames.length === 0) await loadFrames();
-      },
-    }] : []),
-    ...(settings?.allowEmailShare !== false ? [{
-      id: 'email',
-      icon: <Mail className="w-5 h-5" />,
-      label: 'Email',
-      gradient: 'from-emerald-600 to-green-700',
-      glow: 'rgba(16, 185, 129, 0.4)',
-      onClick: () => setShowEmailModal(true),
-    }] : []),
-    ...(settings?.allowPrint !== false ? [{
-      id: 'print',
-      icon: <Printer className="w-5 h-5" />,
-      label: 'Print',
-      gradient: undefined,
-      glow: undefined,
-      onClick: handlePrint,
-    }] : []),
-    ...(settings?.allowRetakes !== false ? [{
-      id: 'retake',
-      icon: <RefreshCw className="w-5 h-5" />,
-      label: 'Retake',
-      gradient: undefined,
-      glow: undefined,
-      onClick: () => setScreen('countdown'),
-    }] : []),
-  ];
+  // Circular progress calculations for 30s auto-reset ring
+  const circleRadius = 18;
+  const circleCircumference = 2 * Math.PI * circleRadius;
+  const strokeDashoffset = circleCircumference - (circleCircumference * secondsLeft) / RESET_SECONDS;
 
   return (
-    <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative">
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/10 glass-crystal z-20">
+    <div
+      className="w-full h-full flex flex-col justify-between bg-transparent select-none overflow-hidden relative z-10"
+      onClick={restartAutoResetTimer}
+      onTouchStart={restartAutoResetTimer}
+    >
+      {/* Top Header: Clean, Solid, Auto-Reset Ring */}
+      <div
+        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b-2 z-20 ${
+          isLight
+            ? 'bg-white border-slate-200 text-slate-900'
+            : 'bg-[#181938] border-slate-800 text-white'
+        }`}
+      >
         <button
-          onClick={() => setScreen('idle')}
-          className="text-slate-600 dark:text-white/60 hover:text-purple-600 dark:hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-crystal-pill flex items-center gap-1 active:scale-95 shadow-sm"
+          onClick={() => setScreen('style')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+            isLight
+              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+          }`}
         >
-          ← Main Screen
+          <ArrowLeft className="w-4 h-4" />
+          <span>Change Style</span>
         </button>
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h2 className="text-slate-900 dark:text-white font-black text-sm tracking-wide uppercase">Your {modeLabel}</h2>
+
+        {/* Event Title */}
+        <h2 className="text-base sm:text-lg font-black tracking-tight truncate max-w-xs sm:max-w-md">
+          {eventName}
+        </h2>
+
+        {/* Auto-Reset 30s Countdown Ring */}
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            Auto-reset
+          </span>
+          <div className="relative w-10 h-10 flex items-center justify-center">
+            <svg className="w-10 h-10 -rotate-90">
+              <circle
+                cx="20"
+                cy="20"
+                r={circleRadius}
+                className={isLight ? 'stroke-slate-200' : 'stroke-slate-800'}
+                strokeWidth="3"
+                fill="transparent"
+              />
+              <circle
+                cx="20"
+                cy="20"
+                r={circleRadius}
+                stroke={primaryColor}
+                strokeWidth="3"
+                strokeDasharray={circleCircumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                fill="transparent"
+                className="transition-all duration-1000 ease-linear"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black">
+              {secondsLeft}s
+            </span>
           </div>
-          {event?.name && <p className="text-slate-500 dark:text-white/40 text-[11px] font-bold truncate max-w-[200px]">{event.name}</p>}
         </div>
-        <div className="w-20" />
       </div>
 
-      {/* Main Preview Area */}
-      <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0 z-10 relative">
-        {/* Photo Stage */}
-        <div className="relative flex-1 flex items-center justify-center p-4 sm:p-8 min-h-0">
-          <motion.div
-            initial={{ scale: 0.92, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-            className="relative w-full h-full flex items-center justify-center max-h-[58vh] sm:max-h-[70vh] lg:max-h-[76vh]"
+      {/* Main Preview Frame & Side Action Stack */}
+      <div className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 sm:p-8 gap-6 min-h-0 overflow-hidden">
+        {/* Photo Stage (Solid framed container, no marketing banner, no perfect shot badge) */}
+        <div className="relative flex-1 flex items-center justify-center w-full h-full max-h-[62vh] sm:max-h-[72vh]">
+          <div
+            className={`relative rounded-3xl overflow-hidden shadow-2xl border-4 max-h-full ${
+              isLight ? 'bg-white border-white shadow-slate-300' : 'bg-[#181938] border-slate-700 shadow-black/60'
+            }`}
+            style={{ filter: currentFilter, transition: 'filter 0.3s ease' }}
           >
-            <div
-              className="relative inline-block max-h-full rounded-3xl overflow-hidden shadow-2xl border border-white/15"
-              style={{ filter: currentFilter, transition: 'filter 0.3s ease' }}
-            >
-              <TemplateRenderer
-                photoUrl={photo.url}
-                eventName={eventName}
-                template={{ layout: { footerText: event?.branding?.footerText, logoUrl: event?.branding?.logoUrl, borderColor: event?.branding?.secondaryColor } }}
+            <TemplateRenderer
+              photoUrl={photo.url}
+              eventName={eventName}
+              template={{
+                layout: {
+                  footerText: branding?.footerText,
+                  logoUrl: branding?.logoUrl,
+                  borderColor: branding?.secondaryColor,
+                },
+              }}
+            />
+
+            {branding?.frameUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={branding.frameUrl as string}
+                alt="Frame overlay"
+                className="absolute inset-0 w-full h-full object-cover rounded-3xl pointer-events-none select-none"
+                draggable={false}
               />
-
-              {event?.branding?.frameUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={event.branding.frameUrl as string}
-                  alt="Frame overlay"
-                  className="absolute inset-0 w-full h-full object-cover rounded-3xl pointer-events-none select-none"
-                  draggable={false}
-                />
-              )}
-            </div>
-
-            {/* Captured Success Badge */}
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3, type: 'spring' }}
-              className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/90 text-white text-xs font-bold shadow-lg backdrop-blur-md"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Perfect Shot</span>
-            </motion.div>
-
-            {/* Floating Retake Button in Landscape */}
-            {settings?.allowRetakes !== false && (
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => setScreen('countdown')}
-                className="hidden sm:flex absolute bottom-6 left-1/2 -translate-x-1/2 flex-col items-center gap-1.5 group cursor-pointer z-20"
-              >
-                <div className="w-14 h-14 rounded-full glass-panel border border-white/20 flex items-center justify-center shadow-xl group-hover:border-purple-400 group-hover:bg-purple-600/30 transition-all duration-300">
-                  <RefreshCw className="w-6 h-6 text-white group-hover:rotate-180 transition-transform duration-500" />
-                </div>
-                <span className="text-white/60 text-xs font-bold tracking-wide">Retake</span>
-              </motion.button>
             )}
-          </motion.div>
+          </div>
         </div>
 
-        {/* Action Panel: Horizontal scroll on mobile, Vertical dock on desktop */}
-        {/* Mobile Action Row */}
-        <div className="flex sm:hidden flex-shrink-0 overflow-x-auto gap-2.5 px-4 py-3 glass-panel border-t border-white/10 scrollbar-none">
-          {actions.map((a, i) => (
-            <div key={a.id} className="flex-shrink-0">
-              <ActionBtn
-                onClick={a.onClick}
-                icon={a.icon}
-                label={a.label}
-                gradient={a.gradient}
-                glow={a.glow}
-                badge={a.badge}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Desktop / Tablet Vertical Dock */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.15 }}
-          className="hidden sm:flex flex-shrink-0 flex-col gap-3 py-6 px-4 border-l border-white/10 glass-panel overflow-y-auto w-36"
-        >
-          {actions.map((a, i) => (
-            <motion.div
-              key={a.id}
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 + i * 0.05 }}
+        {/* Solid Action Buttons Stack */}
+        <div className="flex md:flex-col gap-3 w-full md:w-48 flex-shrink-0 justify-center">
+          {/* Retake Button (if allowed) */}
+          {settings?.allowRetakes !== false && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setScreen('countdown')}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+              }`}
             >
-              <ActionBtn
-                onClick={a.onClick}
-                icon={a.icon}
-                label={a.label}
-                gradient={a.gradient}
-                glow={a.glow}
-                badge={a.badge}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
+              <RefreshCw className="w-5 h-5 text-indigo-400" />
+              <span>Retake</span>
+            </motion.button>
+          )}
+
+          {/* Color Grading Filters */}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowEffects(v => !v)}
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+            }`}
+          >
+            <Wand2 className="w-5 h-5 text-amber-400" />
+            <span>Filters</span>
+          </motion.button>
+
+          {/* Frame Overlays (if enabled) */}
+          {settings?.allowFrameOverlays && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={async () => {
+                setShowFrames(true);
+                if (frames.length === 0) await loadFrames();
+              }}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+              }`}
+            >
+              <ImageIcon className="w-5 h-5 text-emerald-400" />
+              <span>Frames</span>
+            </motion.button>
+          )}
+
+          {/* Direct Print Button (only when allowed and available) */}
+          {settings?.allowPrint !== false && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handlePrint}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+              }`}
+            >
+              <Printer className="w-5 h-5 text-sky-400" />
+              <span>Print</span>
+            </motion.button>
+          )}
+
+          {/* Direct Email (if enabled) */}
+          {settings?.allowEmailShare !== false && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowEmailModal(true)}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+              }`}
+            >
+              <Mail className="w-5 h-5 text-rose-400" />
+              <span>Email</span>
+            </motion.button>
+          )}
+        </div>
       </div>
 
-      {/* Filter Tray Modal Sheet */}
+      {/* Filter Selector Tray */}
       <AnimatePresence>
         {showEffects && (
           <motion.div
-            initial={{ y: 160, opacity: 0 }}
+            initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 160, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="absolute bottom-20 inset-x-4 z-40 glass-panel border border-white/15 rounded-3xl p-5 shadow-2xl"
+            exit={{ y: 80, opacity: 0 }}
+            className={`mx-6 mb-4 p-4 rounded-3xl border-2 shadow-2xl z-30 ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-700'
+            }`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <span className="text-white font-bold text-sm">Select Color Grading Filter</span>
-              </div>
-              <button
-                onClick={() => setShowEffects(false)}
-                className="p-1.5 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-              >
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                Select Photo Filter
+              </span>
+              <button onClick={() => setShowEffects(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
-              {EFFECTS.map(ef => (
+              {EFFECTS.map((ef) => (
                 <button
                   key={ef.key}
                   onClick={() => setActiveFilter(ef.key)}
-                  className={`flex-shrink-0 flex flex-col items-center gap-2 p-2.5 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                  className={`flex-shrink-0 flex flex-col items-center gap-1.5 p-2 rounded-2xl border-2 transition-all cursor-pointer ${
                     activeFilter === ef.key
-                      ? 'border-purple-400 bg-purple-500/20 shadow-[0_0_16px_rgba(168,85,247,0.4)]'
-                      : 'border-white/10 glass-pill hover:border-white/25'
+                      ? 'border-indigo-500 bg-indigo-500/15'
+                      : isLight
+                      ? 'border-slate-200 hover:border-slate-300 bg-slate-50'
+                      : 'border-slate-700/80 hover:border-slate-600 bg-black/20'
                   }`}
                 >
-                  <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden shadow-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={photo.url}
@@ -431,7 +414,9 @@ export function PreviewScreen() {
                       style={{ filter: ef.style }}
                     />
                   </div>
-                  <span className="text-xs font-bold text-white/80">{ef.label}</span>
+                  <span className={`text-xs font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    {ef.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -439,42 +424,25 @@ export function PreviewScreen() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Bar: Done / Next Guest */}
-      <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 glass-panel z-20 space-y-2">
-        {isDemo && (
-          <motion.a
-            href="/signup"
-            whileTap={{ scale: 0.98 }}
-            className="block w-full rounded-2xl overflow-hidden shadow-lg"
-            style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7 50%,#ec4899)' }}
-          >
-            <div className="flex items-center justify-between px-5 py-3">
-              <div className="flex items-center gap-3">
-                <Rocket className="w-5 h-5 text-white" />
-                <div>
-                  <p className="text-white font-bold text-xs leading-tight">Host this photobooth at your next event</p>
-                  <p className="text-white/70 text-[10px]">Create an account in 30 seconds</p>
-                </div>
-              </div>
-              <span className="bg-white text-purple-700 font-black text-xs px-3 py-1.5 rounded-xl">
-                Get Started →
-              </span>
-            </div>
-          </motion.a>
-        )}
-
+      {/* Bottom Bar: Done is a FULL-WIDTH, SOLID ACCENT BUTTON and the MOST PROMINENT THING on screen */}
+      <div
+        className={`flex-shrink-0 p-6 border-t-2 z-20 ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-800'
+        }`}
+      >
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
-          onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-black text-white text-base tracking-wide flex items-center justify-center gap-2 shadow-xl cursor-pointer"
-          style={{ background: `linear-gradient(135deg, ${primaryColor}, #4f46e5)` }}
+          onClick={handleDone}
+          className="w-full py-5 sm:py-6 rounded-2xl font-black text-xl sm:text-2xl text-white tracking-wide flex items-center justify-center gap-3 shadow-2xl cursor-pointer border-2 border-white/20 active:scale-95 transition-all"
+          style={{ backgroundColor: primaryColor }}
         >
-          <CheckCircle2 className="w-5 h-5" /> Done — Take Another Photo
+          <Check className="w-7 h-7 stroke-[3]" />
+          <span>Done — Get Photo &amp; Share</span>
         </motion.button>
       </div>
 
-      {/* Frame Selection Modal */}
+      {/* Frames Modal */}
       <AnimatePresence>
         {showFrames && (
           <motion.div
@@ -488,12 +456,12 @@ export function PreviewScreen() {
               initial={{ scale: 0.92, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.92, y: 20 }}
-              className="w-full max-w-xl glass-panel border border-white/15 rounded-3xl p-6 shadow-2xl"
-              onClick={e => e.stopPropagation()}
+              className="w-full max-w-xl bg-[#181938] border-2 border-slate-700 rounded-3xl p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-teal-400" />
+                  <ImageIcon className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-white font-bold text-lg">Choose Frame Overlay</h3>
                 </div>
                 <button
@@ -506,29 +474,35 @@ export function PreviewScreen() {
 
               {framesLoading ? (
                 <div className="py-12 flex flex-col items-center justify-center gap-3">
-                  <div className="w-8 h-8 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
                   <p className="text-white/60 text-xs">Loading available frames...</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 max-h-[50vh] overflow-y-auto">
                   <button
                     onClick={() => selectFrame(null)}
-                    className="h-32 rounded-2xl border-2 border-dashed border-white/20 text-white/70 hover:border-white/40 font-bold text-sm flex flex-col items-center justify-center gap-2 glass-pill"
+                    className="h-32 rounded-2xl border-2 border-dashed border-white/20 text-white/70 hover:border-white/40 font-bold text-sm flex flex-col items-center justify-center gap-2 bg-white/5"
                   >
                     <X className="w-6 h-6 text-white/40" />
                     No Frame
                   </button>
-                  {frames.map(frame => (
+                  {frames.map((frame) => (
                     <button
                       key={frame.id}
                       onClick={() => selectFrame(frame.url)}
                       className={`relative h-32 rounded-2xl overflow-hidden border-2 transition-all group ${
-                        event?.branding?.frameUrl === frame.url ? 'border-purple-400 ring-4 ring-purple-500/30' : 'border-white/10 hover:border-white/30'
+                        branding?.frameUrl === frame.url
+                          ? 'border-purple-400 ring-4 ring-purple-500/30'
+                          : 'border-white/10 hover:border-white/30'
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={frame.url} alt={frame.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      <div className="absolute inset-x-0 bottom-0 bg-black/70 backdrop-blur-xs text-white text-xs font-semibold py-1.5 px-3 truncate">
+                      <img
+                        src={frame.url}
+                        alt={frame.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-xs font-semibold py-1.5 px-3 truncate">
                         {frame.name}
                       </div>
                     </button>
@@ -540,12 +514,19 @@ export function PreviewScreen() {
         )}
 
         {showEmailModal && event && currentPhoto && (
-          <EmailCaptureModal eventId={event.id} photoId={currentPhoto.id} onClose={() => setShowEmailModal(false)} />
+          <EmailCaptureModal
+            eventId={event.id}
+            photoId={currentPhoto.id}
+            onClose={() => setShowEmailModal(false)}
+          />
         )}
 
         {showLeadModal && (
           <LeadCaptureModal
-            onContinue={() => { setShowLeadModal(false); setScreen('share'); }}
+            onContinue={() => {
+              setShowLeadModal(false);
+              setScreen('share');
+            }}
           />
         )}
       </AnimatePresence>

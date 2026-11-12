@@ -256,20 +256,32 @@ export function ShareScreen() {
     } finally { setSending(false); }
   }
 
+  const themeMode = (event?.branding?.themeMode as string) || 'dark';
+  const isLight = themeMode === 'light';
+
   return (
-    <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative">
+    <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative z-10">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/10 glass-crystal z-20" onClick={resetTimer}>
+      <div
+        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b-2 z-20 ${
+          isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#181938] border-slate-800 text-white'
+        }`}
+        onClick={resetTimer}
+      >
         <button
           onClick={() => setScreen('preview')}
-          className="text-slate-600 dark:text-white/60 hover:text-purple-600 dark:hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-crystal-pill flex items-center gap-1.5 active:scale-95 shadow-sm"
+          className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all ${
+            isLight
+              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+          }`}
         >
           <ArrowLeft className="w-4 h-4" /> Back to Preview
         </button>
         <div className="text-center">
-          <h2 className="text-slate-900 dark:text-white font-black text-sm tracking-wide uppercase">Download &amp; Share</h2>
+          <h2 className="font-black text-sm tracking-wide uppercase">Download &amp; Share</h2>
           {timeoutSecs > 0 && (
-            <p className="text-slate-400 dark:text-white/30 text-[10px] mt-0.5 font-bold">
+            <p className={`text-[10px] mt-0.5 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               Auto-closes in {timeLeft}s
             </p>
           )}
@@ -279,7 +291,7 @@ export function ShareScreen() {
 
       {/* Timeout Progress Line */}
       {timeoutSecs > 0 && (
-        <div className="h-1 bg-black/5 dark:bg-white/5 flex-shrink-0">
+        <div className="h-1 bg-black/10 dark:bg-white/10 flex-shrink-0">
           <div
             className="h-full transition-all duration-1000 ease-linear"
             style={{ width: `${(timeLeft / timeoutSecs) * 100}%`, background: primaryColor }}
@@ -296,7 +308,9 @@ export function ShareScreen() {
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-              className="relative rounded-3xl overflow-hidden shadow-2xl border border-black/5 dark:border-white/15 max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] bg-white/20 dark:bg-black/20"
+              className={`relative rounded-3xl overflow-hidden shadow-2xl border-4 max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] ${
+                isLight ? 'bg-white border-white shadow-slate-300' : 'bg-[#181938] border-slate-700 shadow-black/60'
+              }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -308,12 +322,14 @@ export function ShareScreen() {
             </motion.div>
           </div>
 
-          {/* QR Code & Share Options */}
+          {/* QR Code & Share Options - Solid Opaque Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-5 glass-crystal rounded-3xl p-6 shadow-2xl border border-black/5 dark:border-white/15"
+            className={`w-full lg:w-96 flex-shrink-0 flex flex-col gap-5 rounded-3xl p-6 shadow-2xl border-2 ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-700'
+            }`}
           >
             {/* High-Contrast QR Code Card */}
             <div className="flex flex-col items-center gap-3">
@@ -413,9 +429,13 @@ export function ShareScreen() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={handlePrint}
-                  className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl font-bold text-white text-xs glass-pill hover:bg-white/20 transition-all cursor-pointer"
+                  className={`flex items-center justify-center gap-2 px-3 py-3 rounded-2xl font-bold text-xs border-2 transition-all cursor-pointer ${
+                    isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                      : 'bg-[#181938] hover:bg-[#202248] border-slate-700 text-white'
+                  }`}
                 >
-                  <Printer className="w-4 h-4" />
+                  <Printer className="w-4 h-4 text-sky-400" />
                   <span>Print</span>
                 </motion.button>
               )}
@@ -424,16 +444,20 @@ export function ShareScreen() {
         </div>
       </div>
 
-      {/* Bottom Bar: Done */}
-      <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 glass-panel z-20">
+      {/* Bottom Bar: Done — Solid Full-Width Accent Button */}
+      <div
+        className={`flex-shrink-0 px-6 py-4 border-t-2 z-20 ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-800'
+        }`}
+      >
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
           onClick={resetSession}
-          className="w-full py-4 rounded-2xl font-black text-white text-base tracking-wide flex items-center justify-center gap-2 shadow-xl cursor-pointer"
-          style={{ background: `linear-gradient(135deg, ${primaryColor}, #4f46e5)` }}
+          className="w-full py-5 rounded-2xl font-black text-white text-lg tracking-wide flex items-center justify-center gap-2 shadow-2xl cursor-pointer border-2 border-white/20 active:scale-95 transition-all"
+          style={{ backgroundColor: primaryColor }}
         >
-          <CheckCircle2 className="w-5 h-5" /> Done — Next Guest
+          <CheckCircle2 className="w-6 h-6" /> Done — Next Guest
         </motion.button>
       </div>
 

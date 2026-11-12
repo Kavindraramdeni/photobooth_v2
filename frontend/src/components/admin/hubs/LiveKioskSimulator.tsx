@@ -22,7 +22,7 @@ export function LiveKioskSimulator({
   slug,
 }: LiveKioskSimulatorProps) {
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const [simScreen, setSimScreen] = useState<'idle' | 'capture' | 'preview' | 'share'>('idle');
+  const [simScreen, setSimScreen] = useState<'idle' | 'style' | 'capture' | 'preview' | 'share'>('idle');
 
   const primaryColor = String(branding['primaryColor'] ?? '#7c3aed');
   const secondaryColor = String(branding['secondaryColor'] ?? '#a855f7');
@@ -130,60 +130,77 @@ export function LiveKioskSimulator({
           {/* Screen Content Switcher */}
           <div className="flex-1 relative overflow-hidden flex flex-col z-10">
             <AnimatePresence mode="wait">
-              {/* 1. IDLE SCREEN SIMULATION */}
+              {/* 1. IDLE / ATTRACT SCREEN */}
               {simScreen === 'idle' && (
                 <motion.div
                   key="idle"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full flex flex-col items-center justify-between p-4 relative"
+                  className="w-full h-full flex flex-col items-center justify-center p-4 text-center relative"
                 >
-                  {/* Top Gear */}
-                  <div className="w-full flex justify-end">
-                    <div className="w-6 h-6 rounded-lg glass-crystal-pill flex items-center justify-center text-[10px] shadow-sm">
-                      ⚙️
-                    </div>
-                  </div>
-
-                  {/* Brand Branding */}
-                  <div className="text-center z-10">
+                  <div className="flex flex-col items-center justify-center space-y-6 my-auto">
                     {logoUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={logoUrl} alt="Logo" className="h-10 max-w-[120px] object-contain mx-auto mb-2 drop-shadow" />
+                      <img src={logoUrl} alt="Logo" className="h-12 max-w-[140px] object-contain mx-auto drop-shadow" />
                     ) : (
-                      <h4 className="font-black text-base drop-shadow-sm">{eventName}</h4>
+                      <h4 className="font-black text-xl tracking-tight leading-tight drop-shadow-sm">{eventName}</h4>
                     )}
-                    <p className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-white/40'}`}>
-                      Touch to Start
-                    </p>
+
+                    {/* One Huge Pill Button: “Tap to start” */}
+                    <div
+                      className="px-6 py-3 rounded-full font-black text-xs text-white uppercase tracking-wider shadow-lg animate-pulse"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      Tap to start
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 2. CHOOSE YOUR STYLE */}
+              {simScreen === 'style' && (
+                <motion.div
+                  key="style"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="w-full h-full flex flex-col items-center justify-between p-3.5 text-center relative"
+                >
+                  <div className="pt-2">
+                    <h5 className="font-black text-sm tracking-tight">Choose your style</h5>
+                    <p className={`text-[9px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tap to pose</p>
                   </div>
 
-                  {/* Modes Grid Preview */}
-                  <div className="grid grid-cols-3 gap-2 w-full max-w-[260px] z-10 mb-2">
-                    {['Photo', '4-Strip', 'AI Magic'].map((m, idx) => (
+                  <div className="grid grid-cols-3 gap-1.5 w-full my-auto">
+                    {[
+                      { label: 'Photo', sub: 'Single shot', icon: '📷' },
+                      { label: 'Strip', sub: '4-pose strip', icon: '🎞️' },
+                      { label: 'AI', sub: 'Magic art', icon: '✨' },
+                    ].map((item) => (
                       <div
-                        key={m}
-                        className={`p-2 rounded-2xl text-center flex flex-col items-center justify-center gap-1 shadow-md transition-all ${
-                          isLight
-                            ? 'bg-white/85 border border-black/5 hover:border-black/10'
-                            : 'bg-white/5 border border-white/10'
+                        key={item.label}
+                        className={`p-2.5 rounded-2xl flex flex-col items-center justify-center text-center shadow-md border ${
+                          isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-700'
                         }`}
                       >
                         <div
-                          className="w-8 h-8 rounded-xl flex items-center justify-center text-xs text-white shadow-sm btn-arcade"
-                          style={{ background: idx === 0 ? primaryColor : idx === 1 ? secondaryColor : '#10b981' }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-xs mb-1.5 shadow-sm"
+                          style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}
                         >
-                          {idx === 0 ? '📷' : idx === 1 ? '🎞️' : '✨'}
+                          {item.icon}
                         </div>
-                        <span className="text-[9px] font-black">{m}</span>
+                        <span className="text-[10px] font-black leading-tight">{item.label}</span>
+                        <span className={`text-[7px] font-semibold mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {item.sub}
+                        </span>
                       </div>
                     ))}
                   </div>
 
-                  <p className={`text-[9px] tracking-wider uppercase font-bold ${isLight ? 'text-slate-400' : 'text-white/30'}`}>
-                    SnapBooth Apple Light Studio
-                  </p>
+                  <div className={`text-[8px] font-bold pb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    ← Back to start
+                  </div>
                 </motion.div>
               )}
 
@@ -310,6 +327,7 @@ export function LiveKioskSimulator({
           >
             {[
               { id: 'idle', label: 'Idle' },
+              { id: 'style', label: 'Style' },
               { id: 'capture', label: 'Camera' },
               { id: 'preview', label: 'Photo' },
               { id: 'share', label: 'Share' },

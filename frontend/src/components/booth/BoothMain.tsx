@@ -5,6 +5,7 @@ import { useBoothStore } from '@/lib/store';
 import { processOfflineQueue, getPendingCaptures } from '@/lib/offlineQueue';
 import { uploadPhoto } from '@/lib/api';
 import { IdleScreen } from './IdleScreen';
+import { StyleScreen } from './StyleScreen';
 import { CountdownScreen } from './CountdownScreen';
 import { PreviewScreen } from './PreviewScreen';
 import { AIStudioScreen } from './AIStudioScreen';
@@ -124,8 +125,9 @@ export function BoothMain() {
     };
   }, []);
 
-  const screens = {
+  const screens: Record<string, React.ReactNode> = {
     idle: <IdleScreen />,
+    style: <StyleScreen />,
     countdown: <CountdownScreen />,
     capture: <CountdownScreen />,
     preview: <PreviewScreen />,
@@ -135,7 +137,7 @@ export function BoothMain() {
     print: <ShareScreen />,
   };
 
-  const themeClass = themeMode === 'dark' ? 'theme-dark' : themeMode === 'champagne' ? 'theme-champagne' : 'theme-light';
+  const themeClass = themeMode === 'light' ? 'theme-light' : themeMode === 'champagne' ? 'theme-champagne' : 'theme-dark';
 
   return (
     <div
@@ -143,7 +145,7 @@ export function BoothMain() {
       onTouchStart={resetTimeout}
       onClick={resetTimeout}
     >
-      {/* Universal Background Layer: Event Wallpaper or Apple Light Studio */}
+      {/* Background Layer: Rich Brand Indigo-to-Plum Gradient by default, or Apple Light Canvas */}
       {wallpaperUrl ? (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
           {isVideo ? (
@@ -163,40 +165,38 @@ export function BoothMain() {
               className="absolute inset-0 w-full h-full object-cover"
             />
           )}
-          {/* Frosted glass overlay to ensure readability */}
+          {/* Heavy opaque scrim so nothing shows through messily */}
           <div
             className={`absolute inset-0 ${
-              themeMode === 'dark'
-                ? 'bg-black/55 backdrop-blur-[6px]'
-                : 'bg-white/60 backdrop-blur-[6px]'
+              themeMode === 'light'
+                ? 'bg-white/80 backdrop-blur-md'
+                : 'bg-[#0c0d24]/85 backdrop-blur-md'
             }`}
           />
         </div>
-      ) : (
-        /* Clean Apple Light Studio Canvas with Soft Silver Radial Mesh */
+      ) : themeMode === 'light' ? (
+        /* Light Theme Canvas */
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-gradient-to-b from-[#ffffff] via-[#f4f6fa] to-[#e9ecf4]">
-          {/* Subtle soft silver orbs */}
           <div
             className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full blur-[140px] opacity-15"
             style={{ background: primaryColor }}
           />
-          <div className="absolute -bottom-32 right-10 w-[500px] h-[500px] rounded-full blur-[140px] opacity-10 bg-blue-400" />
-          <div className="absolute top-1/3 -left-20 w-[450px] h-[450px] rounded-full blur-[140px] opacity-10 bg-purple-300" />
-          {/* Micro dot pattern */}
-          <div className="absolute inset-0 bg-[radial-gradient(#00000008_1px,transparent_1px)] [background-size:24px_24px]" />
+          <div className="absolute -bottom-32 right-10 w-[500px] h-[500px] rounded-full blur-[140px] opacity-10 bg-indigo-300" />
+        </div>
+      ) : (
+        /* Rich Brand-Tinted Gradient: Deep Indigo to Plum (not black) */
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-gradient-to-br from-[#0c0d24] via-[#161233] to-[#250d38]">
+          <div
+            className="absolute -top-24 left-1/4 w-[600px] h-[600px] rounded-full blur-[150px] opacity-25"
+            style={{ background: primaryColor }}
+          />
+          <div className="absolute -bottom-24 right-1/4 w-[550px] h-[550px] rounded-full blur-[150px] opacity-20 bg-purple-900" />
         </div>
       )}
 
       <FlashOverlay />
 
-      {pendingSyncCount > 0 && (
-        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-semibold backdrop-blur-md animate-pulse shadow-sm">
-          <span className="w-2 h-2 rounded-full bg-amber-500" />
-          Offline Sync: {pendingSyncCount} photo{pendingSyncCount > 1 ? 's' : ''} queued
-        </div>
-      )}
-
-      {/* Screen Viewport */}
+      {/* Screen Viewport with clean 250ms crossfade */}
       <div className="relative z-10 w-full h-full flex flex-col">
         <AnimatePresence mode="wait">
           <motion.div

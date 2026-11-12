@@ -325,14 +325,14 @@ export function CountdownScreen() {
         {/* Top Control Bar */}
         <div className="absolute top-6 inset-x-6 flex items-center justify-between z-20">
           <button
-            onClick={() => setScreen('idle')}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-pill text-white/80 hover:text-white transition-all text-xs font-bold active:scale-95"
+            onClick={() => setScreen('style')}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#181938]/95 border-2 border-slate-700 text-white/90 hover:text-white transition-all text-xs font-bold active:scale-95 shadow-lg"
           >
             <ArrowLeft className="w-4 h-4" /> Cancel
           </button>
 
           {/* Mode Pill */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-panel border border-white/15 text-white text-xs font-bold shadow-lg">
+          <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#181938]/95 border-2 border-slate-700 text-white text-xs font-black shadow-lg">
             <span>{activeBadge.icon}</span>
             <span>{activeBadge.label}</span>
           </div>
@@ -432,7 +432,7 @@ export function CountdownScreen() {
 
                 {/* Inner Number */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full glass-panel border border-white/20 flex items-center justify-center shadow-2xl">
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-[#181938]/95 border-4 border-white/30 flex items-center justify-center shadow-2xl">
                     <span className="text-7xl sm:text-8xl font-black text-white tracking-tighter drop-shadow-[0_4px_24px_rgba(168,85,247,0.7)]">
                       {countdown}
                     </span>
