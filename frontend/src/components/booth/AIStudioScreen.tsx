@@ -177,41 +177,74 @@ export function AIStudioScreen() {
     setScreen('share');
   }
 
+  const branding = event?.branding;
+  const themeMode = (branding?.themeMode as string) || 'dark';
+  const isLight = themeMode === 'light';
+  const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
+
   function handleBack() {
     if (step === 'result') {
       setStep('select');
       setGeneratedUrl(null);
       setSelected(null);
     } else {
-      setScreen('preview');
+      setScreen(currentPhoto ? 'preview' : 'style');
     }
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#07070d] select-none overflow-hidden relative">
+    <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative z-10">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 glass-panel z-20">
+      <div
+        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b-2 z-20 ${
+          isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#181938] border-slate-800 text-white'
+        }`}
+      >
         <button
           onClick={handleBack}
-          className="text-white/60 hover:text-white transition-colors text-xs font-bold px-3 py-1.5 rounded-xl glass-pill flex items-center gap-1 active:scale-95"
+          className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all ${
+            isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+          }`}
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-purple-400" />
-          <h2 className="text-white font-black text-sm tracking-wide uppercase">AI Studio Magic</h2>
+          <h2 className="font-black text-sm tracking-wide uppercase">AI Studio Magic</h2>
         </div>
 
         <div className="w-16" />
       </div>
 
-      {/* Main Split Layout */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 z-10 relative">
-        {/* LEFT - Input Photo Preview */}
-        <div className="w-full md:w-2/5 max-h-[30vh] sm:max-h-[35vh] md:max-h-none p-4 sm:p-6 flex items-center justify-center flex-shrink-0">
-          {currentPhoto?.url ? (
-            <div className="w-full h-full max-h-[70vh] flex items-center justify-center rounded-3xl overflow-hidden border border-white/15 shadow-2xl glass-panel">
+      {/* If no photo captured yet, direct them to take photo */}
+      {!currentPhoto ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center z-10">
+          <div className="w-20 h-20 rounded-3xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-4">
+            <Sparkles className="w-10 h-10" />
+          </div>
+          <h3 className={`text-2xl font-black mb-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+            Pose for your AI portrait
+          </h3>
+          <p className={`text-sm mb-6 max-w-sm ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+            Let&apos;s snap your photo first, then pick an AI art style to transform it!
+          </p>
+          <button
+            onClick={() => setScreen('countdown')}
+            className="px-8 py-4 rounded-2xl font-black text-white text-base shadow-xl"
+            style={{ backgroundColor: primaryColor }}
+          >
+            Take Photo Now
+          </button>
+        </div>
+      ) : (
+        /* Main Split Layout */
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 z-10 relative">
+          {/* LEFT - Input Photo Preview */}
+          <div className="w-full md:w-2/5 max-h-[30vh] sm:max-h-[35vh] md:max-h-none p-4 sm:p-6 flex items-center justify-center flex-shrink-0">
+            <div className={`w-full h-full max-h-[70vh] flex items-center justify-center rounded-3xl overflow-hidden border-2 shadow-2xl ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-700'
+            }`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={currentPhoto.url}
@@ -219,29 +252,27 @@ export function AIStudioScreen() {
                 className="max-w-full max-h-full object-contain rounded-3xl"
               />
             </div>
-          ) : (
-            <div className="text-white/40 text-center">
-              <ImagePlus className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-xs">No active photo</p>
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT - Style Selection and Rendering */}
-        <div className="w-full md:w-3/5 flex-1 flex flex-col bg-[#0a0a14] border-t md:border-t-0 md:border-l border-white/10 min-h-0 overflow-hidden">
-          {/* Subheader */}
-          <div className="px-6 py-3 border-b border-white/10 glass-panel flex items-center justify-between flex-shrink-0">
-            <span className="text-white/60 text-xs font-bold uppercase tracking-wider">
-              {step === 'select' && '1. Choose Artistic Style'}
-              {step === 'generating' && 'Rendering Artwork...'}
-              {step === 'result' && 'Artwork Ready!'}
-            </span>
-            {selectedStyle && step === 'select' && (
-              <span className="text-purple-300 text-xs font-semibold">
-                {selectedStyle.name} {selectedStyle.emoji}
-              </span>
-            )}
           </div>
+
+          {/* RIGHT - Style Selection and Rendering */}
+          <div className={`w-full md:w-3/5 flex-1 flex flex-col border-t md:border-t-0 md:border-l-2 min-h-0 overflow-hidden ${
+            isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#181938]/95 border-slate-800 text-white'
+          }`}>
+            {/* Subheader */}
+            <div className={`px-6 py-3 border-b-2 flex items-center justify-between flex-shrink-0 ${
+              isLight ? 'border-slate-200' : 'border-slate-800'
+            }`}>
+              <span className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                {step === 'select' && '1. Choose Artistic Style'}
+                {step === 'generating' && 'Rendering Artwork...'}
+                {step === 'result' && 'Artwork Ready!'}
+              </span>
+              {selectedStyle && step === 'select' && (
+                <span className="text-purple-400 text-xs font-semibold">
+                  {selectedStyle.name} {selectedStyle.emoji}
+                </span>
+              )}
+            </div>
 
           {/* STEP 1: SELECT STYLES */}
           {step === 'select' && (
@@ -372,6 +403,7 @@ export function AIStudioScreen() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
