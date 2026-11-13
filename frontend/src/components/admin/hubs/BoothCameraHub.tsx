@@ -3,7 +3,7 @@
 import {
   Camera, RefreshCw, Sparkles,
   Volume2, FlipHorizontal, RotateCcw,
-  Clock, Tablet,
+  Clock, Tablet, Wand2, Crown, Glasses,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -408,6 +408,127 @@ function BeautyModeCard({
   );
 }
 
+// ── Celebrity Glam Card ───────────────────────────────────────────────────────
+
+function CelebrityGlamCard({
+  settings,
+  onSettingsChange,
+}: {
+  settings: Record<string, unknown>;
+  onSettingsChange: (key: string, value: unknown) => void;
+}) {
+  const glamMode = String(settings['glamMode'] ?? 'off');
+  const glamIntensity = Number(settings['glamIntensity'] ?? 8);
+
+  return (
+    <Card
+      title="Celebrity Glam Filter"
+      subtitle="Hollywood porcelain skin-smoothing with signature Kardashian high-contrast monochrome"
+      icon={Wand2}
+    >
+      <div className="space-y-5">
+        <div>
+          <FieldLabel>Glam Filter Preset</FieldLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {[
+              { id: 'off', label: 'Disabled', desc: 'Standard colors' },
+              { id: 'kardashian_bw', label: 'Kardashian B&W', desc: 'High-contrast monochrome' },
+              { id: 'hollywood_glow', label: 'Hollywood Glow', desc: 'Luminous warm champagne' },
+            ].map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => onSettingsChange('glamMode', preset.id)}
+                className={`p-3 rounded-xl text-left border transition-all ${
+                  glamMode === preset.id
+                    ? 'bg-violet-600/20 border-violet-500 text-white shadow-lg'
+                    : 'bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                }`}
+              >
+                <p className="font-bold text-xs text-white">{preset.label}</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5">{preset.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {glamMode !== 'off' && (
+          <div className="pt-2 border-t border-white/[0.04] space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-300 text-xs font-medium">Porcelain Smoothing Intensity</span>
+              <span className="text-violet-400 text-xs font-bold">{glamIntensity} / 10</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={glamIntensity}
+              onChange={(e) => onSettingsChange('glamIntensity', Number(e.target.value))}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer accent-violet-500 bg-zinc-800"
+            />
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ── AR Digital Props Card ─────────────────────────────────────────────────────
+
+function DigitalPropsCard({
+  settings,
+  onSettingsChange,
+}: {
+  settings: Record<string, unknown>;
+  onSettingsChange: (key: string, value: unknown) => void;
+}) {
+  const enableDigitalProps = Boolean(settings['enableDigitalProps'] ?? true);
+  const activePack = String(settings['digitalPropsPack'] ?? 'party');
+
+  return (
+    <Card
+      title="AR Digital Props & Stickers"
+      subtitle="Interactive face sunglasses, crowns, hats, and party stickers for guests"
+      icon={Crown}
+    >
+      <div className="space-y-5">
+        <ToggleRow
+          icon={Glasses}
+          label="Enable Live Digital Props"
+          desc="Show on-screen touch props dock during camera countdown and preview"
+          checked={enableDigitalProps}
+          onChange={(v) => onSettingsChange('enableDigitalProps', v)}
+        />
+
+        {enableDigitalProps && (
+          <div className="pt-2 border-t border-white/[0.04] space-y-2">
+            <FieldLabel>Active Prop Collection</FieldLabel>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { id: 'party', name: 'Party & Celebration', desc: 'Party hats, shades, mustaches' },
+                { id: 'wedding', name: 'Wedding Elegance', desc: 'Floral crowns, tiaras, champagne' },
+                { id: 'retro', name: 'Retro & VIP', desc: 'Aviators, gold chains, sparkles' },
+              ].map((pack) => (
+                <button
+                  key={pack.id}
+                  onClick={() => onSettingsChange('digitalPropsPack', pack.id)}
+                  className={`p-3 rounded-xl text-left border transition-all ${
+                    activePack === pack.id
+                      ? 'bg-violet-600/20 border-violet-500 text-white shadow-lg'
+                      : 'bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                  }`}
+                >
+                  <p className="font-bold text-xs text-white">{pack.name}</p>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">{pack.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 // ── Session Settings Card ──────────────────────────────────────────────────────
 
 function SessionSettingsCard({
@@ -527,6 +648,12 @@ export function BoothCameraHub({
 
       {/* Beauty Mode */}
       <BeautyModeCard settings={settings} onSettingsChange={onSettingsChange} />
+
+      {/* Celebrity Glam Mode */}
+      <CelebrityGlamCard settings={settings} onSettingsChange={onSettingsChange} />
+
+      {/* AR Digital Props & Stickers */}
+      <DigitalPropsCard settings={settings} onSettingsChange={onSettingsChange} />
 
       {/* Session Settings */}
       <SessionSettingsCard settings={settings} onSettingsChange={onSettingsChange} />

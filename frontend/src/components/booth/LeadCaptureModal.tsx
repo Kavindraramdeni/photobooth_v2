@@ -17,7 +17,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mail, User, ArrowRight, CheckCircle } from 'lucide-react';
+import { X, Mail, User, ArrowRight, CheckCircle, Phone, Building2, HelpCircle } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { submitLead } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -30,14 +30,22 @@ interface LeadCaptureModalProps {
 export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
   const { event, currentPhoto } = useBoothStore();
 
-  const required   = event?.settings?.leadRequired as boolean ?? false;
-  const primaryColor = (event?.branding?.primaryColor as string) || '#7c3aed';
-  const eventName  = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
+  const settings = (event?.settings as Record<string, unknown>) || {};
+  const required = Boolean(settings.leadRequired);
+  const collectPhone = Boolean(settings.leadRequirePhone);
+  const collectCompany = Boolean(settings.leadCollectCompany);
+  const surveyQuestion = String(settings.leadSurveyQuestion || '');
 
-  const [name,    setName]    = useState('');
-  const [email,   setEmail]   = useState('');
+  const primaryColor = (event?.branding?.primaryColor as string) || '#7c3aed';
+  const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
+
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [company, setCompany] = useState('');
+  const [surveyAnswer, setSurveyAnswer] = useState('');
   const [sending, setSending] = useState(false);
-  const [done,    setDone]    = useState(false);
+  const [done, setDone] = useState(false);
 
   async function handleSubmit() {
     if (!email.trim()) {
@@ -52,18 +60,16 @@ export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
     setSending(true);
     try {
       await submitLead({
-        eventId:  event!.id,
-        photoId:  currentPhoto?.id,
-        email:    email.trim().toLowerCase(),
-        name:     name.trim() || undefined,
+        eventId: event!.id,
+        photoId: currentPhoto?.id,
+        email: email.trim().toLowerCase(),
+        name: name.trim() || undefined,
         consented: true,
       });
       setDone(true);
-      // Brief success flash, then continue to share
       setTimeout(onContinue, 1200);
     } catch {
-      // Don't block the guest — log silently and continue
-      toast.error('Could not save email — continuing anyway');
+      toast.error('Could not save details — continuing anyway');
       onContinue();
     } finally {
       setSending(false);
@@ -71,7 +77,7 @@ export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
   }
 
   function handleSkip() {
-    if (required) return; // skip not allowed when required
+    if (required) return;
     onContinue();
   }
 
@@ -80,13 +86,13 @@ export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md">
       <motion.div
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="w-full sm:max-w-md bg-[#111118] border border-white/10 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+        className="w-full sm:max-w-md bg-[#111118] border border-white/10 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
       >
         {/* Top handle (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
@@ -97,13 +103,15 @@ export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
         <div className="px-6 pt-4 pb-3 flex items-start justify-between">
           <div>
             <h2 className="text-white font-black text-xl">Get your photo! 📸</h2>
-            <p className="text-white/40 text-sm mt-0.5">
-              Enter your email and we'll send it straight to you
+            <p className="text-white/40 text-xs mt-0.5">
+              Enter your details to receive your keepsake straight to your phone
             </p>
           </div>
           {!required && (
-            <button onClick={handleSkip}
-              className="text-white/30 hover:text-white/60 transition-colors p-1 -mt-1 -mr-1">
+            <button
+              onClick={handleSkip}
+              className="text-white/30 hover:text-white/60 transition-colors p-1 -mt-1 -mr-1"
+            >
               <X className="w-5 h-5" />
             </button>
           )}
@@ -124,40 +132,84 @@ export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
             </motion.div>
           ) : (
             <motion.div key="form" className="px-6 pb-6 space-y-3">
-
-              {/* Name (optional) */}
+              {/* Name */}
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Your name (optional)"
+                  placeholder="Your full name"
                   value={name}
-                  onChange={e => setName(e.target.value)}
+                  onChange={(e) => setName(e.target.value)}
                   onKeyDown={handleKey}
                   autoComplete="given-name"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
 
-              {/* Email (required) */}
+              {/* Email */}
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
                 <input
                   type="email"
                   placeholder="Your email address *"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={handleKey}
                   autoComplete="email"
                   inputMode="email"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
 
+              {/* Optional Phone */}
+              {collectPhone && (
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type="tel"
+                    placeholder="Phone number"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    onKeyDown={handleKey}
+                    autoComplete="tel"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Optional Company */}
+              {collectCompany && (
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Company or Organization"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    onKeyDown={handleKey}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Custom Survey Question */}
+              {surveyQuestion && (
+                <div className="relative">
+                  <HelpCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={surveyQuestion}
+                    value={surveyAnswer}
+                    onChange={(e) => setSurveyAnswer(e.target.value)}
+                    onKeyDown={handleKey}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 pr-4 py-3 text-white text-sm placeholder-white/25 focus:outline-none focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              )}
+
               {/* GDPR consent note */}
-              <p className="text-white/25 text-xs px-1">
+              <p className="text-white/25 text-[11px] px-1">
                 By entering your email you agree to receive your photo from {eventName}.
-                We won't spam you.
               </p>
 
               {/* CTA */}
@@ -168,16 +220,19 @@ export function LeadCaptureModal({ onContinue }: LeadCaptureModalProps) {
                 className="w-full py-4 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}
               >
-                {sending
-                  ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <>Get My Photo <ArrowRight className="w-5 h-5" /></>
-                }
+                {sending ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>Get My Photo <ArrowRight className="w-5 h-5" /></>
+                )}
               </motion.button>
 
               {/* Skip link */}
               {!required && (
-                <button onClick={handleSkip}
-                  className="w-full text-white/25 hover:text-white/50 text-sm transition-colors py-1">
+                <button
+                  onClick={handleSkip}
+                  className="w-full text-white/25 hover:text-white/50 text-xs transition-colors py-1"
+                >
                   Skip for now
                 </button>
               )}

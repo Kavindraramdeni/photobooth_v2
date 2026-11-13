@@ -8,6 +8,7 @@ import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
 import toast from 'react-hot-toast';
 import { Sparkles, Camera, ArrowLeft } from 'lucide-react';
+import { ARPropsOverlay, PROP_CATALOG } from './ARPropsOverlay';
 
 // ── Web Audio API sounds ─────────────────────────────────────────────────────
 function playBeep(frequency = 880, duration = 0.12, volume = 0.3) {
@@ -66,6 +67,19 @@ export function CountdownScreen() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
+  // AR Digital Props & Glam Mode States
+  const [activePropId, setActivePropId] = useState<string | null>(null);
+
+  const enableDigitalProps = (event?.settings as Record<string, unknown>)?.enableDigitalProps !== false;
+  const glamMode = String((event?.settings as Record<string, unknown>)?.glamMode ?? 'off');
+
+  const glamFilterStyle =
+    glamMode === 'kardashian_bw'
+      ? 'grayscale(100%) contrast(128%) brightness(108%)'
+      : glamMode === 'hollywood_glow'
+      ? 'sepia(22%) contrast(110%) brightness(106%) saturate(118%)'
+      : '';
+
   const totalShots = mode === 'strip' ? STRIP_COUNT : mode === 'gif' ? GIF_COUNT : mode === 'boomerang' ? BOOMERANG_COUNT : 1;
   const countdownSeconds = event?.settings?.countdownSeconds ?? 3;
   const soundEnabled = (event?.settings?.countdownSound as boolean) !== false;
@@ -83,15 +97,15 @@ export function CountdownScreen() {
     return new Blob([u8arr], { type: mime });
   }, []);
 
-  // Composite captured frame with the event frame overlay
+  // Composite captured frame with the event frame overlay AND active AR prop
   const compositeWithFrame = useCallback(async (blob: Blob): Promise<Blob> => {
     const frameUrl = event?.branding?.frameUrl as string | null | undefined;
-    if (!frameUrl) return blob;
+    const prop = activePropId ? PROP_CATALOG.find((p) => p.id === activePropId) : null;
+
+    if (!frameUrl && !prop) return blob;
 
     return new Promise((resolve) => {
       const photo = new Image();
-      const frame = new Image();
-      frame.crossOrigin = 'anonymous';
       photo.crossOrigin = 'anonymous';
 
       photo.onload = () => {
@@ -102,21 +116,44 @@ export function CountdownScreen() {
 
         ctx.drawImage(photo, 0, 0);
 
-        frame.onload = () => {
-          ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob(
-            (composited) => resolve(composited || blob),
-            'image/jpeg',
-            0.94
-          );
+        const applyFrame = () => {
+          if (frameUrl) {
+            const frame = new Image();
+            frame.crossOrigin = 'anonymous';
+            frame.onload = () => {
+              ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+              canvas.toBlob((composited) => resolve(composited || blob), 'image/jpeg', 0.95);
+            };
+            frame.onerror = () => {
+              canvas.toBlob((composited) => resolve(composited || blob), 'image/jpeg', 0.95);
+            };
+            frame.src = frameUrl;
+          } else {
+            canvas.toBlob((composited) => resolve(composited || blob), 'image/jpeg', 0.95);
+          }
         };
-        frame.onerror = () => resolve(blob);
-        frame.src = frameUrl;
+
+        if (prop) {
+          const propImg = new Image();
+          const svgData = encodeURIComponent(prop.svg);
+          propImg.onload = () => {
+            const targetWidth = canvas.width * 0.42 * prop.defaultScale;
+            const targetHeight = targetWidth * 0.55;
+            const x = (canvas.width * prop.defaultX / 100) - (targetWidth / 2);
+            const y = (canvas.height * prop.defaultY / 100) - (targetHeight / 2);
+            ctx.drawImage(propImg, x, y, targetWidth, targetHeight);
+            applyFrame();
+          };
+          propImg.onerror = () => applyFrame();
+          propImg.src = `data:image/svg+xml;utf8,${svgData}`;
+        } else {
+          applyFrame();
+        }
       };
       photo.onerror = () => resolve(blob);
       photo.src = URL.createObjectURL(blob);
     });
-  }, [event?.branding?.frameUrl]);
+  }, [event?.branding?.frameUrl, activePropId]);
 
   const processCaptures = useCallback(
     async (frames: Blob[]) => {
@@ -289,7 +326,8 @@ export function CountdownScreen() {
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           }}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover transition-all duration-300"
+          style={{ filter: glamFilterStyle || undefined }}
           mirrored={true}
           onUserMedia={() => {
             setTimeout(() => setIsCameraReady(true), 400);
@@ -303,6 +341,14 @@ export function CountdownScreen() {
             );
           }}
         />
+
+        {/* Live AR Digital Props & Stickers Overlay */}
+        {enableDigitalProps && phase !== 'processing' && isCameraReady && (
+          <ARPropsOverlay
+            activePropId={activePropId}
+            onSelectProp={setActivePropId}
+          />
+        )}
 
         {/* Framing Guides: Corner Brackets (Luxury Viewfinder Aesthetic) */}
         <div className="absolute inset-8 sm:inset-14 pointer-events-none border border-white/10 rounded-3xl">
@@ -331,10 +377,18 @@ export function CountdownScreen() {
             <ArrowLeft className="w-4 h-4" /> Cancel
           </button>
 
-          {/* Mode Pill */}
-          <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#181938]/95 border-2 border-slate-700 text-white text-xs font-black shadow-lg">
-            <span>{activeBadge.icon}</span>
-            <span>{activeBadge.label}</span>
+          {/* Mode & Glam Badges */}
+          <div className="flex items-center gap-2">
+            {glamMode !== 'off' && (
+              <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-amber-500/20 border-2 border-amber-500/40 text-amber-300 text-xs font-black shadow-lg">
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span>{glamMode === 'kardashian_bw' ? 'Kardashian B&W' : 'Hollywood Glow'}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#181938]/95 border-2 border-slate-700 text-white text-xs font-black shadow-lg">
+              <span>{activeBadge.icon}</span>
+              <span>{activeBadge.label}</span>
+            </div>
           </div>
         </div>
 

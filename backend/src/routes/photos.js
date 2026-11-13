@@ -5,7 +5,12 @@ const sharp = require('sharp');
 const router = express.Router();
 
 const { uploadToStorage } = require('../services/storage');
-const { applyBrandingOverlay, createPhotoStrip, applyBeautyMode } = require('../services/imageProcessor');
+const {
+  applyBrandingOverlay,
+  createPhotoStrip,
+  applyBeautyMode,
+  applyGlamFilter,
+} = require('../services/imageProcessor');
 const { generateQRDataURL, buildGalleryUrl, buildWhatsAppUrl, generateUniqueShortCode, generateStoriesImage } = require('../services/sharing');
 const { createGIF, createBoomerang } = require('../services/gif');
 const supabase = require('../services/database');
@@ -161,6 +166,13 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
 
     if (event.settings?.beautyLevel && Number(event.settings.beautyLevel) > 0) {
       processedBuffer = await applyBeautyMode(processedBuffer, Number(event.settings.beautyLevel));
+    }
+
+    if (event.settings?.glamMode && event.settings.glamMode !== 'off') {
+      processedBuffer = await applyGlamFilter(processedBuffer, {
+        mode: event.settings.glamMode,
+        intensity: Number(event.settings.glamIntensity || 8),
+      });
     }
 
     if (event.branding) {

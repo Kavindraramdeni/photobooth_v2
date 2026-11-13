@@ -290,7 +290,15 @@ export function IdleScreen() {
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setScreen('style')}
+                onClick={() => {
+                  const leadEnabled = Boolean((settings as Record<string, unknown>)?.enableLeadCapture);
+                  const gatingMode = String((settings as Record<string, unknown>)?.leadGatingMode || 'before_capture');
+                  if (leadEnabled && gatingMode === 'before_capture') {
+                    setScreen('lead');
+                  } else {
+                    setScreen('style');
+                  }
+                }}
                 className="relative z-10 w-52 h-52 sm:w-60 sm:h-60 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer border-4 border-white/30 transition-all btn-arcade group"
                 style={{
                   background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,

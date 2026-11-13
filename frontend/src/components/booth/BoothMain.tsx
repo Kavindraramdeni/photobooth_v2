@@ -10,6 +10,7 @@ import { CountdownScreen } from './CountdownScreen';
 import { PreviewScreen } from './PreviewScreen';
 import { AIStudioScreen } from './AIStudioScreen';
 import { ShareScreen } from './ShareScreen';
+import { LeadCaptureScreen } from './LeadCaptureScreen';
 import { FlashOverlay } from './FlashOverlay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io } from 'socket.io-client';
@@ -127,8 +128,18 @@ export function BoothMain() {
     };
   }, []);
 
+  const handleLeadComplete = () => {
+    const gatingMode = (event?.settings as Record<string, unknown>)?.leadGatingMode || 'before_capture';
+    if (gatingMode === 'before_capture') {
+      setScreen('style');
+    } else {
+      setScreen('share');
+    }
+  };
+
   const screens: Record<string, React.ReactNode> = {
     idle: <IdleScreen />,
+    lead: <LeadCaptureScreen onComplete={handleLeadComplete} onSkip={handleLeadComplete} />,
     style: <StyleScreen />,
     countdown: <CountdownScreen />,
     capture: <CountdownScreen />,

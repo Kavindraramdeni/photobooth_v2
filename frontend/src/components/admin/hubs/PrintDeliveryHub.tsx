@@ -475,7 +475,102 @@ export function PrintDeliveryHub({
         </SettingRow>
       </Card>
 
-      {/* ── 5. Guest Gallery & Selfie Face Match ── */}
+      {/* ── 5. Corporate Lead Capture & Survey ── */}
+      <Card title="💼 Corporate Lead Capture & Survey">
+        <SettingRow label="Enable Lead Capture & Survey">
+          <PremiumToggle
+            checked={Boolean(settings.enableLeadCapture)}
+            onChange={(v) => onSettingsChange('enableLeadCapture', v)}
+            label="PRO"
+          />
+        </SettingRow>
+        <p className="text-white/40 text-xs -mt-2">
+          Collect verified guest emails, phone numbers, and company info for corporate brand activations.
+        </p>
+
+        {Boolean(settings.enableLeadCapture) && (
+          <div className="space-y-4 pt-2 border-t border-white/10">
+            <SettingRow label="Gating Flow">
+              <select
+                value={(settings.leadGatingMode as string) || 'before_capture'}
+                onChange={(e) => onSettingsChange('leadGatingMode', e.target.value)}
+                className="bg-white/10 border border-white/15 text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="before_capture">Before Capture (VIP Gate)</option>
+                <option value="before_share">Before Sharing / Download</option>
+              </select>
+            </SettingRow>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={settings.leadRequireName !== false}
+                  onChange={(e) => onSettingsChange('leadRequireName', e.target.checked)}
+                  className="rounded border-white/20 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                />
+                Require Full Name
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={settings.leadRequireEmail !== false}
+                  onChange={(e) => onSettingsChange('leadRequireEmail', e.target.checked)}
+                  className="rounded border-white/20 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                />
+                Require Email Address
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.leadRequirePhone)}
+                  onChange={(e) => onSettingsChange('leadRequirePhone', e.target.checked)}
+                  className="rounded border-white/20 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                />
+                Collect Phone Number
+              </label>
+
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.leadCollectCompany)}
+                  onChange={(e) => onSettingsChange('leadCollectCompany', e.target.checked)}
+                  className="rounded border-white/20 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                />
+                Collect Company / Job Title
+              </label>
+            </div>
+
+            <label className="flex flex-col gap-1 pt-1">
+              <span className="text-white/50 text-xs">Custom Survey Question (Optional)</span>
+              <input
+                type="text"
+                value={(settings.leadSurveyQuestion as string) || ''}
+                onChange={(e) => onSettingsChange('leadSurveyQuestion', e.target.value)}
+                placeholder="e.g. What product or service are you most interested in?"
+                className="bg-white/8 border border-white/15 text-white text-xs rounded-lg px-3 py-2 placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </label>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const token = getToken();
+                  window.open(`${API_BASE}/api/leads/event/${event.id}/export?token=${token}`, '_blank');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                📊 Download Leads CSV (Excel)
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* ── 6. Guest Gallery & Selfie Face Match ── */}
       <Card title="🖼️ Guest Gallery & Selfie Match">
         <SettingRow label="Selfie Photo Finder (AI Face Match)">
           <Toggle

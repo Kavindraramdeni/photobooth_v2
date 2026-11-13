@@ -313,4 +313,51 @@ async function applyFrameOverlay(photoBuffer, frameUrl) {
   }
 }
 
-module.exports = { applyBrandingOverlay, applyFrameOverlay, createPhotoStrip, createPolaroid, applyBeautyMode };
+/**
+ * Apply Celebrity Glam Filter — high-contrast skin-smoothing & tone mapping
+ * @param {Buffer} photoBuffer
+ * @param {Object} options — { mode: 'kardashian_bw' | 'hollywood_glow', intensity: number }
+ */
+async function applyGlamFilter(photoBuffer, options = {}) {
+  if (!sharp) return photoBuffer;
+  const mode = options.mode || 'kardashian_bw';
+  const intensity = Math.min(10, Math.max(1, Number(options.intensity || 8)));
+
+  const blurSigma = 0.4 + (intensity / 10) * 1.4;
+  const sharpSigma = 0.6 + (intensity / 10) * 1.0;
+
+  if (mode === 'hollywood_glow') {
+    // Warm Hollywood Champagne Glow: lifted highlights, gentle warm modulation, porcelain skin
+    return await sharp(photoBuffer)
+      .modulate({
+        brightness: 1.05 + (intensity / 10) * 0.05,
+        saturation: 1.12,
+      })
+      .blur(blurSigma)
+      .sharpen({ sigma: sharpSigma, m1: 0.4, m2: 0.15 })
+      .gamma(1.05)
+      .jpeg({ quality: 95 })
+      .toBuffer();
+  }
+
+  // Signature Kardashian B&W: high-contrast monochrome, porcelain skin, deep blacks, radiant highlights
+  return await sharp(photoBuffer)
+    .grayscale()
+    .linear(1.15 + (intensity / 10) * 0.15, -12)
+    .modulate({
+      brightness: 1.04,
+    })
+    .blur(blurSigma)
+    .sharpen({ sigma: sharpSigma, m1: 0.45, m2: 0.1 })
+    .jpeg({ quality: 96 })
+    .toBuffer();
+}
+
+module.exports = {
+  applyBrandingOverlay,
+  applyFrameOverlay,
+  createPhotoStrip,
+  createPolaroid,
+  applyBeautyMode,
+  applyGlamFilter,
+};
