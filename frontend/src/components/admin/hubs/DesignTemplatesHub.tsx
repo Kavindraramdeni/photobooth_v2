@@ -245,9 +245,8 @@ export function DesignTemplatesHub({
   const colorInputRef = useRef<HTMLInputElement>(null);
 
   const THEMES = [
-    { id: 'light', label: 'Light', emoji: '☀️' },
-    { id: 'dark', label: 'Dark', emoji: '🌙' },
-    { id: 'champagne', label: 'Champagne', emoji: '🥂' },
+    { id: 'light', label: 'Light Studio', emoji: '☀️' },
+    { id: 'dark', label: 'Dark Studio', emoji: '🌙' },
   ] as const;
 
   return (

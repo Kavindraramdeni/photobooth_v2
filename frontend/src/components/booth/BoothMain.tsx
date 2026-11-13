@@ -23,11 +23,9 @@ export function BoothMain() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   const branding = event?.branding;
-  const themeMode = (branding?.themeMode as string) || 'light';
-  // Use uploaded wallpaper or idle media, or default to the ambient background video
+  const themeMode = (branding?.themeMode as string) || 'dark';
   const userMediaUrl = (branding?.wallpaperUrl as string) || (branding?.idleMediaUrl as string) || null;
-  const activeMediaUrl = userMediaUrl || '/video/snapbooth.mp4';
-  const isVideo = Boolean(activeMediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
+  const isVideo = Boolean(userMediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
   const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
 
   // Background sync for offline photo queue
@@ -150,42 +148,39 @@ export function BoothMain() {
     print: <ShareScreen />,
   };
 
-  const themeClass = themeMode === 'light' ? 'theme-light' : themeMode === 'champagne' ? 'theme-champagne' : 'theme-dark';
+  const themeClass = themeMode === 'light' ? 'theme-light' : 'theme-dark';
+  // Show background wallpaper/video ONLY on the Idle screen when custom wallpaper is provided
+  const showBackgroundMedia = screen === 'idle' && Boolean(userMediaUrl);
 
   return (
     <div
-      className={`booth-container relative ${themeClass}`}
+      className={`booth-container relative ${themeClass} ${themeMode === 'light' ? 'bg-slate-100' : 'bg-[#0a0a12]'}`}
       onTouchStart={resetTimeout}
       onClick={resetTimeout}
     >
-      {/* Background Media: User wallpaper / video or default looping video */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
-        {isVideo ? (
-          <video
-            src={activeMediaUrl}
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={activeMediaUrl}
-            alt="Event Background"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
-        {/* Subtle, translucent scrim so background image/video is completely visible while text stays crisp */}
-        <div
-          className={`absolute inset-0 pointer-events-none ${
-            themeMode === 'champagne'
-              ? 'bg-gradient-to-t from-[#2a1d0f]/60 via-[#c99738]/10 to-[#2a1d0f]/40'
-              : 'bg-gradient-to-t from-black/55 via-black/15 to-black/35'
-          }`}
-        />
-      </div>
+      {/* Background Media: ONLY rendered on the Idle attract screen when custom wallpaper is uploaded */}
+      {showBackgroundMedia && userMediaUrl && (
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+          {isVideo ? (
+            <video
+              src={userMediaUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={userMediaUrl}
+              alt="Event Background"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
+        </div>
+      )}
 
       <FlashOverlay />
 

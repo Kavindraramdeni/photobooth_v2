@@ -33,7 +33,7 @@ export interface Event {
     logoUrl: string | null;
     idleMediaUrl?: string | null;
     frameUrl?: string | null;
-    themeMode?: 'light' | 'dark' | 'champagne';
+    themeMode?: 'light' | 'dark';
     wallpaperUrl?: string | null;
     fontFamily?: string;
   };

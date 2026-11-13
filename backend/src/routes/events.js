@@ -77,9 +77,16 @@ router.get('/:id', async (req, res) => {
       }
     }
 
+    const durationSeconds = 7 * 24 * 3600;
+    const boothToken = (event.status === 'active') ? signToken({
+      role: 'booth',
+      eventId: event.id,
+      sub: `booth:${event.id}`,
+    }, durationSeconds) : undefined;
+
     // Owner gets full record
     if (isOwner) {
-      return res.json({ event });
+      return res.json({ event: { ...event, boothToken }, boothToken });
     }
 
     // Public / Booth caller: sanitize sensitive credentials
@@ -100,9 +107,10 @@ router.get('/:id', async (req, res) => {
       settings: safeSettings,
       hasGalleryPassword: hasPassword,
       created_at: event.created_at,
+      boothToken,
     };
 
-    res.json({ event: publicEvent });
+    res.json({ event: publicEvent, boothToken });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

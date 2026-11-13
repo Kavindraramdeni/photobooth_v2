@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useBoothStore } from '@/lib/store';
-import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
+import { uploadPhoto, createGIF, createStrip, setBoothToken } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
 import toast from 'react-hot-toast';
 import { Sparkles, Camera, ArrowLeft } from 'lucide-react';
@@ -156,6 +156,10 @@ export function CountdownScreen() {
         }
 
         try {
+          if ((event as any)?.boothToken) {
+            setBoothToken((event as any).boothToken, event.id);
+          }
+
           let result;
 
           if (mode === 'single' || mode === 'aistudio') {

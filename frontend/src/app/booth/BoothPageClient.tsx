@@ -4,7 +4,7 @@ import { kioskController } from '@/components/booth/KioskController';
 import { useEffect, useState, createContext, useContext } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBoothStore } from '@/lib/store';
-import { getEvent } from '@/lib/api';
+import { getEvent, setBoothToken } from '@/lib/api';
 import { BoothMain } from '@/components/booth/BoothMain';
 import { BoothGuard } from '@/components/booth/BoothGuard';
 import { BoothErrorBoundary } from '@/components/booth/ErrorBoundary';
@@ -39,6 +39,9 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
       try {
         const eventData = await getEvent(eventSlug);
         setEvent(eventData);
+        if (eventData?.boothToken && eventData?.id) {
+          setBoothToken(eventData.boothToken, eventData.id);
+        }
       } catch {
         setError('Event not found. Please check your event link.');
       } finally {

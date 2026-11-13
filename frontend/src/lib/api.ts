@@ -292,7 +292,12 @@ export async function getAIStyles() {
 
 export async function getEvent(idOrSlug: string) {
   const res = await api.get(`/events/${idOrSlug}`);
-  return res.data.event;
+  const eventData = res.data?.event || res.data;
+  const boothToken = res.data?.boothToken || eventData?.boothToken;
+  if (boothToken && eventData?.id) {
+    setBoothToken(boothToken, eventData.id);
+  }
+  return eventData;
 }
 
 export async function getEvents() {
