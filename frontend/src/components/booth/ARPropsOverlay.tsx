@@ -180,15 +180,11 @@ export function ARPropsOverlay({
 
   return (
     <div className={`pointer-events-none absolute inset-0 z-20 ${className}`}>
-      {/* ── Active Live Prop Rendered on Viewfinder ── */}
+      {/* ── Active Live Prop Rendered on Viewfinder (Separated Layout & Motion transforms) ── */}
       <AnimatePresence>
         {activeProp && (
-          <motion.div
+          <div
             key={activeProp.id}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: activeProp.defaultScale, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             className="absolute pointer-events-auto cursor-move select-none"
             style={{
               left: `${activeProp.defaultX}%`,
@@ -198,11 +194,15 @@ export function ARPropsOverlay({
               maxWidth: '320px',
             }}
           >
-            <div
+            <motion.div
+              initial={{ scale: 0.3, opacity: 0 }}
+              animate={{ scale: activeProp.defaultScale, opacity: 1 }}
+              exit={{ scale: 0.3, opacity: 0 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 340 }}
               className="w-full h-auto drop-shadow-[0_10px_25px_rgba(0,0,0,0.6)]"
               dangerouslySetInnerHTML={{ __html: activeProp.svg }}
             />
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

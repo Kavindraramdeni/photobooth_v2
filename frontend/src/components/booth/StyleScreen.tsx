@@ -42,7 +42,7 @@ export function StyleScreen() {
       title: 'Retro 4-Strip',
       badge: 'Classic 4-Shot',
       subtitle: '4 rapid poses in a strip',
-      previewUrl: 'https://images.unsplash.com/photo-1526047932273-341f2a7631f9?auto=format&fit=crop&w=600&q=80',
+      previewUrl: 'https://images.unsplash.com/photo-1516962215378-7fa2e137ae93?auto=format&fit=crop&w=600&q=80',
       icon: <ImageIcon className="w-5 h-5 text-white" />,
       enabled: true,
     },

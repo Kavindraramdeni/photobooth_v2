@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
@@ -66,6 +66,8 @@ export function CountdownScreen() {
   // Camera warm-up
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
+
+  const shouldReduceMotion = useReducedMotion();
 
   // AR Digital Props & Glam Mode States
   const [activePropId, setActivePropId] = useState<string | null>(null);
@@ -454,10 +456,14 @@ export function CountdownScreen() {
           {countdown !== null && (
             <motion.div
               key={countdown}
-              initial={{ scale: 1.8, opacity: 0, filter: 'blur(10px)' }}
-              animate={{ scale: 1, opacity: 1, filter: 'blur(0px)' }}
-              exit={{ scale: 0.6, opacity: 0, filter: 'blur(6px)' }}
-              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { scale: 1.45, opacity: 0, filter: 'blur(8px)' }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { scale: 1, opacity: 1, filter: 'blur(0px)' }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { scale: 0.75, opacity: 0, filter: 'blur(4px)' }}
+              transition={
+                shouldReduceMotion
+                  ? { duration: 0.15 }
+                  : { type: 'spring', stiffness: 380, damping: 24, mass: 0.8 }
+              }
               className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
             >
               <div className="relative flex items-center justify-center">
