@@ -237,41 +237,63 @@ export function DesignTemplatesHub({
   const eventName = String(branding['eventName'] ?? event.name ?? 'SnapBooth AI');
   const footerText = String(branding['footerText'] ?? '');
   const logoUrl = String(branding['logoUrl'] ?? '');
+  const rawBgMode = String(branding['backgroundMode'] ?? '');
   const wallpaperUrl = String(branding['wallpaperUrl'] ?? '');
   const idleMediaUrl = String(branding['idleMediaUrl'] ?? '');
+  const mediaUrl = wallpaperUrl || idleMediaUrl;
+  const isVideoMedia = Boolean(mediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
+
+  let currentBgMode: 'light' | 'dark' | 'video' | 'image' = 'dark';
+  if (rawBgMode === 'light' || rawBgMode === 'dark' || rawBgMode === 'video' || rawBgMode === 'image') {
+    currentBgMode = rawBgMode as any;
+  } else if (themeMode === 'light') {
+    currentBgMode = 'light';
+  } else if (mediaUrl) {
+    currentBgMode = isVideoMedia ? 'video' : 'image';
+  }
 
   const isPrimaryTooLight = hexToLuma(primaryColor.length === 7 ? primaryColor : '#7c3aed') > 215;
 
   const colorInputRef = useRef<HTMLInputElement>(null);
 
-  const THEMES = [
-    { id: 'light', label: 'Light Studio', emoji: '☀️' },
-    { id: 'dark', label: 'Dark Studio', emoji: '🌙' },
+  const BG_MODES = [
+    { id: 'light', label: 'White Studio', emoji: '☀️', desc: 'White theme, no media' },
+    { id: 'dark', label: 'Dark Studio', emoji: '🌙', desc: 'Dark theme, no media' },
+    { id: 'video', label: 'Playing Video', emoji: '🎬', desc: 'Ambient attract video' },
+    { id: 'image', label: 'Background Image', emoji: '🖼️', desc: 'Custom wallpaper image' },
   ] as const;
+
+  const handleSelectBgMode = (mode: 'light' | 'dark' | 'video' | 'image') => {
+    onBrandingChange('backgroundMode', mode);
+    onBrandingChange('themeMode', mode === 'light' ? 'light' : 'dark');
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
       {/* ── LEFT: Settings Panel ── */}
       <div className="space-y-4">
 
-        {/* Section 1 — Theme */}
-        <Section icon={Sun} title="Theme">
+        {/* Section 1 — Booth Background & Theme (Strictly Mutually Exclusive) */}
+        <Section icon={Sun} title="Booth Background & Theme">
           <Row>
-            <RowLabel label="Theme Mode" sub="Controls booth color palette" />
-            <div className="flex gap-1.5">
-              {THEMES.map((t) => (
+            <RowLabel
+              label="Background Mode"
+              sub="Exactly one active at a time: White, Dark, Playing Video, or Wallpaper Image."
+            />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 w-full sm:w-auto">
+              {BG_MODES.map((m) => (
                 <button
-                  key={t.id}
+                  key={m.id}
                   type="button"
-                  onClick={() => onBrandingChange('themeMode', t.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    themeMode === t.id
-                      ? 'bg-violet-600 text-white'
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  onClick={() => handleSelectBgMode(m.id)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 text-center border ${
+                    currentBgMode === m.id
+                      ? 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-600/30'
+                      : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-750'
                   }`}
                 >
-                  <span>{t.emoji}</span>
-                  {t.label}
+                  <span className="text-base">{m.emoji}</span>
+                  <span className="leading-tight">{m.label}</span>
                 </button>
               ))}
             </div>
@@ -369,46 +391,61 @@ export function DesignTemplatesHub({
             </div>
           </Row>
 
-          {/* Wallpaper */}
-          <Row>
-            <div className="shrink-0">
-              <p className="text-sm text-zinc-200 font-medium">Wallpaper / Background</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Applies to booth background and idle attract screen.</p>
-            </div>
-            <div className="flex-1 max-w-[220px]">
-              <CompactUpload
-                label="Upload wallpaper"
-                accept="image/png,image/jpeg,image/webp,video/mp4"
-                currentUrl={wallpaperUrl}
-                onUploaded={(url) => {
-                  onBrandingChange('wallpaperUrl', url);
-                  onBrandingChange('idleMediaUrl', url);
-                }}
-                eventId={event.id}
-                assetType="idle"
-                API_BASE={API_BASE}
-              />
-            </div>
-          </Row>
+          {/* Mutually Exclusive Media Configuration based on currentBgMode */}
+          {currentBgMode === 'image' && (
+            <Row>
+              <div className="shrink-0">
+                <p className="text-sm text-zinc-200 font-medium">Background Image (Wallpaper)</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Displays on the idle attract screen. Workflow screens stay clean studio.</p>
+              </div>
+              <div className="flex-1 max-w-[220px]">
+                <CompactUpload
+                  label="Upload wallpaper"
+                  accept="image/png,image/jpeg,image/webp"
+                  currentUrl={wallpaperUrl}
+                  onUploaded={(url) => {
+                    onBrandingChange('wallpaperUrl', url);
+                    onBrandingChange('idleMediaUrl', url);
+                  }}
+                  eventId={event.id}
+                  assetType="idle"
+                  API_BASE={API_BASE}
+                />
+              </div>
+            </Row>
+          )}
 
-          {/* Idle Attract Video */}
-          <Row>
-            <div className="shrink-0">
-              <p className="text-sm text-zinc-200 font-medium">Idle Attract Video</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Loops on idle screen when no one is using the booth.</p>
+          {currentBgMode === 'video' && (
+            <Row>
+              <div className="shrink-0">
+                <p className="text-sm text-zinc-200 font-medium">Playing Video (Attract Media)</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Loops on idle screen. Workflow screens stay clean studio.</p>
+              </div>
+              <div className="flex-1 max-w-[220px]">
+                <CompactUpload
+                  label="Upload idle video"
+                  accept="video/mp4,video/webm"
+                  currentUrl={idleMediaUrl}
+                  onUploaded={(url) => {
+                    onBrandingChange('idleMediaUrl', url);
+                    onBrandingChange('wallpaperUrl', url);
+                  }}
+                  eventId={event.id}
+                  assetType="idle"
+                  API_BASE={API_BASE}
+                />
+              </div>
+            </Row>
+          )}
+
+          {(currentBgMode === 'light' || currentBgMode === 'dark') && (
+            <div className="p-3 bg-zinc-800/40 border border-zinc-700/50 rounded-xl text-xs text-zinc-400 flex items-center gap-2.5">
+              <span className="text-base">{currentBgMode === 'light' ? '☀️' : '🌙'}</span>
+              <span>
+                <strong>{currentBgMode === 'light' ? 'White Studio' : 'Dark Studio'} active:</strong> Background image and video are disabled for a pure, distraction-free studio backdrop.
+              </span>
             </div>
-            <div className="flex-1 max-w-[220px]">
-              <CompactUpload
-                label="Upload idle media"
-                accept="image/*,video/mp4"
-                currentUrl={idleMediaUrl}
-                onUploaded={(url) => onBrandingChange('idleMediaUrl', url)}
-                eventId={event.id}
-                assetType="idle"
-                API_BASE={API_BASE}
-              />
-            </div>
-          </Row>
+          )}
         </Section>
 
         {/* Save Bar */}

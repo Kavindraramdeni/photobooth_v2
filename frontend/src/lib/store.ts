@@ -34,6 +34,7 @@ export interface Event {
     idleMediaUrl?: string | null;
     frameUrl?: string | null;
     themeMode?: 'light' | 'dark';
+    backgroundMode?: 'light' | 'dark' | 'video' | 'image';
     wallpaperUrl?: string | null;
     fontFamily?: string;
   };

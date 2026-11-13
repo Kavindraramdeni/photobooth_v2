@@ -135,6 +135,19 @@ export async function getBoothSession(
   return res.data;
 }
 
+export async function ensureBoothToken(eventId: string): Promise<string | null> {
+  let token = getBoothToken(eventId);
+  if (!token && eventId) {
+    try {
+      const eventData = await getEvent(eventId);
+      token = eventData?.boothToken || getBoothToken(eventId);
+    } catch (err) {
+      console.warn('[ensureBoothToken] Auto-refresh booth token warning:', err);
+    }
+  }
+  return token;
+}
+
 // ─── Photos & Media Upload ──────────────────────────────────────────────────
 
 export async function uploadPhoto(
@@ -144,6 +157,8 @@ export async function uploadPhoto(
   mode = 'single',
   clientPhotoId?: string
 ) {
+  const token = await ensureBoothToken(eventId);
+
   const form = new FormData();
   form.append('photo', blob, 'photo.jpg');
   form.append('eventId', eventId);
@@ -156,7 +171,17 @@ export async function uploadPhoto(
     form.append('clientCaptureId', clientPhotoId);
   }
 
+  if (token) {
+    form.append('boothToken', token);
+    form.append('sessionToken', token);
+  }
+
   const headers = getBoothHeaders(eventId, clientPhotoId);
+  if (token) {
+    headers['x-booth-session'] = token;
+    headers['X-Booth-Session'] = token;
+  }
+
   const res = await api.post('/photos/upload', form, { headers });
   return res.data;
 }
@@ -168,6 +193,8 @@ export async function createGIF(
   clientPhotoId?: string,
   sessionId?: string
 ) {
+  const token = await ensureBoothToken(eventId);
+
   const form = new FormData();
   frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
   form.append('eventId', eventId);
@@ -179,7 +206,17 @@ export async function createGIF(
     form.append('clientCaptureId', clientPhotoId);
   }
 
+  if (token) {
+    form.append('boothToken', token);
+    form.append('sessionToken', token);
+  }
+
   const headers = getBoothHeaders(eventId, clientPhotoId);
+  if (token) {
+    headers['x-booth-session'] = token;
+    headers['X-Booth-Session'] = token;
+  }
+
   const res = await api.post('/photos/gif', form, { headers });
   return res.data;
 }
@@ -190,6 +227,8 @@ export async function createBurst(
   sessionId?: string,
   clientPhotoId?: string
 ) {
+  const token = await ensureBoothToken(eventId);
+
   const form = new FormData();
   frames.forEach((f, i) => form.append('frames', f, `frame_${i}.jpg`));
   form.append('eventId', eventId);
@@ -200,7 +239,17 @@ export async function createBurst(
     form.append('clientCaptureId', clientPhotoId);
   }
 
+  if (token) {
+    form.append('boothToken', token);
+    form.append('sessionToken', token);
+  }
+
   const headers = getBoothHeaders(eventId, clientPhotoId);
+  if (token) {
+    headers['x-booth-session'] = token;
+    headers['X-Booth-Session'] = token;
+  }
+
   const res = await api.post('/photos/burst', form, { headers });
   return res.data;
 }
@@ -211,6 +260,8 @@ export async function createStrip(
   clientPhotoId?: string,
   sessionId?: string
 ) {
+  const token = await ensureBoothToken(eventId);
+
   const form = new FormData();
   photos.forEach((p, i) => form.append('photos', p, `photo_${i}.jpg`));
   form.append('eventId', eventId);
@@ -221,7 +272,17 @@ export async function createStrip(
     form.append('clientCaptureId', clientPhotoId);
   }
 
+  if (token) {
+    form.append('boothToken', token);
+    form.append('sessionToken', token);
+  }
+
   const headers = getBoothHeaders(eventId, clientPhotoId);
+  if (token) {
+    headers['x-booth-session'] = token;
+    headers['X-Booth-Session'] = token;
+  }
+
   const res = await api.post('/photos/strip', form, { headers });
   return res.data;
 }

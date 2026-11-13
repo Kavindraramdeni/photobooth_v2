@@ -78,7 +78,7 @@ router.get('/:id', async (req, res) => {
     }
 
     const durationSeconds = 7 * 24 * 3600;
-    const boothToken = (event.status === 'active') ? signToken({
+    const boothToken = (event.status !== 'archived') ? signToken({
       role: 'booth',
       eventId: event.id,
       sub: `booth:${event.id}`,

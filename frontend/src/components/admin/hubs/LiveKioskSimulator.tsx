@@ -29,10 +29,25 @@ export function LiveKioskSimulator({
   const logoUrl = String(branding['logoUrl'] ?? '');
   const footerText = String(branding['footerText'] ?? 'SnapBooth Experience');
   const frameUrl = String(branding['frameUrl'] ?? '');
-  const wallpaperUrl = String(branding['wallpaperUrl'] ?? branding['idleMediaUrl'] ?? '');
-  const themeMode = String(branding['themeMode'] ?? 'light');
+  const rawBgMode = String(branding['backgroundMode'] ?? '');
+  const wallpaperUrl = String(branding['wallpaperUrl'] ?? '');
+  const idleMediaUrl = String(branding['idleMediaUrl'] ?? '');
+  const mediaUrl = wallpaperUrl || idleMediaUrl;
+  const isVideoMedia = Boolean(mediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
 
-  const isLight = themeMode !== 'dark';
+  let activeBgMode: 'light' | 'dark' | 'video' | 'image' = 'dark';
+  if (rawBgMode === 'light' || rawBgMode === 'dark' || rawBgMode === 'video' || rawBgMode === 'image') {
+    activeBgMode = rawBgMode as any;
+  } else if (branding['themeMode'] === 'light') {
+    activeBgMode = 'light';
+  } else if (mediaUrl) {
+    activeBgMode = isVideoMedia ? 'video' : 'image';
+  }
+
+  const isLight = activeBgMode === 'light';
+  const showVideo = activeBgMode === 'video' && simScreen === 'idle';
+  const showImage = activeBgMode === 'image' && simScreen === 'idle' && Boolean(mediaUrl);
+  const videoSrc = mediaUrl || '/video/snapbooth.mp4';
   const samplePhotoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
 
   return (
@@ -99,34 +114,28 @@ export function LiveKioskSimulator({
               : 'bg-[#07070d] text-white border-white/5'
           }`}
         >
-          {/* Wallpaper Layer inside Simulator */}
-          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
-            {wallpaperUrl ? (
-              wallpaperUrl.match(/\.(mp4|webm|mov)(\?|$)/i) ? (
-                <video
-                  src={wallpaperUrl}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={wallpaperUrl} alt="" className="w-full h-full object-cover" />
-              )
-            ) : (
+          {/* Mutually exclusive background media on Idle screen only */}
+          {showVideo && (
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
               <video
-                src="/video/snapbooth.mp4"
+                src={videoSrc}
                 autoPlay
                 muted
                 loop
                 playsInline
                 className="w-full h-full object-cover"
               />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35 pointer-events-none" />
-          </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35 pointer-events-none" />
+            </div>
+          )}
+
+          {showImage && mediaUrl && (
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35 pointer-events-none" />
+            </div>
+          )}
 
           {/* Status Bar */}
           <div

@@ -189,13 +189,16 @@ export function PreviewScreen() {
 
   // ── Composite Stickers & Filter onto Photo for Permanent Sharing & Print ───
   async function bakeCustomizations(): Promise<string> {
+    if (!photo?.url) return '';
     if (placedStickers.length === 0 && activeFilter === 'none') {
       return photo.url;
     }
 
     return new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (photo.url.startsWith('http') && !photo.url.startsWith('http://localhost') && !photo.url.startsWith('https://localhost')) {
+        img.crossOrigin = 'anonymous';
+      }
 
       img.onload = async () => {
         const canvas = document.createElement('canvas');
@@ -478,15 +481,19 @@ export function PreviewScreen() {
                   key={sticker.instanceId}
                   drag
                   dragMomentum={false}
-                  dragConstraints={photoContainerRef}
+                  dragElastic={0.08}
+                  dragConstraints={photoContainerRef.current ? photoContainerRef : { left: -150, right: 150, top: -150, bottom: 150 }}
                   onDragEnd={(_, info) => {
                     if (!photoContainerRef.current) return;
                     const rect = photoContainerRef.current.getBoundingClientRect();
+                    if (!rect || rect.width <= 0 || rect.height <= 0) return;
                     setPlacedStickers((prev) =>
                       prev.map((s) => {
                         if (s.instanceId !== sticker.instanceId) return s;
-                        const newX = Math.max(5, Math.min(95, s.xPercent + (info.offset.x / rect.width) * 100));
-                        const newY = Math.max(5, Math.min(95, s.yPercent + (info.offset.y / rect.height) * 100));
+                        const deltaX = (info.offset.x / rect.width) * 100;
+                        const deltaY = (info.offset.y / rect.height) * 100;
+                        const newX = Math.max(5, Math.min(95, s.xPercent + deltaX));
+                        const newY = Math.max(5, Math.min(95, s.yPercent + deltaY));
                         return { ...s, xPercent: newX, yPercent: newY };
                       })
                     );

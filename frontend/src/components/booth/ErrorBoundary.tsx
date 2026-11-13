@@ -59,11 +59,14 @@ function RecoveryScreen({
           </p>
         </div>
 
-        {/* Dev-only error details */}
-        {isDev && error && (
-          <div className="w-full bg-red-950/60 border border-red-800/40 rounded-2xl p-4 text-left">
-            <p className="text-red-400 text-xs font-mono break-all leading-relaxed">
-              {error.message}
+        {/* Error diagnostics */}
+        {error && (
+          <div className="w-full bg-red-950/70 border border-red-800/60 rounded-2xl p-4 text-left shadow-lg">
+            <p className="text-red-300 font-bold text-xs uppercase tracking-wider mb-1">
+              Error Details:
+            </p>
+            <p className="text-red-200 text-xs font-mono break-all leading-relaxed">
+              {error.message || String(error)}
             </p>
           </div>
         )}

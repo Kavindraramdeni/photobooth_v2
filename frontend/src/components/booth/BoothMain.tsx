@@ -23,10 +23,33 @@ export function BoothMain() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   const branding = event?.branding;
-  const themeMode = (branding?.themeMode as string) || 'dark';
+  const rawBgMode = (branding as any)?.backgroundMode;
   const userMediaUrl = (branding?.wallpaperUrl as string) || (branding?.idleMediaUrl as string) || null;
-  const isVideo = Boolean(userMediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
+  const isVideoMedia = Boolean(userMediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
+
+  // Mutually exclusive background mode: 'light' | 'dark' | 'video' | 'image'
+  // Exactly ONE mode active at any time:
+  // - 'light': pure white studio theme (no image, no video)
+  // - 'dark': sleek dark studio theme (no image, no video)
+  // - 'video': playing ambient video on idle screen only
+  // - 'image': background image on idle screen only
+  let activeBgMode: 'light' | 'dark' | 'video' | 'image' = 'dark';
+  if (rawBgMode === 'light' || rawBgMode === 'dark' || rawBgMode === 'video' || rawBgMode === 'image') {
+    activeBgMode = rawBgMode;
+  } else if (branding?.themeMode === 'light') {
+    activeBgMode = 'light';
+  } else if (userMediaUrl) {
+    activeBgMode = isVideoMedia ? 'video' : 'image';
+  }
+
+  const isLight = activeBgMode === 'light';
+  const themeClass = isLight ? 'theme-light' : 'theme-dark';
   const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
+
+  // Video or Image ONLY rendered on the Idle attract screen when that specific mode is selected
+  const showVideo = activeBgMode === 'video' && screen === 'idle';
+  const videoSrc = userMediaUrl || '/video/snapbooth.mp4';
+  const showImage = activeBgMode === 'image' && screen === 'idle' && Boolean(userMediaUrl);
 
   // Background sync for offline photo queue
   useEffect(() => {
@@ -148,36 +171,35 @@ export function BoothMain() {
     print: <ShareScreen />,
   };
 
-  const themeClass = themeMode === 'light' ? 'theme-light' : 'theme-dark';
-  // Show background wallpaper/video ONLY on the Idle screen when custom wallpaper is provided
-  const showBackgroundMedia = screen === 'idle' && Boolean(userMediaUrl);
-
   return (
     <div
-      className={`booth-container relative ${themeClass} ${themeMode === 'light' ? 'bg-slate-100' : 'bg-[#0a0a12]'}`}
+      className={`booth-container relative ${themeClass} ${isLight ? 'bg-slate-100 text-slate-900' : 'bg-[#0a0a12] text-white'}`}
       onTouchStart={resetTimeout}
       onClick={resetTimeout}
     >
-      {/* Background Media: ONLY rendered on the Idle attract screen when custom wallpaper is uploaded */}
-      {showBackgroundMedia && userMediaUrl && (
+      {/* Background Media: ONLY rendered on the Idle attract screen when Video or Image mode is explicitly active */}
+      {showVideo && (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
-          {isVideo ? (
-            <video
-              src={userMediaUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={userMediaUrl}
-              alt="Event Background"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          )}
+          <video
+            src={videoSrc}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
+        </div>
+      )}
+
+      {showImage && userMediaUrl && (
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={userMediaUrl}
+            alt="Event Background"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
           <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
         </div>
       )}
