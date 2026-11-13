@@ -75,6 +75,20 @@ export default function GalleryPage() {
   const [isOperator,   setIsOperator]   = useState(false);
   const [deletingId,   setDeletingId]   = useState<string | null>(null);
   const [confirmPhoto, setConfirmPhoto] = useState<Photo | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [operatorPin,  setOperatorPin]  = useState('');
+  const [pinError,     setPinError]     = useState('');
+  const [checkingPin,  setCheckingPin]  = useState(false);
+
+  function getAuthToken(): string {
+    if (typeof window === 'undefined') return '';
+    return (
+      localStorage.getItem('sb_access_token') ||
+      localStorage.getItem('sb_operator_token') ||
+      sessionStorage.getItem('operator_token') ||
+      ''
+    );
+  }
 
   const loadGallery = useCallback(async () => {
     setLoading(true);
@@ -133,12 +147,51 @@ export default function GalleryPage() {
 
   useEffect(() => {
     try {
-      const token = localStorage.getItem('sb_access_token');
+      const token = getAuthToken();
       if (!token) return;
       const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload?.sub) setIsOperator(true);
+      if (payload?.sub || payload?.role === 'operator' || payload?.eventId) {
+        setIsOperator(true);
+      }
     } catch { /* not a valid JWT */ }
   }, []);
+
+  async function submitOperatorPin() {
+    if (!event?.id || !operatorPin.trim()) return;
+    setCheckingPin(true);
+    setPinError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/events/${event.id}/operator-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: operatorPin.trim() }),
+      });
+      const data = await res.json();
+      if (data?.token) {
+        sessionStorage.setItem('operator_token', data.token);
+        localStorage.setItem('sb_operator_token', data.token);
+        setIsOperator(true);
+        setDeleteMode(true);
+        setShowPinModal(false);
+      } else {
+        setPinError(data?.error || 'Invalid Operator PIN');
+      }
+    } catch {
+      setPinError('Connection failed — please check network');
+    } finally {
+      setCheckingPin(false);
+    }
+  }
+
+  function handleToggleManage() {
+    if (isOperator) {
+      setDeleteMode(v => !v);
+    } else {
+      setPinError('');
+      setOperatorPin('');
+      setShowPinModal(true);
+    }
+  }
 
   async function submitPassword() {
     if (!event || !passwordInput.trim()) return;
@@ -176,7 +229,11 @@ export default function GalleryPage() {
   }
 
   async function handleDeletePhoto(photo: Photo) {
-    const token = localStorage.getItem('sb_access_token') ?? '';
+    const token = getAuthToken();
+    if (!token) {
+      setShowPinModal(true);
+      return;
+    }
     setDeletingId(photo.id);
     try {
       const res = await fetch(`${API_BASE}/api/photos/${photo.id}`, {
@@ -189,6 +246,7 @@ export default function GalleryPage() {
       }
       setPhotos(prev => prev.filter(p => p.id !== photo.id));
       setConfirmPhoto(null);
+      if (lightbox?.id === photo.id) setLightbox(null);
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Delete failed');
     } finally {
@@ -310,20 +368,20 @@ export default function GalleryPage() {
             <span>photo{photos.length !== 1 ? 's' : ''} captured</span>
           </div>
         </div>
-        <div className="w-16 flex justify-end">
-          {isOperator && (
-            <button
-              onClick={() => setDeleteMode(v => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all active:scale-95 ${
-                deleteMode
-                  ? 'bg-red-500/90 text-white shadow-lg'
-                  : 'text-white/70 hover:text-white bg-white/10'
-              }`}
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              {deleteMode ? 'Done' : 'Manage'}
-            </button>
-          )}
+        <div className="flex justify-end">
+          <button
+            onClick={handleToggleManage}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all active:scale-95 shadow-sm ${
+              deleteMode
+                ? 'bg-red-500 text-white shadow-red-500/30 shadow-lg'
+                : isOperator
+                ? 'bg-slate-900/10 hover:bg-slate-900/20 text-slate-800'
+                : 'bg-black/5 hover:bg-black/10 text-slate-600'
+            }`}
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            {deleteMode ? 'Done' : 'Manage Photos'}
+          </button>
         </div>
       </div>
 
@@ -423,7 +481,7 @@ export default function GalleryPage() {
 
             {/* Actions Bar */}
             <div className="flex-shrink-0 px-6 pb-6 pt-3 space-y-3 glass-panel border-t border-white/10">
-              <div className="grid grid-cols-3 gap-3 max-w-md mx-auto w-full">
+              <div className={`grid ${isOperator ? 'grid-cols-4' : 'grid-cols-3'} gap-2 sm:gap-3 max-w-md mx-auto w-full`}>
                 {/* Download */}
                 <button
                   onClick={() => iosDownload(lightbox.url, `${eventName.replace(/\s+/g, '-')}-${lightbox.id.slice(0, 6)}.${lightbox.mode === 'gif' || lightbox.mode === 'boomerang' ? 'gif' : 'jpg'}`)}
@@ -452,6 +510,18 @@ export default function GalleryPage() {
                   <QrCode className="w-5 h-5" />
                   <span className="text-xs font-bold">QR Code</span>
                 </button>
+
+                {/* Operator Delete Button */}
+                {isOperator && (
+                  <button
+                    onClick={() => setConfirmPhoto(lightbox)}
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl glass-panel border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all active:scale-95"
+                    title="Delete photo permanently"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span className="text-xs font-bold">Delete</span>
+                  </button>
+                )}
               </div>
 
               {/* QR Expanded */}
@@ -536,6 +606,62 @@ export default function GalleryPage() {
                     <><Trash2 className="w-4 h-4" /> Delete</>
                   )}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Operator PIN Unlock Modal */}
+      <AnimatePresence>
+        {showPinModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowPinModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-xs w-full space-y-4 shadow-2xl text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mx-auto text-xl">
+                🔒
+              </div>
+              <div>
+                <p className="text-white font-black text-base">Operator Access</p>
+                <p className="text-zinc-400 text-xs mt-1">Enter your 4-digit operator PIN to manage and delete photos</p>
+              </div>
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  maxLength={6}
+                  value={operatorPin}
+                  onChange={(e) => setOperatorPin(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submitOperatorPin()}
+                  placeholder="PIN"
+                  className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-lg font-mono text-center tracking-widest focus:outline-none focus:border-purple-400"
+                  autoFocus
+                />
+                {pinError && <p className="text-red-400 text-xs font-semibold">{pinError}</p>}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => setShowPinModal(false)}
+                    className="py-2.5 rounded-xl border border-white/15 text-white/60 hover:text-white text-xs font-bold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitOperatorPin}
+                    disabled={checkingPin || !operatorPin}
+                    className="py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-black transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    {checkingPin ? 'Checking...' : 'Unlock'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

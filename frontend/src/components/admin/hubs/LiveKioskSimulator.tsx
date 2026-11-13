@@ -100,22 +100,38 @@ export function LiveKioskSimulator({
           }`}
         >
           {/* Wallpaper Layer inside Simulator */}
-          {wallpaperUrl && (
-            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={wallpaperUrl} alt="" className="w-full h-full object-cover" />
-              <div
-                className={`absolute inset-0 ${
-                  isLight ? 'bg-white/60 backdrop-blur-[4px]' : 'bg-black/60 backdrop-blur-[4px]'
-                }`}
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+            {wallpaperUrl ? (
+              wallpaperUrl.match(/\.(mp4|webm|mov)(\?|$)/i) ? (
+                <video
+                  src={wallpaperUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={wallpaperUrl} alt="" className="w-full h-full object-cover" />
+              )
+            ) : (
+              <video
+                src="/video/snapbooth.mp4"
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full h-full object-cover"
               />
-            </div>
-          )}
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35 pointer-events-none" />
+          </div>
 
           {/* Status Bar */}
           <div
             className={`h-6 px-4 flex items-center justify-between text-[10px] font-mono flex-shrink-0 z-20 ${
-              isLight ? 'text-slate-500 bg-white/40' : 'text-white/40 bg-black/40'
+              isLight ? 'text-white/80 bg-black/20' : 'text-white/60 bg-black/40'
             }`}
           >
             <span>9:41</span>
@@ -139,20 +155,25 @@ export function LiveKioskSimulator({
                   exit={{ opacity: 0 }}
                   className="w-full h-full flex flex-col items-center justify-center p-4 text-center relative"
                 >
-                  <div className="flex flex-col items-center justify-center space-y-6 my-auto">
+                  <div className="flex flex-col items-center justify-center space-y-5 my-auto">
                     {logoUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={logoUrl} alt="Logo" className="h-12 max-w-[140px] object-contain mx-auto drop-shadow" />
+                      <img src={logoUrl} alt="Logo" className="h-10 max-w-[130px] object-contain mx-auto drop-shadow-md" />
                     ) : (
-                      <h4 className="font-black text-xl tracking-tight leading-tight drop-shadow-sm">{eventName}</h4>
+                      <h4 className="font-black text-xl text-white tracking-tight leading-tight drop-shadow-md">{eventName}</h4>
                     )}
 
-                    {/* One Huge Pill Button: “Tap to start” */}
+                    {/* Studio Camera Shutter Button */}
                     <div
-                      className="px-6 py-3 rounded-full font-black text-xs text-white uppercase tracking-wider shadow-lg animate-pulse"
-                      style={{ backgroundColor: primaryColor }}
+                      className="w-24 h-24 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer border-2 border-white/40 transition-transform active:scale-95"
+                      style={{
+                        background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
+                        boxShadow: `0 12px 30px ${primaryColor}77`,
+                      }}
+                      onClick={() => setSimScreen('style')}
                     >
-                      Tap to start
+                      <Camera className="w-6 h-6 mb-1 text-white" />
+                      <span className="text-[9px] uppercase tracking-wider font-black">Tap to Start</span>
                     </div>
                   </div>
                 </motion.div>
@@ -165,51 +186,65 @@ export function LiveKioskSimulator({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full flex flex-col items-center justify-between p-3.5 text-center relative"
+                  className="w-full h-full flex flex-col items-center justify-between p-3 text-center relative"
                 >
-                  <div className="pt-2">
-                    <h5 className="font-black text-sm tracking-tight">Choose your style</h5>
-                    <p className={`text-[9px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tap to pose</p>
+                  <div className="pt-1">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-purple-400 block">Choose Your Style</span>
+                    <h5 className="font-black text-xs text-white tracking-tight">What are we creating?</h5>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 w-full my-auto">
+                  <div className="grid grid-cols-3 gap-1.5 w-full my-auto">
                     {[
                       {
-                        label: 'Portrait',
-                        sub: '4K Single',
+                        label: 'Studio',
+                        sub: 'Portrait',
                         img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
                       },
                       {
                         label: '4-Strip',
-                        sub: 'Keepsake',
-                        img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
+                        sub: 'Classic',
+                        img: 'https://images.unsplash.com/photo-1526047932273-341f2a7631f9?auto=format&fit=crop&w=300&q=80',
                       },
                       {
-                        label: 'AI Studio',
-                        sub: 'Magic Art',
-                        img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
+                        label: 'AI Magic',
+                        sub: 'Cyber Art',
+                        img: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80',
+                      },
+                      {
+                        label: 'GIF',
+                        sub: 'Burst',
+                        img: 'https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif',
+                      },
+                      {
+                        label: 'Loop',
+                        sub: 'Boomerang',
+                        img: 'https://media.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
                       },
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="relative rounded-2xl overflow-hidden aspect-[3/4] shadow-md border border-white/20 flex flex-col justify-end p-2 text-left"
+                        onClick={() => setSimScreen('capture')}
+                        className="relative rounded-xl overflow-hidden aspect-[3/4] shadow-md border border-white/20 flex flex-col justify-end p-1.5 text-left cursor-pointer group"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={item.img} alt={item.label} className="absolute inset-0 w-full h-full object-cover" />
+                        <img src={item.img} alt={item.label} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                        <span className="relative z-10 text-[9px] font-black text-white leading-tight">
+                        <span className="relative z-10 text-[8px] font-black text-white leading-tight">
                           {item.label}
                         </span>
-                        <span className="relative z-10 text-[7px] text-white/70 font-semibold leading-tight">
+                        <span className="relative z-10 text-[6px] text-white/70 font-semibold leading-tight">
                           {item.sub}
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  <div className={`text-[8px] font-bold pb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <button
+                    onClick={() => setSimScreen('idle')}
+                    className="text-[8px] font-bold pb-0.5 text-white/60 hover:text-white"
+                  >
                     ← Back to start
-                  </div>
+                  </button>
                 </motion.div>
               )}
 

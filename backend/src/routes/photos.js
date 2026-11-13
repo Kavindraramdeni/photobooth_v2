@@ -583,7 +583,13 @@ router.delete('/:photoId', requireAuth, async (req, res) => {
       .single();
 
     if (fetchErr || !photo) return res.status(404).json({ error: 'Photo not found' });
-    if (photo.events?.owner_id !== req.user.id) {
+
+    const eventOwnerId = Array.isArray(photo.events) ? photo.events[0]?.owner_id : photo.events?.owner_id;
+    const isOwner = eventOwnerId && eventOwnerId === req.user.id;
+    const isOperator = req.user.role === 'operator' && (req.user.eventId === photo.event_id || !req.user.eventId);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isOwner && !isOperator && !isAdmin) {
       return res.status(403).json({ error: 'Access denied: you do not own the event this photo belongs to' });
     }
 

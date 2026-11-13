@@ -116,7 +116,7 @@ export default function HomePage() {
           >
             <div className="inline-flex items-center gap-2 rounded-full glass-crystal-pill px-4 py-1.5 text-purple-700 text-xs font-black shadow-sm">
               <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-              <span>Clean Apple Light Studio Photobooth</span>
+              <span>Next-Generation Touch Photobooth</span>
             </div>
 
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.04] tracking-tight text-slate-900">
@@ -161,55 +161,69 @@ export default function HomePage() {
             </div>
           </motion.div>
 
-          {/* Device Showcase Mockup */}
+          {/* Device Showcase Mockup with Looping Video */}
           <motion.div
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.15 }}
             className="lg:col-span-5 relative"
           >
-            <div className="relative mx-auto rounded-[42px] bg-[#e2e8f0] border-4 border-[#cbd5e1] p-4 shadow-[0_24px_80px_-15px_rgba(0,0,0,0.15)]">
+            <div className="relative mx-auto rounded-[42px] bg-[#1a1a24] border-4 border-[#2d2d3d] p-3.5 sm:p-4 shadow-[0_24px_80px_-15px_rgba(0,0,0,0.5)]">
               {/* Virtual Device Bezel */}
-              <div className="rounded-[30px] overflow-hidden bg-gradient-to-b from-[#ffffff] via-[#f8fafd] to-[#eef2f8] border border-black/5 relative aspect-[9/14] flex flex-col justify-between p-5 text-slate-900">
-                {/* Simulated Kiosk Header */}
-                <div className="flex items-center justify-between z-10">
-                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 text-[10px] font-black">
+              <div className="rounded-[30px] overflow-hidden bg-black border border-white/10 relative aspect-[9/14] flex flex-col justify-between">
+                {/* Background Looping Video */}
+                <video
+                  src="/video/snapbooth.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+
+                {/* Subtle scrim */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/40 pointer-events-none" />
+
+                {/* Top Status Bar */}
+                <div className="relative z-10 flex items-center justify-between p-4">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md text-emerald-400 text-[10px] font-black border border-white/15">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>BOOTH READY</span>
+                    <span>LIVE KIOSK DEMO</span>
                   </div>
-                  <div className="w-7 h-7 rounded-xl glass-crystal-pill flex items-center justify-center text-xs shadow-sm">⚙️</div>
+                  <a
+                    href="/booth"
+                    className="px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-[10px] font-bold transition-all border border-white/20"
+                  >
+                    Open Fullscreen ↗
+                  </a>
                 </div>
 
-                {/* Hero Showcase Photo */}
-                <div className="text-center my-auto z-10 space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center mx-auto text-2xl text-white shadow-lg shadow-purple-600/30">
-                    ✨
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Gala Celebration 2026</h3>
-                  <p className="text-slate-500 text-xs font-bold">Touch any mode below to start</p>
+                {/* Center Touch Shutter */}
+                <div className="relative z-10 text-center my-auto p-4 flex flex-col items-center justify-center space-y-4">
+                  <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                    SnapBooth Experience
+                  </h3>
 
-                  <div className="grid grid-cols-3 gap-2 pt-2">
-                    {[
-                      { label: 'Photo', icon: '📸', color: 'from-blue-600 to-indigo-600' },
-                      { label: '4-Strip', icon: '🎞️', color: 'from-fuchsia-600 to-purple-600' },
-                      { label: 'AI Magic', icon: '✨', color: 'from-purple-600 to-pink-600' },
-                    ].map(btn => (
-                      <div
-                        key={btn.label}
-                        className="p-3 rounded-2xl glass-crystal text-center flex flex-col items-center gap-1.5 shadow-md"
-                      >
-                        <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${btn.color} flex items-center justify-center text-xs text-white shadow-sm`}>
-                          {btn.icon}
-                        </div>
-                        <span className="text-[10px] font-black text-slate-900">{btn.label}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <a
+                    href="/booth"
+                    className="relative w-28 h-28 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl transition-transform hover:scale-105 active:scale-95 group"
+                    style={{
+                      background: 'linear-gradient(135deg, #7c3aed, #4338ca)',
+                      boxShadow: '0 12px 40px rgba(124, 58, 237, 0.6), inset 0 2px 4px rgba(255,255,255,0.4)',
+                    }}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mb-1 group-hover:scale-110 transition-transform">
+                      <Camera className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-[10px] font-black tracking-wider uppercase">Tap to Start</span>
+                  </a>
                 </div>
 
-                {/* Footer branding */}
-                <div className="text-center text-[10px] text-slate-400 font-black tracking-wider uppercase z-10">
-                  SnapBooth Apple Light Studio
+                {/* Bottom branding footer */}
+                <div className="relative z-10 p-4 text-center">
+                  <span className="text-[10px] text-white/60 font-black tracking-wider uppercase">
+                    Interactive Touch Kiosk
+                  </span>
                 </div>
               </div>
             </div>
@@ -220,10 +234,10 @@ export default function HomePage() {
         <section id="features" className="max-w-7xl mx-auto px-6 py-24 border-t border-black/5">
           <div className="text-center mb-16 space-y-3">
             <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900">
-              Engineered to Surpass Every Competitor.
+              Built for Modern Events &amp; Activations.
             </h2>
             <p className="text-slate-600 text-base max-w-2xl mx-auto font-medium">
-              Benchmarked against Snappic, Simple Booth (HALO), Touchpix, Salsa, and Booth.events. SnapBooth AI delivers unprecedented speed, beauty, and operational control.
+              Tactile touch kiosk controls, AI artistic transformations, instant delivery, and a real-time operator suite built for reliability and polish.
             </p>
           </div>
 

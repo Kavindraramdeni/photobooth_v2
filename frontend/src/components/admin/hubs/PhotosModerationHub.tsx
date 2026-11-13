@@ -9,6 +9,7 @@ import {
   Users,
   Image as ImageIcon,
   CheckSquare,
+  Trash2,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -226,6 +227,58 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
     }
   }
 
+  // ─── Delete single photo ─────────────────────────────────────────────────
+
+  async function deletePhoto(photoId: string) {
+    if (!window.confirm('Permanently delete this photo? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/photos/${photoId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete');
+      }
+      setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      setSelectedPhotos((prev) => {
+        const next = new Set(prev);
+        next.delete(photoId);
+        return next;
+      });
+      toast.success('Photo permanently deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      console.error(err);
+    }
+  }
+
+  // ─── Batch delete photos ─────────────────────────────────────────────────
+
+  async function batchDelete() {
+    if (selectedPhotos.size === 0) return;
+    if (!window.confirm(`Permanently delete ${selectedPhotos.size} photo(s)? This cannot be undone.`)) return;
+    setBatchWorking(true);
+    try {
+      await Promise.all(
+        Array.from(selectedPhotos).map((id) =>
+          fetch(`${API_BASE}/api/photos/${id}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+          }),
+        ),
+      );
+      setPhotos((prev) => prev.filter((p) => !selectedPhotos.has(p.id)));
+      toast.success(`${selectedPhotos.size} photo(s) permanently deleted`);
+      setSelectedPhotos(new Set());
+    } catch (err) {
+      toast.error('Batch delete failed');
+      console.error(err);
+    } finally {
+      setBatchWorking(false);
+    }
+  }
+
   // ─── Batch download (placeholder — triggers server ZIP) ──────────────────
 
   function handleBatchDownload() {
@@ -385,6 +438,14 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
               Unhide Selected
             </button>
             <button
+              onClick={batchDelete}
+              disabled={batchWorking}
+              className="flex items-center gap-1.5 text-xs font-medium bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Trash2 size={12} />
+              Delete Selected
+            </button>
+            <button
               onClick={handleBatchDownload}
               className="flex items-center gap-1.5 text-xs font-medium bg-white/10 hover:bg-white/15 border border-white/15 text-white/60 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
             >
@@ -443,7 +504,7 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
                   </div>
 
                   {/* Overlay on hover */}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
                     <button
                       onClick={() => toggleHide(photo)}
                       className="flex items-center gap-1 bg-white/15 hover:bg-white/25 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors backdrop-blur-sm"
@@ -459,6 +520,14 @@ export function PhotosModerationHub({ event, API_BASE }: PhotosModerationHubProp
                           Hide
                         </>
                       )}
+                    </button>
+                    <button
+                      onClick={() => deletePhoto(photo.id)}
+                      className="flex items-center gap-1 bg-red-600/80 hover:bg-red-600 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors backdrop-blur-sm"
+                      title="Permanently delete photo"
+                    >
+                      <Trash2 size={12} />
+                      Delete
                     </button>
                   </div>
 

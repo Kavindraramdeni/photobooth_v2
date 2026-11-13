@@ -167,7 +167,13 @@ export function BoothMain() {
           />
         )}
         {/* Subtle, translucent scrim so background image/video is completely visible while text stays crisp */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35 pointer-events-none" />
+        <div
+          className={`absolute inset-0 pointer-events-none ${
+            themeMode === 'champagne'
+              ? 'bg-gradient-to-t from-[#2a1d0f]/60 via-[#c99738]/10 to-[#2a1d0f]/40'
+              : 'bg-gradient-to-t from-black/55 via-black/15 to-black/35'
+          }`}
+        />
       </div>
 
       <FlashOverlay />
