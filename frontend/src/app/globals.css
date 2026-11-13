@@ -127,6 +127,52 @@ body.booth-mode {
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* ── Professional Commercial Kiosk Design Tokens & Surfaces ── */
+.kiosk-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.theme-dark .kiosk-card {
+  background: rgba(18, 20, 36, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.kiosk-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(124, 58, 237, 0.3);
+}
+
+.kiosk-card:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+/* Studio Shutter Pulse Button */
+.shutter-glow {
+  position: relative;
+}
+
+.shutter-glow::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, var(--shutter-color, rgba(124, 58, 237, 0.45)) 0%, transparent 70%);
+  animation: shutter-pulse 3s infinite ease-in-out;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes shutter-pulse {
+  0% { transform: scale(0.96); opacity: 0.5; }
+  50% { transform: scale(1.08); opacity: 0.9; }
+  100% { transform: scale(0.96); opacity: 0.5; }
+}
+
 /* Tactile arcade buttons */
 .btn-arcade {
   position: relative;

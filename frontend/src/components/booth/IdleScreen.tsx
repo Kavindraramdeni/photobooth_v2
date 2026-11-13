@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, X, AlertCircle, RefreshCw, Lock, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Camera, Settings, X, AlertCircle, RefreshCw, Lock, CheckCircle2, ChevronRight, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { operatorLogin, getBoothSession } from '@/lib/api';
 import { getPendingCount, syncQueuedPhotos } from '@/lib/offlineQueue';
@@ -33,8 +33,8 @@ export function IdleScreen() {
 
   const branding = event?.branding;
   const settings = event?.settings;
-  const primaryColor = (branding?.primaryColor as string) || '#6366f1';
-  const themeMode = (branding?.themeMode as string) || 'dark';
+  const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
+  const themeMode = (branding?.themeMode as string) || 'light';
   const isLight = themeMode === 'light';
   const eventName = (branding?.eventName as string) || event?.name || 'SnapBooth';
   const logoUrl = (branding?.logoUrl as string) || null;
@@ -219,10 +219,10 @@ export function IdleScreen() {
   const pinDots = Array.from({ length: 4 }, (_, i) => i);
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-6 sm:p-12 relative overflow-hidden select-none">
-      {/* Secret Operator Corner Zone (Top-Right): No visible gear, long-press or 3 taps to open */}
+    <div className="w-full h-full flex flex-col justify-between p-6 sm:p-12 relative overflow-hidden select-none z-10">
+      {/* Secret Operator Corner Zone (Top-Right): No intrusive guest UI, long-press or 3 taps to open */}
       <div
-        className="absolute top-0 right-0 w-24 h-24 z-30 cursor-default"
+        className="absolute top-0 right-0 w-28 h-28 z-40 cursor-default"
         onTouchStart={handleCornerTouchStart}
         onTouchEnd={handleCornerTouchEnd}
         onMouseDown={handleCornerTouchStart}
@@ -231,13 +231,32 @@ export function IdleScreen() {
         aria-hidden="true"
       />
 
-      {/* Main Attract Stage */}
-      <div className="relative z-10 flex flex-col items-center justify-center max-w-4xl w-full my-auto text-center px-4">
+      {/* Top Header Bar: Clean & Minimal Commercial Styling */}
+      <div className="w-full max-w-6xl mx-auto flex items-center justify-between z-20 flex-shrink-0">
+        <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/5 dark:border-white/10 shadow-sm">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+          <span className={`text-[11px] font-black uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+            Studio Ready
+          </span>
+        </div>
+
+        {/* Discreet Operator Lock Trigger */}
+        <button
+          onClick={openOperatorModal}
+          aria-label="Operator Settings"
+          className="p-2.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-opacity opacity-30 hover:opacity-100"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Main Attract Centerpiece */}
+      <div className="relative z-10 flex flex-col items-center justify-center max-w-4xl mx-auto w-full my-auto text-center px-4">
         {gated ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`p-10 rounded-3xl max-w-md w-full border-2 shadow-2xl ${
+            className={`p-10 rounded-3xl max-w-md w-full border shadow-2xl ${
               isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#181938] border-slate-700 text-white'
             }`}
           >
@@ -246,48 +265,94 @@ export function IdleScreen() {
             <p className={`text-base font-medium ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>{gateMessage}</p>
           </motion.div>
         ) : (
-          <div className="flex flex-col items-center justify-center space-y-12 sm:space-y-16">
-            {/* Event Name or Logo: Centered and Large, Shown Once */}
+          <div className="flex flex-col items-center justify-center space-y-10 sm:space-y-12">
+            {/* Event Brand Hero: Crisp & Cinematic */}
             <div className="flex flex-col items-center justify-center">
               {logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={logoUrl}
                   alt={eventName}
-                  className="h-28 sm:h-36 max-w-xs sm:max-w-lg object-contain mx-auto drop-shadow-lg"
+                  className="h-24 sm:h-36 max-w-xs sm:max-w-md object-contain mx-auto filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.15)]"
                 />
               ) : (
-                <h1
-                  className={`text-6xl sm:text-8xl font-black tracking-tight drop-shadow-md max-w-3xl leading-none ${
-                    isLight ? 'text-slate-900' : 'text-white'
-                  }`}
-                >
-                  {eventName}
-                </h1>
+                <div className="space-y-2">
+                  <span className={`text-[11px] sm:text-xs font-black tracking-[0.28em] uppercase ${
+                    isLight ? 'text-purple-600' : 'text-purple-400'
+                  }`}>
+                    Interactive Photobooth Experience
+                  </span>
+                  <h1
+                    className={`text-5xl sm:text-7xl lg:text-8xl font-black tracking-tight leading-none drop-shadow-sm ${
+                      isLight ? 'text-slate-900' : 'text-white'
+                    }`}
+                  >
+                    {eventName}
+                  </h1>
+                </div>
               )}
+              <p
+                className={`text-base sm:text-xl font-semibold mt-4 tracking-wide max-w-lg ${
+                  isLight ? 'text-slate-600' : 'text-slate-300'
+                }`}
+              >
+                Touch below to capture your studio keepsake
+              </p>
             </div>
 
-            {/* One Huge Pill Button: “Tap to start” with a gentle pulse */}
-            <motion.button
-              animate={{
-                scale: [1, 1.035, 1],
-              }}
-              transition={{
-                duration: 2.2,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setScreen('style')}
-              className="px-14 sm:px-20 py-7 sm:py-9 rounded-full font-black text-2xl sm:text-4xl text-white shadow-2xl cursor-pointer tracking-wider uppercase border-2 border-white/20 active:scale-95 transition-shadow hover:shadow-[0_0_50px_rgba(99,102,241,0.6)]"
-              style={{
-                backgroundColor: primaryColor,
-              }}
-            >
-              Tap to start
-            </motion.button>
+            {/* Studio Shutter Trigger: Physical, Tactile, Luminous */}
+            <div className="relative flex items-center justify-center pt-2">
+              {/* Outer Breathing Radial Halo */}
+              <div
+                className="absolute w-64 h-64 sm:w-72 sm:h-72 rounded-full animate-ping opacity-20 pointer-events-none"
+                style={{ backgroundColor: primaryColor }}
+              />
+              <div
+                className="absolute w-56 h-56 sm:w-64 sm:h-64 rounded-full blur-2xl opacity-40 pointer-events-none"
+                style={{ backgroundColor: primaryColor }}
+              />
+
+              {/* Physical Studio Ring Button */}
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setScreen('style')}
+                className="relative z-10 w-52 h-52 sm:w-60 sm:h-60 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer border-4 border-white/30 transition-all btn-arcade group"
+                style={{
+                  background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
+                  boxShadow: `0 24px 60px ${primaryColor}66, inset 0 2px 4px rgba(255,255,255,0.4)`,
+                }}
+              >
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/15 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner">
+                  <Camera className="w-9 h-9 sm:w-11 sm:h-11 text-white" />
+                </div>
+                <span className="text-xl sm:text-2xl font-black tracking-wider uppercase">
+                  Tap to Start
+                </span>
+                <span className="text-[11px] font-bold tracking-widest text-white/80 uppercase mt-0.5">
+                  Touch screen
+                </span>
+              </motion.button>
+            </div>
           </div>
         )}
+      </div>
+
+      {/* Bottom Feature Badges: Gives a high-end commercial polish */}
+      <div className="w-full flex justify-center z-20 flex-shrink-0">
+        <div className="inline-flex items-center gap-3 sm:gap-6 px-5 py-2.5 rounded-full bg-black/5 dark:bg-white/5 backdrop-blur-md border border-black/5 dark:border-white/10 shadow-sm text-xs font-bold">
+          <span className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+            <Camera className="w-3.5 h-3.5 text-purple-500" /> Single Shot
+          </span>
+          <span className="w-1 h-1 rounded-full bg-slate-400 opacity-60" />
+          <span className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+            <ImageIcon className="w-3.5 h-3.5 text-purple-500" /> Photo Strip
+          </span>
+          <span className="w-1 h-1 rounded-full bg-slate-400 opacity-60" />
+          <span className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+            <Sparkles className="w-3.5 h-3.5 text-purple-500" /> AI Studio
+          </span>
+        </div>
       </div>
 
       {/* Operator PIN Pad Modal */}

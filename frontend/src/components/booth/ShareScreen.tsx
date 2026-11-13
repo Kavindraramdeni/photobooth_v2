@@ -263,26 +263,33 @@ export function ShareScreen() {
     <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative z-10">
       {/* Header */}
       <div
-        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b-2 z-20 ${
-          isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#181938] border-slate-800 text-white'
+        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b z-20 ${
+          isLight
+            ? 'bg-white/90 backdrop-blur-md border-black/5 text-slate-900 shadow-sm'
+            : 'bg-[#121424]/90 backdrop-blur-md border-white/10 text-white shadow-md'
         }`}
         onClick={resetTimer}
       >
         <button
           onClick={() => setScreen('preview')}
-          className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${
             isLight
-              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+              ? 'bg-black/5 hover:bg-black/10 text-slate-700'
+              : 'bg-white/10 hover:bg-white/15 text-slate-200'
           }`}
         >
           <ArrowLeft className="w-4 h-4" /> Back to Preview
         </button>
         <div className="text-center">
-          <h2 className="font-black text-sm tracking-wide uppercase">Download &amp; Share</h2>
+          <span className={`text-[10px] font-extrabold uppercase tracking-[0.25em] block ${
+            isLight ? 'text-purple-600' : 'text-purple-400'
+          }`}>
+            Instant Delivery
+          </span>
+          <h2 className="font-black text-base sm:text-lg tracking-tight">Save &amp; Share Photo</h2>
           {timeoutSecs > 0 && (
-            <p className={`text-[10px] mt-0.5 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              Auto-closes in {timeLeft}s
+            <p className={`text-[10px] mt-0.5 font-bold ${isLight ? 'text-slate-400' : 'text-slate-400'}`}>
+              Session auto-resets in {timeLeft}s
             </p>
           )}
         </div>
@@ -291,7 +298,7 @@ export function ShareScreen() {
 
       {/* Timeout Progress Line */}
       {timeoutSecs > 0 && (
-        <div className="h-1 bg-black/10 dark:bg-white/10 flex-shrink-0">
+        <div className="h-1 bg-black/5 dark:bg-white/5 flex-shrink-0">
           <div
             className="h-full transition-all duration-1000 ease-linear"
             style={{ width: `${(timeLeft / timeoutSecs) * 100}%`, background: primaryColor }}
@@ -302,33 +309,37 @@ export function ShareScreen() {
       {/* Body Stage */}
       <div className="flex-1 overflow-y-auto min-h-0 w-full z-10 p-4 sm:p-8 flex items-center justify-center">
         <div className="flex flex-col lg:flex-row gap-8 max-w-5xl mx-auto w-full items-center justify-center">
-          {/* Photo Display Card */}
+          {/* Photo Display Card with Physical Print Aesthetic */}
           <div className="w-full lg:flex-1 flex items-center justify-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-              className={`relative rounded-3xl overflow-hidden shadow-2xl border-4 max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] ${
-                isLight ? 'bg-white border-white shadow-slate-300' : 'bg-[#181938] border-slate-700 shadow-black/60'
+              className={`relative rounded-3xl overflow-hidden max-h-[52vh] sm:max-h-[62vh] lg:max-h-[72vh] p-2.5 transition-all duration-300 ${
+                isLight
+                  ? 'bg-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.18)] border border-black/5'
+                  : 'bg-[#181938] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] border border-white/10'
               }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.url}
                 alt="Your photo"
-                className="w-full h-auto max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] object-contain rounded-3xl"
+                className="w-full h-auto max-h-[48vh] sm:max-h-[58vh] lg:max-h-[68vh] object-contain rounded-2xl"
                 draggable={false}
               />
             </motion.div>
           </div>
 
-          {/* QR Code & Share Options - Solid Opaque Card */}
+          {/* QR Code & Share Options */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className={`w-full lg:w-96 flex-shrink-0 flex flex-col gap-5 rounded-3xl p-6 shadow-2xl border-2 ${
-              isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-700'
+            className={`w-full lg:w-96 flex-shrink-0 flex flex-col gap-5 rounded-[28px] p-6 shadow-2xl border transition-all ${
+              isLight
+                ? 'bg-white border-black/5 shadow-[0_20px_50px_rgba(0,0,0,0.08)]'
+                : 'bg-[#16182e] border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.6)]'
             }`}
           >
             {/* High-Contrast QR Code Card */}
@@ -343,9 +354,9 @@ export function ShareScreen() {
                   className="w-[180px] h-[180px] sm:w-[200px] sm:h-[200px]"
                 />
               </div>
-              <div className="text-center">
+              <div className="text-center space-y-0.5">
                 <p className="text-slate-900 dark:text-white font-black text-sm">Scan with Phone Camera</p>
-                <p className="text-slate-500 dark:text-white/40 text-xs mt-0.5 font-medium">Instant full-resolution download</p>
+                <p className="text-slate-500 dark:text-white/50 text-xs font-medium">Instant 4K download • No app needed</p>
               </div>
             </div>
 
@@ -444,20 +455,24 @@ export function ShareScreen() {
         </div>
       </div>
 
-      {/* Bottom Bar: Done — Solid Full-Width Accent Button */}
+      {/* Bottom Bar: Done / Next Guest */}
       <div
-        className={`flex-shrink-0 px-6 py-4 border-t-2 z-20 ${
-          isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-800'
+        className={`flex-shrink-0 p-5 sm:p-6 border-t z-20 ${
+          isLight ? 'bg-white/95 border-black/5 shadow-lg' : 'bg-[#121424]/95 border-white/10 shadow-2xl'
         }`}
       >
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
           onClick={resetSession}
-          className="w-full py-5 rounded-2xl font-black text-white text-lg tracking-wide flex items-center justify-center gap-2 shadow-2xl cursor-pointer border-2 border-white/20 active:scale-95 transition-all"
-          style={{ backgroundColor: primaryColor }}
+          className="w-full py-5 rounded-2xl font-black text-white text-lg tracking-wide flex items-center justify-center gap-2 shadow-2xl cursor-pointer transition-all btn-arcade"
+          style={{
+            background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
+            boxShadow: `0 20px 50px ${primaryColor}55`,
+          }}
         >
-          <CheckCircle2 className="w-6 h-6" /> Done — Next Guest
+          <CheckCircle2 className="w-6 h-6" />
+          <span>Finish &amp; Next Guest</span>
         </motion.button>
       </div>
 

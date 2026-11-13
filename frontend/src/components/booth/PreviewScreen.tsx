@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Wand2, Share2, Printer, Image as ImageIcon, X, Mail, ArrowLeft, Check } from 'lucide-react';
+import { RefreshCw, Wand2, Share2, Printer, Image as ImageIcon, X, Mail, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { trackAction } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
@@ -194,20 +194,20 @@ export function PreviewScreen() {
       onClick={restartAutoResetTimer}
       onTouchStart={restartAutoResetTimer}
     >
-      {/* Top Header: Clean, Solid, Auto-Reset Ring */}
+      {/* Top Header: Clean, Minimalist Studio Bar */}
       <div
-        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b-2 z-20 ${
+        className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b z-20 ${
           isLight
-            ? 'bg-white border-slate-200 text-slate-900'
-            : 'bg-[#181938] border-slate-800 text-white'
+            ? 'bg-white/90 backdrop-blur-md border-black/5 text-slate-900 shadow-sm'
+            : 'bg-[#121424]/90 backdrop-blur-md border-white/10 text-white shadow-md'
         }`}
       >
         <button
           onClick={() => setScreen('style')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${
             isLight
-              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+              ? 'bg-black/5 hover:bg-black/10 text-slate-700'
+              : 'bg-white/10 hover:bg-white/15 text-slate-200'
           }`}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -215,28 +215,35 @@ export function PreviewScreen() {
         </button>
 
         {/* Event Title */}
-        <h2 className="text-base sm:text-lg font-black tracking-tight truncate max-w-xs sm:max-w-md">
-          {eventName}
-        </h2>
+        <div className="text-center">
+          <span className={`text-[10px] font-extrabold uppercase tracking-[0.25em] block ${
+            isLight ? 'text-purple-600' : 'text-purple-400'
+          }`}>
+            Studio Review
+          </span>
+          <h2 className="text-base sm:text-lg font-black tracking-tight truncate max-w-xs sm:max-w-md">
+            {eventName}
+          </h2>
+        </div>
 
         {/* Auto-Reset 30s Countdown Ring */}
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Auto-reset
+        <div className="flex items-center gap-2.5">
+          <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-slate-400'}`}>
+            Next guest
           </span>
-          <div className="relative w-10 h-10 flex items-center justify-center">
-            <svg className="w-10 h-10 -rotate-90">
+          <div className="relative w-9 h-9 flex items-center justify-center">
+            <svg className="w-9 h-9 -rotate-90">
               <circle
-                cx="20"
-                cy="20"
+                cx="18"
+                cy="18"
                 r={circleRadius}
-                className={isLight ? 'stroke-slate-200' : 'stroke-slate-800'}
+                className={isLight ? 'stroke-slate-200' : 'stroke-white/10'}
                 strokeWidth="3"
                 fill="transparent"
               />
               <circle
-                cx="20"
-                cy="20"
+                cx="18"
+                cy="18"
                 r={circleRadius}
                 stroke={primaryColor}
                 strokeWidth="3"
@@ -247,20 +254,22 @@ export function PreviewScreen() {
                 className="transition-all duration-1000 ease-linear"
               />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black">
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">
               {secondsLeft}s
             </span>
           </div>
         </div>
       </div>
 
-      {/* Main Preview Frame & Side Action Stack */}
+      {/* Main Preview Stage & Action Dock */}
       <div className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 sm:p-8 gap-6 min-h-0 overflow-hidden">
-        {/* Photo Stage (Solid framed container, no marketing banner, no perfect shot badge) */}
-        <div className="relative flex-1 flex items-center justify-center w-full h-full max-h-[62vh] sm:max-h-[72vh]">
+        {/* Photo Canvas (Physical fine-art matte paper aesthetic) */}
+        <div className="relative flex-1 flex items-center justify-center w-full h-full max-h-[64vh] sm:max-h-[74vh]">
           <div
-            className={`relative rounded-3xl overflow-hidden shadow-2xl border-4 max-h-full ${
-              isLight ? 'bg-white border-white shadow-slate-300' : 'bg-[#181938] border-slate-700 shadow-black/60'
+            className={`relative rounded-3xl overflow-hidden max-h-full transition-all duration-300 ${
+              isLight
+                ? 'bg-white p-2.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.18)] border border-black/5'
+                : 'bg-[#181938] p-2.5 shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] border border-white/10'
             }`}
             style={{ filter: currentFilter, transition: 'filter 0.3s ease' }}
           >
@@ -281,93 +290,81 @@ export function PreviewScreen() {
               <img
                 src={branding.frameUrl as string}
                 alt="Frame overlay"
-                className="absolute inset-0 w-full h-full object-cover rounded-3xl pointer-events-none select-none"
+                className="absolute inset-2.5 w-[calc(100%-20px)] h-[calc(100%-20px)] object-cover rounded-2xl pointer-events-none select-none"
                 draggable={false}
               />
             )}
           </div>
         </div>
 
-        {/* Solid Action Buttons Stack */}
-        <div className="flex md:flex-col gap-3 w-full md:w-48 flex-shrink-0 justify-center">
+        {/* Studio Quick Actions Console */}
+        <div className="flex md:flex-col gap-2.5 sm:gap-3 w-full md:w-44 flex-shrink-0 justify-center">
           {/* Retake Button (if allowed) */}
           {settings?.allowRetakes !== false && (
             <motion.button
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setScreen('countdown')}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md ${
                 isLight
-                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+                  ? 'bg-white hover:bg-slate-50 border border-black/10 text-slate-800'
+                  : 'bg-[#16182e] hover:bg-[#1f2240] border border-white/15 text-white'
               }`}
             >
-              <RefreshCw className="w-5 h-5 text-indigo-400" />
+              <RefreshCw className="w-4 h-4 text-purple-400" />
               <span>Retake</span>
             </motion.button>
           )}
 
           {/* Color Grading Filters */}
           <motion.button
+            whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowEffects(v => !v)}
-            className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md ${
               isLight
-                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+                ? 'bg-white hover:bg-slate-50 border border-black/10 text-slate-800'
+                : 'bg-[#16182e] hover:bg-[#1f2240] border border-white/15 text-white'
             }`}
           >
-            <Wand2 className="w-5 h-5 text-amber-400" />
+            <Wand2 className="w-4 h-4 text-amber-400" />
             <span>Filters</span>
           </motion.button>
 
           {/* Frame Overlays (if enabled) */}
           {settings?.allowFrameOverlays && (
             <motion.button
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.95 }}
               onClick={async () => {
                 setShowFrames(true);
                 if (frames.length === 0) await loadFrames();
               }}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md ${
                 isLight
-                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+                  ? 'bg-white hover:bg-slate-50 border border-black/10 text-slate-800'
+                  : 'bg-[#16182e] hover:bg-[#1f2240] border border-white/15 text-white'
               }`}
             >
-              <ImageIcon className="w-5 h-5 text-emerald-400" />
+              <ImageIcon className="w-4 h-4 text-emerald-400" />
               <span>Frames</span>
             </motion.button>
           )}
 
-          {/* Direct Print Button (only when allowed and available) */}
+          {/* Direct Print Button */}
           {settings?.allowPrint !== false && (
             <motion.button
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.95 }}
               onClick={handlePrint}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md ${
                 isLight
-                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
+                  ? 'bg-white hover:bg-slate-50 border border-black/10 text-slate-800'
+                  : 'bg-[#16182e] hover:bg-[#1f2240] border border-white/15 text-white'
               }`}
             >
-              <Printer className="w-5 h-5 text-sky-400" />
+              <Printer className="w-4 h-4 text-sky-400" />
               <span>Print</span>
-            </motion.button>
-          )}
-
-          {/* Direct Email (if enabled) */}
-          {settings?.allowEmailShare !== false && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowEmailModal(true)}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-sm border-2 transition-all cursor-pointer ${
-                isLight
-                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                  : 'bg-[#181938] hover:bg-[#22244c] border-slate-700 text-white'
-              }`}
-            >
-              <Mail className="w-5 h-5 text-rose-400" />
-              <span>Email</span>
             </motion.button>
           )}
         </div>
@@ -424,21 +421,24 @@ export function PreviewScreen() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Bar: Done is a FULL-WIDTH, SOLID ACCENT BUTTON and the MOST PROMINENT THING on screen */}
+      {/* Bottom Bar: Done / Print & Share */}
       <div
-        className={`flex-shrink-0 p-6 border-t-2 z-20 ${
-          isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-800'
+        className={`flex-shrink-0 p-5 sm:p-6 border-t z-20 ${
+          isLight ? 'bg-white/95 border-black/5 shadow-lg' : 'bg-[#121424]/95 border-white/10 shadow-2xl'
         }`}
       >
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleDone}
-          className="w-full py-5 sm:py-6 rounded-2xl font-black text-xl sm:text-2xl text-white tracking-wide flex items-center justify-center gap-3 shadow-2xl cursor-pointer border-2 border-white/20 active:scale-95 transition-all"
-          style={{ backgroundColor: primaryColor }}
+          className="w-full py-5 sm:py-6 rounded-2xl font-black text-lg sm:text-2xl text-white tracking-wide flex items-center justify-center gap-3 shadow-2xl cursor-pointer transition-all btn-arcade"
+          style={{
+            background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
+            boxShadow: `0 20px 50px ${primaryColor}55`,
+          }}
         >
-          <Check className="w-7 h-7 stroke-[3]" />
-          <span>Done — Get Photo &amp; Share</span>
+          <span>Print &amp; Share Photo</span>
+          <ArrowRight className="w-6 h-6 stroke-[3]" />
         </motion.button>
       </div>
 

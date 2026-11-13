@@ -172,26 +172,35 @@ export function LiveKioskSimulator({
                     <p className={`text-[9px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Tap to pose</p>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5 w-full my-auto">
+                  <div className="grid grid-cols-3 gap-2 w-full my-auto">
                     {[
-                      { label: 'Photo', sub: 'Single shot', icon: '📷' },
-                      { label: 'Strip', sub: '4-pose strip', icon: '🎞️' },
-                      { label: 'AI', sub: 'Magic art', icon: '✨' },
+                      {
+                        label: 'Portrait',
+                        sub: '4K Single',
+                        img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+                      },
+                      {
+                        label: '4-Strip',
+                        sub: 'Keepsake',
+                        img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
+                      },
+                      {
+                        label: 'AI Studio',
+                        sub: 'Magic Art',
+                        img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
+                      },
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className={`p-2.5 rounded-2xl flex flex-col items-center justify-center text-center shadow-md border ${
-                          isLight ? 'bg-white border-slate-200' : 'bg-[#181938] border-slate-700'
-                        }`}
+                        className="relative rounded-2xl overflow-hidden aspect-[3/4] shadow-md border border-white/20 flex flex-col justify-end p-2 text-left"
                       >
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-xs mb-1.5 shadow-sm"
-                          style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}
-                        >
-                          {item.icon}
-                        </div>
-                        <span className="text-[10px] font-black leading-tight">{item.label}</span>
-                        <span className={`text-[7px] font-semibold mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.img} alt={item.label} className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                        <span className="relative z-10 text-[9px] font-black text-white leading-tight">
+                          {item.label}
+                        </span>
+                        <span className="relative z-10 text-[7px] text-white/70 font-semibold leading-tight">
                           {item.sub}
                         </span>
                       </div>
