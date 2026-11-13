@@ -11,7 +11,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode, Sparkles, Image as ImageIcon, Trash2, Settings2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const API_BASE      = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:3001';
@@ -70,6 +70,12 @@ export default function GalleryPage() {
   const [showQR,   setShowQR]   = useState(false);
   const [copied,   setCopied]   = useState(false);
 
+  // Operator delete mode
+  const [deleteMode,   setDeleteMode]   = useState(false);
+  const [isOperator,   setIsOperator]   = useState(false);
+  const [deletingId,   setDeletingId]   = useState<string | null>(null);
+  const [confirmPhoto, setConfirmPhoto] = useState<Photo | null>(null);
+
   const loadGallery = useCallback(async () => {
     setLoading(true);
     try {
@@ -125,6 +131,15 @@ export default function GalleryPage() {
 
   useEffect(() => { loadGallery(); }, [loadGallery]);
 
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('sb_access_token');
+      if (!token) return;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload?.sub) setIsOperator(true);
+    } catch { /* not a valid JWT */ }
+  }, []);
+
   async function submitPassword() {
     if (!event || !passwordInput.trim()) return;
     setCheckingPw(true);
@@ -158,6 +173,27 @@ export default function GalleryPage() {
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  }
+
+  async function handleDeletePhoto(photo: Photo) {
+    const token = localStorage.getItem('sb_access_token') ?? '';
+    setDeletingId(photo.id);
+    try {
+      const res = await fetch(`${API_BASE}/api/photos/${photo.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Delete failed');
+      }
+      setPhotos(prev => prev.filter(p => p.id !== photo.id));
+      setConfirmPhoto(null);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const primaryColor = event?.branding?.primaryColor || '#8b5cf6';
@@ -274,7 +310,21 @@ export default function GalleryPage() {
             <span>photo{photos.length !== 1 ? 's' : ''} captured</span>
           </div>
         </div>
-        <div className="w-16" />
+        <div className="w-16 flex justify-end">
+          {isOperator && (
+            <button
+              onClick={() => setDeleteMode(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all active:scale-95 ${
+                deleteMode
+                  ? 'bg-red-500/90 text-white shadow-lg'
+                  : 'text-white/70 hover:text-white bg-white/10'
+              }`}
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              {deleteMode ? 'Done' : 'Manage'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Empty state */}
@@ -300,7 +350,7 @@ export default function GalleryPage() {
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: Math.min(i * 0.02, 0.4), type: 'spring', damping: 20 }}
-            onClick={() => setLightbox(photo)}
+            onClick={() => deleteMode ? setConfirmPhoto(photo) : setLightbox(photo)}
             className="relative aspect-square cursor-pointer overflow-hidden rounded-2xl sm:rounded-3xl bg-zinc-950 border border-white/10 shadow-lg group hover:border-purple-400/50 hover:shadow-[0_8px_30px_rgba(139,92,246,0.3)] transition-all duration-300"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -316,6 +366,13 @@ export default function GalleryPage() {
                 {photo.mode === 'gif' ? '🎬 GIF' : photo.mode === 'boomerang' ? '🔄 Boomerang' : photo.mode === 'strip' ? '🎞️ Strip' : '📸 Photo'}
               </span>
             </div>
+            {deleteMode && (
+              <div className="absolute inset-0 bg-red-900/30 flex items-center justify-center rounded-2xl sm:rounded-3xl z-10 pointer-events-none">
+                <div className="w-10 h-10 rounded-full bg-red-500/90 flex items-center justify-center shadow-xl">
+                  <Trash2 className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            )}
           </motion.div>
         ))}
       </div>
@@ -432,6 +489,55 @@ export default function GalleryPage() {
                 <span>Share to WhatsApp</span>
               </a>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Delete Modal */}
+      <AnimatePresence>
+        {confirmPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setConfirmPhoto(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-xs w-full space-y-4 shadow-2xl"
+            >
+              {/* Thumbnail */}
+              <div className="w-full aspect-square rounded-xl overflow-hidden border border-white/10 max-h-32 mx-auto">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={confirmPhoto.thumb_url || confirmPhoto.url} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-white font-black text-base">Delete this photo?</p>
+                <p className="text-zinc-400 text-xs">This permanently removes it from the gallery and storage.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setConfirmPhoto(null)}
+                  className="py-2.5 rounded-xl border border-white/15 text-white/70 hover:text-white text-sm font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeletePhoto(confirmPhoto)}
+                  disabled={deletingId === confirmPhoto.id}
+                  className="py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-sm font-black transition-colors flex items-center justify-center gap-2"
+                >
+                  {deletingId === confirmPhoto.id ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <><Trash2 className="w-4 h-4" /> Delete</>
+                  )}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
