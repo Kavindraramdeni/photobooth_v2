@@ -475,10 +475,22 @@ export function PrintDeliveryHub({
         </SettingRow>
       </Card>
 
-      {/* ── 5. Gallery Security ── */}
-      <Card title="🔒 Gallery Security">
+      {/* ── 5. Guest Gallery & Selfie Face Match ── */}
+      <Card title="🖼️ Guest Gallery & Selfie Match">
+        <SettingRow label="Selfie Photo Finder (AI Face Match)">
+          <Toggle
+            checked={settings.allowSelfieSearch !== false}
+            onChange={(v) => onSettingsChange('allowSelfieSearch', v)}
+          />
+        </SettingRow>
+        <p className="text-white/40 text-xs -mt-2">
+          Allows guests to snap a selfie after scanning the QR code to instantly filter and view only their photos.
+        </p>
+
+        <div className="h-px bg-white/10 my-2" />
+
         <p className="text-white/40 text-xs">
-          Guests must enter this password to view the event gallery
+          Guests must enter this password to view the event gallery (leave blank for open access):
         </p>
 
         <div className="flex gap-2">

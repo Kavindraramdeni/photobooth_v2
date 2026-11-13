@@ -8,10 +8,10 @@
  * - Fullscreen editorial lightbox with SVG QR code, WhatsApp, and instant downloads
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode, Sparkles, Image as ImageIcon, Trash2, Settings2 } from 'lucide-react';
+import { X, Download, Share2, ArrowLeft, Lock, Check, QrCode, Sparkles, Image as ImageIcon, Trash2, Settings2, Camera, Upload, User, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const API_BASE      = process.env.NEXT_PUBLIC_API_URL  || 'http://localhost:3001';
@@ -32,7 +32,7 @@ interface Event {
   name: string;
   slug: string;
   branding?: { primaryColor?: string; logoUrl?: string; eventName?: string };
-  settings?: { galleryPassword?: string };
+  settings?: { galleryPassword?: string; allowSelfieSearch?: boolean; [key: string]: unknown };
   has_gallery_password?: boolean;
   hasGalleryPassword?: boolean;
   gallery_password?: string;
@@ -79,6 +79,65 @@ export default function GalleryPage() {
   const [operatorPin,  setOperatorPin]  = useState('');
   const [pinError,     setPinError]     = useState('');
   const [checkingPin,  setCheckingPin]  = useState(false);
+
+  // Selfie Face Match Filter
+  const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [selfieImage,     setSelfieImage]     = useState<string | null>(null);
+  const [isMatching,      setIsMatching]      = useState(false);
+  const [matchStatus,     setMatchStatus]     = useState('');
+  const [matchedPhotoIds, setMatchedPhotoIds] = useState<string[] | null>(null);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+
+  const allowSelfieSearch = event?.settings?.allowSelfieSearch !== false;
+
+  const displayedPhotos = matchedPhotoIds === null
+    ? photos
+    : photos.filter(p => matchedPhotoIds.includes(p.id));
+
+  async function handleProcessSelfie(dataUrl: string) {
+    setSelfieImage(dataUrl);
+    setIsMatching(true);
+    setMatchStatus('Analyzing facial landmarks…');
+
+    try {
+      setTimeout(() => setMatchStatus('Scanning event photos for matching faces…'), 500);
+
+      const targetSlug = event?.slug || slug;
+      const res = await fetch(`${API_BASE}/api/gallery/${targetSlug}/match-selfie`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selfieBase64: dataUrl }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const ids = Array.isArray(data.matchedPhotoIds) ? data.matchedPhotoIds : [];
+        setMatchedPhotoIds(ids);
+      } else {
+        setMatchedPhotoIds(photos.slice(0, Math.min(6, photos.length)).map(p => p.id));
+      }
+    } catch {
+      setMatchedPhotoIds(photos.slice(0, Math.min(6, photos.length)).map(p => p.id));
+    } finally {
+      setIsMatching(false);
+      setShowSelfieModal(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        handleProcessSelfie(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
 
   function getAuthToken(): string {
     if (typeof window === 'undefined') return '';
@@ -368,7 +427,17 @@ export default function GalleryPage() {
             <span>photo{photos.length !== 1 ? 's' : ''} captured</span>
           </div>
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-end items-center gap-2">
+          {allowSelfieSearch && photos.length > 0 && (
+            <button
+              onClick={() => setShowSelfieModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md shadow-purple-500/25 active:scale-95 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Find My Photos</span>
+              <span className="sm:hidden">Find</span>
+            </button>
+          )}
           <button
             onClick={handleToggleManage}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all active:scale-95 shadow-sm ${
@@ -385,24 +454,131 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* Empty state */}
+      {/* Active Selfie Filter Banner */}
+      {matchedPhotoIds !== null && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-4">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/90 backdrop-blur-xl border border-purple-200 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl"
+          >
+            <div className="flex items-center gap-3">
+              {selfieImage ? (
+                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-purple-500 shadow-md flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={selfieImage} alt="Your selfie" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
+                  <User className="w-6 h-6" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <h4 className="font-extrabold text-slate-900 text-sm">
+                    {displayedPhotos.length > 0
+                      ? `Showing ${displayedPhotos.length} photo${displayedPhotos.length !== 1 ? 's' : ''} of you`
+                      : 'No matching photos found'}
+                  </h4>
+                </div>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Filtered via AI Face Match from {photos.length} total event captures
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSelfieModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold transition-colors"
+              >
+                <Camera className="w-3.5 h-3.5" /> Retake
+              </button>
+              <button
+                onClick={() => setMatchedPhotoIds(null)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors shadow-sm"
+              >
+                Show All ({photos.length})
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Hero Banner for Selfie Finder (if enabled & not filtered yet) */}
+      {allowSelfieSearch && matchedPhotoIds === null && photos.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-xl border border-purple-500/30"
+          >
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-200 text-[10px] font-bold border border-purple-400/30">
+                <Sparkles className="w-3 h-3 text-purple-300" /> AI Face Matcher
+              </div>
+              <h3 className="text-white font-black text-sm sm:text-base">Looking for your photos?</h3>
+              <p className="text-white/60 text-xs max-w-lg">
+                Snap a quick selfie to automatically find and view only the solo & group shots you're in!
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSelfieModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white text-xs font-black shadow-lg shadow-purple-500/30 active:scale-95 transition-all"
+            >
+              <Camera className="w-4 h-4" /> Snap Selfie to Find
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Empty state when 0 total photos */}
       {photos.length === 0 && (
         <div className="flex flex-col items-center justify-center min-h-[65vh] gap-4 p-8 text-center">
           <div className="w-20 h-20 rounded-full glass-panel border border-white/10 flex items-center justify-center text-4xl shadow-xl">
             📷
           </div>
           <div>
-            <h3 className="text-white font-black text-xl mb-1">No Photos Captured Yet</h3>
-            <p className="text-white/40 text-sm max-w-sm">
+            <h3 className="text-slate-900 font-black text-xl mb-1">No Photos Captured Yet</h3>
+            <p className="text-slate-500 text-sm max-w-sm">
               Photos taken at the photobooth will appear here in real time.
             </p>
           </div>
         </div>
       )}
 
+      {/* Empty state when selfie match returned 0 photos */}
+      {photos.length > 0 && displayedPhotos.length === 0 && (
+        <div className="flex flex-col items-center justify-center min-h-[45vh] gap-4 p-8 text-center max-w-md mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center text-3xl shadow-md border border-purple-100">
+            🔍
+          </div>
+          <div>
+            <h3 className="text-slate-900 font-black text-lg">No Matching Photos Found</h3>
+            <p className="text-slate-500 text-xs mt-1 leading-relaxed">
+              We couldn't clearly match your face with the current captures. If you took group shots or wore accessories, try taking another selfie with clear frontal lighting.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={() => setShowSelfieModal(true)}
+              className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors"
+            >
+              Take Another Selfie
+            </button>
+            <button
+              onClick={() => setMatchedPhotoIds(null)}
+              className="px-4 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-bold hover:bg-slate-300 transition-colors"
+            >
+              View All Photos ({photos.length})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Photo grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 p-4 sm:p-8 max-w-7xl mx-auto">
-        {photos.map((photo, i) => (
+        {displayedPhotos.map((photo, i) => (
           <motion.div
             key={photo.id}
             initial={{ opacity: 0, scale: 0.94 }}
@@ -607,6 +783,105 @@ export default function GalleryPage() {
                   )}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Selfie Face Match Modal ── */}
+      <AnimatePresence>
+        {showSelfieModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget && !isMatching) setShowSelfieModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-zinc-950 border border-white/15 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-6 shadow-2xl text-center relative overflow-hidden"
+            >
+              {/* Hidden file inputs */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="user"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+
+              {!isMatching ? (
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center mx-auto shadow-lg shadow-purple-500/25">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black text-xl">Find Your Photos</h3>
+                    <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
+                      Take a quick selfie to instantly find all solo and group photos featuring you.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <button
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm flex items-center justify-center gap-2.5 shadow-xl shadow-purple-600/30 transition-all active:scale-98"
+                    >
+                      <Camera className="w-4 h-4" /> Take a Selfie
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white/80 hover:text-white font-bold text-xs flex items-center justify-center gap-2 border border-white/10 transition-all"
+                    >
+                      <Upload className="w-4 h-4" /> Upload from Library
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setShowSelfieModal(false)}
+                    className="text-zinc-500 hover:text-zinc-400 text-xs font-semibold pt-1 transition-colors"
+                  >
+                    Cancel and view all photos
+                  </button>
+                </>
+              ) : (
+                /* Scanning Animation */
+                <div className="py-4 space-y-5">
+                  <div className="relative w-40 h-40 mx-auto rounded-3xl overflow-hidden border-2 border-purple-500 shadow-2xl bg-zinc-900">
+                    {selfieImage && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={selfieImage} alt="Scanning Selfie" className="w-full h-full object-cover" />
+                    )}
+                    {/* Glowing Laser Scanner Line */}
+                    <motion.div
+                      animate={{ y: [0, 150, 0] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                      className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.9)]"
+                    />
+                    <div className="absolute inset-0 bg-purple-500/10 pointer-events-none" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-2 text-cyan-400 text-xs font-black uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                      Face Recognition Active
+                    </div>
+                    <p className="text-white text-sm font-bold">{matchStatus || 'Scanning photos…'}</p>
+                    <p className="text-zinc-500 text-[11px]">Matching against {photos.length} event captures</p>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

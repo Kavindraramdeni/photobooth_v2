@@ -458,6 +458,16 @@ function SessionSettingsCard({
           checked={roamingMode}
           onChange={(v) => onSettingsChange('roamingMode', v)}
         />
+
+        <div className="h-px bg-white/[0.04]" />
+
+        <ToggleRow
+          icon={Sparkles}
+          label="Selfie Photo Finder (AI Face Match)"
+          desc="Guests can snap a selfie in the gallery to instantly view only their photos"
+          checked={Boolean(settings['allowSelfieSearch'] ?? true)}
+          onChange={(v) => onSettingsChange('allowSelfieSearch', v)}
+        />
       </div>
     </Card>
   );
