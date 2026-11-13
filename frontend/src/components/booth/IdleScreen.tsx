@@ -231,25 +231,6 @@ export function IdleScreen() {
         aria-hidden="true"
       />
 
-      {/* Top Header Bar: Clean & Minimal Commercial Styling */}
-      <div className="w-full max-w-6xl mx-auto flex items-center justify-between z-20 flex-shrink-0">
-        <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/5 dark:border-white/10 shadow-sm">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
-          <span className={`text-[11px] font-black uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
-            Studio Ready
-          </span>
-        </div>
-
-        {/* Discreet Operator Lock Trigger */}
-        <button
-          onClick={openOperatorModal}
-          aria-label="Operator Settings"
-          className="p-2.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-opacity opacity-30 hover:opacity-100"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
-      </div>
-
       {/* Main Attract Centerpiece */}
       <div className="relative z-10 flex flex-col items-center justify-center max-w-4xl mx-auto w-full my-auto text-center px-4">
         {gated ? (
@@ -291,13 +272,6 @@ export function IdleScreen() {
                   </h1>
                 </div>
               )}
-              <p
-                className={`text-base sm:text-xl font-semibold mt-4 tracking-wide max-w-lg ${
-                  isLight ? 'text-slate-600' : 'text-slate-300'
-                }`}
-              >
-                Touch below to capture your studio keepsake
-              </p>
             </div>
 
             {/* Studio Shutter Trigger: Physical, Tactile, Luminous */}
@@ -336,23 +310,6 @@ export function IdleScreen() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Bottom Feature Badges: Gives a high-end commercial polish */}
-      <div className="w-full flex justify-center z-20 flex-shrink-0">
-        <div className="inline-flex items-center gap-3 sm:gap-6 px-5 py-2.5 rounded-full bg-black/5 dark:bg-white/5 backdrop-blur-md border border-black/5 dark:border-white/10 shadow-sm text-xs font-bold">
-          <span className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-            <Camera className="w-3.5 h-3.5 text-purple-500" /> Single Shot
-          </span>
-          <span className="w-1 h-1 rounded-full bg-slate-400 opacity-60" />
-          <span className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-            <ImageIcon className="w-3.5 h-3.5 text-purple-500" /> Photo Strip
-          </span>
-          <span className="w-1 h-1 rounded-full bg-slate-400 opacity-60" />
-          <span className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-            <Sparkles className="w-3.5 h-3.5 text-purple-500" /> AI Studio
-          </span>
-        </div>
       </div>
 
       {/* Operator PIN Pad Modal */}

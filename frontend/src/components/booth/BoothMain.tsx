@@ -23,8 +23,10 @@ export function BoothMain() {
 
   const branding = event?.branding;
   const themeMode = (branding?.themeMode as string) || 'light';
-  const wallpaperUrl = (branding?.wallpaperUrl as string) || (branding?.idleMediaUrl as string) || null;
-  const isVideo = wallpaperUrl?.match(/\.(mp4|webm|mov)(\?|$)/i);
+  // Use uploaded wallpaper or idle media, or default to the ambient background video
+  const userMediaUrl = (branding?.wallpaperUrl as string) || (branding?.idleMediaUrl as string) || null;
+  const activeMediaUrl = userMediaUrl || '/video/snapbooth.mp4';
+  const isVideo = Boolean(activeMediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
   const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
 
   // Background sync for offline photo queue
@@ -145,54 +147,28 @@ export function BoothMain() {
       onTouchStart={resetTimeout}
       onClick={resetTimeout}
     >
-      {/* Background Layer: Rich Brand Indigo-to-Plum Gradient by default, or Apple Light Canvas */}
-      {wallpaperUrl ? (
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-          {isVideo ? (
-            <video
-              src={wallpaperUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={wallpaperUrl}
-              alt="Event Wallpaper"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          )}
-          {/* Heavy opaque scrim so nothing shows through messily */}
-          <div
-            className={`absolute inset-0 ${
-              themeMode === 'light'
-                ? 'bg-white/80 backdrop-blur-md'
-                : 'bg-[#0c0d24]/85 backdrop-blur-md'
-            }`}
+      {/* Background Media: User wallpaper / video or default looping video */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+        {isVideo ? (
+          <video
+            src={activeMediaUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
           />
-        </div>
-      ) : themeMode === 'light' ? (
-        /* Light Theme Canvas */
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-gradient-to-b from-[#ffffff] via-[#f4f6fa] to-[#e9ecf4]">
-          <div
-            className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full blur-[140px] opacity-15"
-            style={{ background: primaryColor }}
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={activeMediaUrl}
+            alt="Event Background"
+            className="absolute inset-0 w-full h-full object-cover"
           />
-          <div className="absolute -bottom-32 right-10 w-[500px] h-[500px] rounded-full blur-[140px] opacity-10 bg-indigo-300" />
-        </div>
-      ) : (
-        /* Rich Brand-Tinted Gradient: Deep Indigo to Plum (not black) */
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-gradient-to-br from-[#0c0d24] via-[#161233] to-[#250d38]">
-          <div
-            className="absolute -top-24 left-1/4 w-[600px] h-[600px] rounded-full blur-[150px] opacity-25"
-            style={{ background: primaryColor }}
-          />
-          <div className="absolute -bottom-24 right-1/4 w-[550px] h-[550px] rounded-full blur-[150px] opacity-20 bg-purple-900" />
-        </div>
-      )}
+        )}
+        {/* Subtle, translucent scrim so background image/video is completely visible while text stays crisp */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/35 pointer-events-none" />
+      </div>
 
       <FlashOverlay />
 
