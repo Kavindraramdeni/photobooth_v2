@@ -79,13 +79,29 @@ export default function EventManagePage() {
     if (!event) return;
     setSaving(true);
     try {
-      await updateEvent(event.id, {
+      const updated = await updateEvent(event.id, {
         name: event.name,
         venue: event.venue,
         date: event.date,
         branding: event.branding,
         settings: event.settings,
       });
+
+      // Broadcast live to any booth running in this browser or kiosk
+      try {
+        const bc = new BroadcastChannel('snapbooth_event_bus');
+        bc.postMessage({ type: 'EVENT_UPDATED', event: updated || event });
+        bc.close();
+      } catch {}
+      try {
+        localStorage.setItem(`snapbooth_live_event_${event.id}`, JSON.stringify({
+          branding: event.branding,
+          settings: event.settings,
+          name: event.name,
+          updatedAt: Date.now(),
+        }));
+      } catch {}
+
       setDirtyHubs(new Set());
       toast.success('Changes saved!');
     } catch {

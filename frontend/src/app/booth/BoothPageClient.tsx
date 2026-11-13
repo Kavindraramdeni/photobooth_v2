@@ -48,6 +48,54 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
     loadEvent();
   }, [eventSlug, setEvent, router]);
 
+  // ── Live synchronization from Admin changes ──────────────────────────────
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('snapbooth_event_bus');
+      bc.onmessage = (msg) => {
+        if (msg.data?.type === 'EVENT_UPDATED' && msg.data?.event) {
+          const updated = msg.data.event;
+          if (updated.slug === eventSlug || (event && updated.id === event.id)) {
+            setEvent(updated);
+          }
+        }
+      };
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key && event?.id && e.key === `snapbooth_live_event_${event.id}` && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setEvent({
+            ...event,
+            branding: parsed.branding,
+            settings: parsed.settings,
+            name: parsed.name || event.name,
+          });
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Periodic background poll so remote kiosks also pick up design changes
+    const pollInterval = setInterval(async () => {
+      if (!eventSlug || document.visibilityState !== 'visible') return;
+      try {
+        const fresh = await getEvent(eventSlug);
+        if (fresh && JSON.stringify(fresh.branding) !== JSON.stringify(event?.branding)) {
+          setEvent(fresh);
+        }
+      } catch {}
+    }, 12000);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(pollInterval);
+    };
+  }, [eventSlug, event, setEvent]);
+
     // ── Fullscreen only from explicit user gesture (browser compliant) ─────────
   useEffect(() => {
     const el = document.documentElement;
