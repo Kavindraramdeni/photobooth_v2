@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Camera, Image as ImageIcon, Sparkles, Film, Zap, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, Sparkles, Film, Zap, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useBoothStore, BoothMode } from '@/lib/store';
 
 export function StyleScreen() {
@@ -33,7 +33,7 @@ export function StyleScreen() {
       title: 'Studio Portrait',
       badge: 'High-Res 4K',
       subtitle: 'Single studio shot with beauty lighting',
-      previewUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      previewUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&h=200&q=80',
       icon: <Camera className="w-5 h-5 text-white" />,
       enabled: true,
     },
@@ -42,7 +42,7 @@ export function StyleScreen() {
       title: 'Retro 4-Strip',
       badge: 'Classic Keepsake',
       subtitle: '4 rapid poses in a classic vertical strip',
-      previewUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80',
+      previewUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&h=200&q=80',
       icon: <ImageIcon className="w-5 h-5 text-white" />,
       enabled: true,
     },
@@ -51,7 +51,7 @@ export function StyleScreen() {
       title: 'AI Studio Art',
       badge: 'Neural Magic',
       subtitle: 'Transform into themed artistic portraits',
-      previewUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
+      previewUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&h=200&q=80',
       icon: <Sparkles className="w-5 h-5 text-white" />,
       enabled: settings?.allowAI !== false,
     },
@@ -60,7 +60,7 @@ export function StyleScreen() {
       title: 'Animated GIF',
       badge: 'Burst Motion',
       subtitle: 'Animated burst mini loop for social sharing',
-      previewUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80',
+      previewUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&h=200&q=80',
       icon: <Film className="w-5 h-5 text-white" />,
       enabled: settings?.allowGIF === true,
     },
@@ -69,7 +69,7 @@ export function StyleScreen() {
       title: 'Boomerang',
       badge: 'Infinite Loop',
       subtitle: 'Back-and-forth dynamic video loop',
-      previewUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80',
+      previewUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&h=200&q=80',
       icon: <Zap className="w-5 h-5 text-white" />,
       enabled: settings?.allowBoomerang === true,
     },
@@ -78,9 +78,9 @@ export function StyleScreen() {
   const enabledFormats = formats.filter(f => f.enabled);
 
   return (
-    <div className="w-full h-full flex flex-col justify-between p-6 sm:p-10 select-none relative z-10 overflow-hidden">
+    <div className="w-full h-full flex flex-col p-6 sm:p-10 select-none relative z-10 overflow-hidden">
       {/* Top Header */}
-      <div className="w-full max-w-6xl mx-auto flex items-center justify-between flex-shrink-0 z-20">
+      <div className="w-full max-w-2xl mx-auto flex items-center justify-between flex-shrink-0 z-20 mb-6 sm:mb-8">
         <button
           onClick={() => setScreen('idle')}
           className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${
@@ -97,88 +97,94 @@ export function StyleScreen() {
           <span className={`text-[10px] font-extrabold uppercase tracking-[0.25em] block ${
             isLight ? 'text-purple-600' : 'text-purple-400'
           }`}>
-            Format Selection
+            Choose Your Style
           </span>
           <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${
             isLight ? 'text-slate-900' : 'text-white'
           }`}>
-            Choose Your Experience
+            What are we creating?
           </h2>
         </div>
 
         <div className="w-20" />
       </div>
 
-      {/* Main Visual Format Cards Grid */}
-      <div className="flex-1 flex items-center justify-center my-4 min-h-0 w-full max-w-6xl mx-auto">
-        <div
-          className={`grid gap-5 sm:gap-6 w-full ${
-            enabledFormats.length === 2
-              ? 'grid-cols-1 sm:grid-cols-2 max-w-3xl'
-              : enabledFormats.length === 3
-              ? 'grid-cols-1 sm:grid-cols-3 max-w-5xl'
-              : 'grid-cols-2 sm:grid-cols-4 max-w-6xl'
-          }`}
-        >
-          {enabledFormats.map((item, idx) => (
-            <motion.button
-              key={item.mode}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.08, duration: 0.4 }}
-              whileHover={{ scale: 1.03, y: -4 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => handleSelectMode(item.mode)}
-              className="group relative flex flex-col rounded-[28px] sm:rounded-[32px] overflow-hidden text-left cursor-pointer transition-all duration-300 shadow-2xl border-2 border-white/20 dark:border-white/10 hover:border-purple-500/80 aspect-[3/4] max-h-[58vh]"
-            >
-              {/* Background Photographic Preview */}
+      {/* Compact Row Cards */}
+      <div className="flex-1 flex flex-col justify-center w-full max-w-2xl mx-auto gap-3 min-h-0">
+        {enabledFormats.map((item, idx) => (
+          <motion.button
+            key={item.mode}
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.07, duration: 0.35 }}
+            whileHover={{ scale: 1.015, x: 4 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleSelectMode(item.mode)}
+            className={`group relative flex items-center gap-4 w-full rounded-2xl overflow-hidden text-left cursor-pointer transition-all duration-200 shadow-lg border ${
+              isLight
+                ? 'bg-white/70 hover:bg-white/90 border-black/8 hover:border-purple-400/60 hover:shadow-purple-200/60 hover:shadow-xl backdrop-blur-sm'
+                : 'bg-white/8 hover:bg-white/14 border-white/12 hover:border-purple-400/60 hover:shadow-purple-900/40 hover:shadow-xl backdrop-blur-sm'
+            } h-[72px] sm:h-[80px] px-4 sm:px-5`}
+          >
+            {/* Thumbnail */}
+            <div className="relative flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden shadow-md">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.previewUrl}
                 alt={item.title}
-                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
               />
+              {/* Icon overlay */}
+              <div
+                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{ backgroundColor: `${primaryColor}cc` }}
+              >
+                {item.icon}
+              </div>
+            </div>
 
-              {/* Multi-layer Vignette & Scrim Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/20" />
-
-              {/* Top Tag & Icon */}
-              <div className="relative z-10 p-4 sm:p-5 flex items-center justify-between w-full">
-                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/60 text-white backdrop-blur-md border border-white/20">
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className={`text-base sm:text-lg font-black tracking-tight truncate ${
+                  isLight ? 'text-slate-900' : 'text-white'
+                }`}>
+                  {item.title}
+                </span>
+                <span
+                  className="flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-white"
+                  style={{ backgroundColor: `${primaryColor}99` }}
+                >
                   {item.badge}
                 </span>
-
-                <div
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg backdrop-blur-md"
-                  style={{ backgroundColor: `${primaryColor}cc` }}
-                >
-                  {item.icon}
-                </div>
               </div>
+              <p className={`text-xs sm:text-sm font-medium leading-snug truncate ${
+                isLight ? 'text-slate-500' : 'text-slate-400'
+              }`}>
+                {item.subtitle}
+              </p>
+            </div>
 
-              {/* Bottom Details with Clear Editorial Typography */}
-              <div className="relative z-10 mt-auto p-5 sm:p-6 space-y-1">
-                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight drop-shadow-md group-hover:text-purple-300 transition-colors">
-                  {item.title}
-                </h3>
-                <p className="text-white/80 text-xs sm:text-sm font-medium leading-snug drop-shadow-sm">
-                  {item.subtitle}
-                </p>
-
-                <div className="pt-2 flex items-center gap-1.5 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span>Step inside</span>
-                  <span className="group-hover:translate-x-1 transition-transform">→</span>
-                </div>
+            {/* Icon indicator */}
+            <div
+              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 group-hover:scale-110"
+              style={{ backgroundColor: `${primaryColor}22` }}
+            >
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200"
+                style={{ backgroundColor: `${primaryColor}` }}
+              >
+                <ChevronRight className="w-3.5 h-3.5 text-white" />
               </div>
-            </motion.button>
-          ))}
-        </div>
+            </div>
+          </motion.button>
+        ))}
       </div>
 
       {/* Bottom Hint */}
-      <div className="w-full text-center pb-2 flex-shrink-0 z-20">
-        <p className={`text-xs font-bold tracking-wide ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-          Touch any card to begin the studio countdown
+      <div className="w-full text-center pt-5 flex-shrink-0 z-20">
+        <p className={`text-xs font-bold tracking-wide ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+          Tap a style to begin your session
         </p>
       </div>
     </div>
