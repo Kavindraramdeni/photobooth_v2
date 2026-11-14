@@ -98,13 +98,51 @@ export function ShareScreen() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<Set<string>>(new Set());
 
+  const settings = event?.settings as Record<string, unknown> | undefined;
+  const timeoutSecs = (settings?.shareScreenTimeout as number) || 0;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [timeLeft, setTimeLeft] = useState(timeoutSecs);
+
+  const resetTimer = useCallback(() => {
+    if (!timeoutSecs) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimeLeft(timeoutSecs);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          resetSession();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    timerRef.current = interval;
+  }, [timeoutSecs, resetSession]);
+
   useEffect(() => {
-    if (!currentPhoto) setScreen('preview');
+    if (!timeoutSecs) return;
+    resetTimer();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timeoutSecs, resetTimer]);
+
+  useEffect(() => {
+    if (!currentPhoto) {
+      setScreen('idle');
+    }
   }, [currentPhoto, setScreen]);
 
-  if (!currentPhoto) return null;
-  const photo = currentPhoto;
+  if (!currentPhoto) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-[#0a0a12] text-white/50 text-sm">
+        Preparing your photo...
+      </div>
+    );
+  }
 
+  const photo = currentPhoto;
   const primaryColor = event?.branding?.primaryColor || '#7c3aed';
   const eventName = (event?.branding?.eventName as string) || event?.name || 'SnapBooth';
 
@@ -129,7 +167,6 @@ export function ShareScreen() {
     return raw;
   };
   const photoUrl = computeQrUrl();
-  const settings = event?.settings as Record<string, unknown> | undefined;
   const allowEmail = (settings?.allowEmailShare as boolean) !== false;
   const allowInstagram = (settings?.allowInstagram as boolean) !== false;
   const allowAirDrop = (settings?.allowAirDrop as boolean) !== false;
@@ -137,30 +174,6 @@ export function ShareScreen() {
   const allowSMS = (settings?.allowSMSShare as boolean) === true;
   const allowPrint = (settings?.allowPrint as boolean) !== false;
   const printScale = (settings?.printScale as number) || 98;
-  
-  // Share auto-timeout
-  const timeoutSecs = (settings?.shareScreenTimeout as number) || 0;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [timeLeft, setTimeLeft] = useState(timeoutSecs);
-
-  const resetTimer = useCallback(() => {
-    if (!timeoutSecs) return;
-    if (timerRef.current) clearInterval(timerRef.current);
-    setTimeLeft(timeoutSecs);
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) { clearInterval(interval); resetSession(); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    timerRef.current = interval;
-  }, [timeoutSecs, resetSession]);
-
-  useEffect(() => {
-    if (!timeoutSecs) return;
-    resetTimer();
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [timeoutSecs, resetTimer]);
 
   const whatsappCountryCode = (settings?.whatsappCountryCode as string) || '';
 

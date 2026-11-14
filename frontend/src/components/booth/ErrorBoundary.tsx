@@ -19,6 +19,7 @@
 
 import { Component, ReactNode, ErrorInfo } from 'react';
 import { motion } from 'framer-motion';
+import { useBoothStore } from '@/lib/store';
 
 // ── Recovery screen UI ────────────────────────────────────────────────────────
 function RecoveryScreen({
@@ -122,7 +123,11 @@ export class BoothErrorBoundary extends Component<Props, State> {
 
   handleRetry = () => {
     if (this.retryTimer) clearTimeout(this.retryTimer);
-    // Reset React state — this re-mounts the children from scratch
+    try {
+      useBoothStore.getState().resetSession();
+      useBoothStore.getState().setScreen('idle');
+    } catch {}
+    // Reset React state — this re-mounts the children cleanly to idle
     this.setState({ hasError: false, error: null });
   };
 

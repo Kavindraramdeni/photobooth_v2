@@ -124,7 +124,13 @@ export function PreviewScreen() {
     if (!currentPhoto) setScreen('idle');
   }, [currentPhoto, setScreen]);
 
-  if (!currentPhoto) return null;
+  if (!currentPhoto) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-[#0a0a12] text-white/50 text-sm">
+        Preparing studio preview...
+      </div>
+    );
+  }
   const photo = currentPhoto;
 
   const branding = event?.branding;
