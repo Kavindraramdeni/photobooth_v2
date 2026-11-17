@@ -190,7 +190,7 @@ function CaptureModeCard({
       subtitle="Choose which photo modes are available to guests"
       icon={Camera}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {CAPTURE_MODES.map((mode) => {
           const isOn = mode.alwaysOn || Boolean(settings[mode.key]);
           return (
@@ -788,34 +788,55 @@ export function BoothCameraHub({
         })}
       </div>
 
-      {/* ── Group 1: Capture & Camera ── */}
-      {(activeTab === 'capture' || activeTab === 'all') && (
-        <div className="space-y-6">
+      {/* ── Group 1: Capture & Camera (Desktop 2-column: Left = Modes, Right = Settings) ── */}
+      {activeTab === 'capture' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <CaptureModeCard settings={settings} onSettingsChange={onSettingsChange} />
           <CameraSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
         </div>
       )}
 
       {/* ── Group 2: Timing & Multi-Shot ── */}
-      {(activeTab === 'timing' || activeTab === 'all') && (
-        <div className="space-y-6">
+      {activeTab === 'timing' && (
+        <div className="max-w-4xl">
           <CaptureTimingCard settings={settings} onSettingsChange={onSettingsChange} />
         </div>
       )}
 
-      {/* ── Group 3: Glam, Beauty & AR Props ── */}
-      {(activeTab === 'effects' || activeTab === 'all') && (
-        <div className="space-y-6">
-          <BeautyModeCard settings={settings} onSettingsChange={onSettingsChange} />
-          <CelebrityGlamCard settings={settings} onSettingsChange={onSettingsChange} />
-          <DigitalPropsCard settings={settings} onSettingsChange={onSettingsChange} />
+      {/* ── Group 3: Glam, Beauty & AR Props (Desktop 2-column: Left = Beauty & Glam, Right = Props) ── */}
+      {activeTab === 'effects' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="space-y-6">
+            <BeautyModeCard settings={settings} onSettingsChange={onSettingsChange} />
+            <CelebrityGlamCard settings={settings} onSettingsChange={onSettingsChange} />
+          </div>
+          <div className="space-y-6">
+            <DigitalPropsCard settings={settings} onSettingsChange={onSettingsChange} />
+          </div>
         </div>
       )}
 
       {/* ── Group 4: Session & Kiosk Control ── */}
-      {(activeTab === 'session' || activeTab === 'all') && (
-        <div className="space-y-6">
+      {activeTab === 'session' && (
+        <div className="max-w-4xl">
           <SessionSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+        </div>
+      )}
+
+      {/* ── Group 5: All Settings (Balanced 2-column grid on desktop) ── */}
+      {activeTab === 'all' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="space-y-6">
+            <CaptureModeCard settings={settings} onSettingsChange={onSettingsChange} />
+            <CaptureTimingCard settings={settings} onSettingsChange={onSettingsChange} />
+            <BeautyModeCard settings={settings} onSettingsChange={onSettingsChange} />
+          </div>
+          <div className="space-y-6">
+            <CameraSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+            <CelebrityGlamCard settings={settings} onSettingsChange={onSettingsChange} />
+            <DigitalPropsCard settings={settings} onSettingsChange={onSettingsChange} />
+            <SessionSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+          </div>
         </div>
       )}
 
