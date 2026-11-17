@@ -14,7 +14,9 @@ import {
   Image as ImageIcon,
   Layers,
   Camera,
+  Film,
 } from 'lucide-react';
+import { generateInAppMotionVideo } from '@/lib/inAppMotionEngine';
 import { useBoothStore, Photo } from '@/lib/store';
 import { ensureBoothToken, getBoothHeaders } from '@/lib/api';
 import { getCardTemplateById, compositeCardPhoto } from '@/lib/cardTemplates';
@@ -209,7 +211,7 @@ const CURATED_STYLES: StyleItem[] = [
 ];
 
 type Step = 'select' | 'generating' | 'result';
-type ViewMode = 'split' | 'card' | 'portrait';
+type ViewMode = 'split' | 'card' | 'portrait' | 'video';
 
 const GENERATING_PHASES = [
   'Detecting facial landmarks & contours...',
@@ -466,24 +468,21 @@ export function AIStudioScreen() {
     setAIGenerating(false);
     toast.success('Transformation Complete!');
 
-    // If a motion move was chosen (Glam Motion or Bullet Time), initiate cinematic video
+    // If a motion move was chosen (Glam Motion or Bullet Time), generate cinematic video client-side for $0
     if (moveType !== 'still' && finalAiUrl) {
       setVideoProcessing(true);
-      fetch(`${API_BASE}/api/ai/video-motion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          photoUrl: finalAiUrl,
-          effectType: moveType,
-          eventId: event.id,
-          photoId: currentPhoto.id,
-        }),
+      generateInAppMotionVideo(finalAiUrl, {
+        effectType: moveType,
+        durationSeconds: 5,
       })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d?.sampleVideoUrl) setGeneratedVideoUrl(d.sampleVideoUrl);
+        .then(({ videoUrl }) => {
+          setGeneratedVideoUrl(videoUrl);
+          setViewMode('video');
+          toast.success(moveType === 'glam_motion' ? '🎬 Glam Motion video ready!' : '🌀 AI Bullet Time video ready!');
         })
-        .catch(() => {})
+        .catch((err) => {
+          console.warn('In-app motion generation error:', err);
+        })
         .finally(() => setVideoProcessing(false));
     }
   }
@@ -601,6 +600,17 @@ export function AIStudioScreen() {
               <ImageIcon className="w-3.5 h-3.5" />
               <span>Full Art</span>
             </button>
+            {generatedVideoUrl && (
+              <button
+                onClick={() => setViewMode('video')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                  viewMode === 'video' ? 'bg-purple-600 text-white shadow-md' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Film className="w-3.5 h-3.5 text-pink-300" />
+                <span>Cinematic Video</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="w-24" />
@@ -708,6 +718,24 @@ export function AIStudioScreen() {
                     <div className="absolute top-4 left-4">
                       <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-600/80 backdrop-blur-md text-white border border-purple-400/30">
                         HIGH-RES AI ARTWORK
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {viewMode === 'video' && generatedVideoUrl && (
+                  <div className="relative h-full max-h-[72vh] rounded-3xl overflow-hidden border-2 border-pink-400/50 shadow-2xl bg-black flex items-center justify-center" style={{ aspectRatio: '4/6' }}>
+                    <video
+                      src={generatedVideoUrl}
+                      autoPlay
+                      loop
+                      playsInline
+                      controls
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-4 left-4">
+                      <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-pink-600/80 backdrop-blur-md text-white border border-pink-400/30">
+                        {moveType === 'bullet_time' ? 'AI BULLET TIME (360°)' : 'GLAM MOTION AI (120FPS)'}
                       </span>
                     </div>
                   </div>
