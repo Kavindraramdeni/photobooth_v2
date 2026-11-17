@@ -821,7 +821,7 @@ async function applyAIFilter(imageBuffer, styleKey) {
   return generateWithSharp(imageBuffer, styleKey, null);
 }
 
-module.exports = { generateAIImage, applyAIFilter };
+module.exports = { generateAIImage, applyAIFilter, AI_STYLES };
 
 // The full premium prompts are in ai_prompts_update.js
 // Key changes:

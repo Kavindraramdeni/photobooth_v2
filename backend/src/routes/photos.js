@@ -88,11 +88,27 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
 
     // Get event branding from DB
-    const { data: event } = await supabase
+    let { data: event } = await supabase
       .from('events')
       .select('*')
       .eq('id', eventId)
-      .single();
+      .maybeSingle();
+
+    if (!event && (eventId === '00000000-0000-0000-0000-000000000001' || eventId === 'snapbooth-demo' || eventId === 'demo')) {
+      event = {
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'SnapBooth Grand Gala Demo',
+        slug: 'snapbooth-demo',
+        status: 'active',
+        branding: {
+          primaryColor: '#8b5cf6',
+          secondaryColor: '#ec4899',
+          accentColor: '#d4af37',
+          eventName: 'SnapBooth Grand Gala',
+        },
+        settings: {},
+      };
+    }
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
@@ -469,8 +485,10 @@ router.get('/event/:eventId', async (req, res) => {
     }
 
     const { data: photos, error } = await query;
-    if (error) throw error;
-    res.json({ photos, page: Number(page), limit: Number(limit) });
+    if (error && error.code !== 'PGRST116') {
+      console.warn('[photos/event/:eventId] Query notice:', error.message);
+    }
+    res.json({ photos: photos || [], page: Number(page), limit: Number(limit) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

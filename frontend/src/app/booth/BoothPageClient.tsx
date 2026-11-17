@@ -43,7 +43,37 @@ export function BoothPageClient({ eventSlug }: BoothPageClientProps) {
           setBoothToken(eventData.boothToken, eventData.id);
         }
       } catch {
-        setError('Event not found. Please check your event link.');
+        if (!eventSlug || eventSlug === DEMO_EVENT_SLUG || eventSlug === 'demo' || eventSlug === 'snapbooth-demo') {
+          const fallbackDemo = {
+            id: '00000000-0000-0000-0000-000000000001',
+            name: 'SnapBooth Grand Gala Demo',
+            slug: eventSlug || DEMO_EVENT_SLUG,
+            status: 'active',
+            date: new Date().toISOString().split('T')[0],
+            venue: 'Grand Ballroom',
+            branding: {
+              primaryColor: '#8b5cf6',
+              secondaryColor: '#ec4899',
+              accentColor: '#d4af37',
+              eventName: 'SnapBooth Grand Gala',
+              cardTemplateId: 'indian-wedding-portrait',
+              templateHeadline: 'CELEBRATING THE ROYAL GALA',
+              templateSubtitle: 'Thank you for attending our gala celebration',
+              templateNames: 'SnapBooth Guest',
+              templateDate: 'November 18, 2026',
+            },
+            settings: {
+              countdownSeconds: 3,
+              allowRetakes: true,
+              leadCapture: false,
+              silentPrinting: true,
+              availableModes: ['single', 'strip', 'gif', 'boomerang', 'aistudio'],
+            },
+          };
+          setEvent(fallbackDemo as any);
+        } else {
+          setError('Event not found. Please check your event link.');
+        }
       } finally {
         setLoading(false);
       }

@@ -49,6 +49,34 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+const DEFAULT_DEMO_EVENT = {
+  id: '00000000-0000-0000-0000-000000000001',
+  name: 'SnapBooth Grand Gala Demo',
+  slug: 'snapbooth-demo',
+  status: 'active',
+  date: new Date().toISOString().split('T')[0],
+  venue: 'Grand Palace Ballroom',
+  branding: {
+    primaryColor: '#8b5cf6',
+    secondaryColor: '#ec4899',
+    accentColor: '#d4af37',
+    eventName: 'SnapBooth Grand Gala',
+    cardTemplateId: 'indian-wedding-portrait',
+    templateHeadline: 'CELEBRATING THE ROYAL GALA',
+    templateSubtitle: 'Thank you for being part of our special celebration',
+    templateNames: 'SnapBooth Demo Guest',
+    templateDate: 'November 18, 2026',
+  },
+  settings: {
+    countdownSeconds: 3,
+    allowRetakes: true,
+    leadCapture: false,
+    silentPrinting: true,
+    availableModes: ['single', 'strip', 'gif', 'boomerang', 'aistudio'],
+  },
+  created_at: new Date().toISOString(),
+};
+
 /**
  * GET /api/events/:id
  * Get single event details.
@@ -69,6 +97,10 @@ router.get('/:id', async (req, res) => {
         const byId = await supabase.from('events').select('*').eq('id', param).maybeSingle();
         if (byId.data) event = byId.data;
       }
+    }
+
+    if (!event && (param === 'snapbooth-demo' || param === 'demo' || param === 'default')) {
+      event = { ...DEFAULT_DEMO_EVENT, slug: param };
     }
 
     if (!event) return res.status(404).json({ error: 'Event not found' });

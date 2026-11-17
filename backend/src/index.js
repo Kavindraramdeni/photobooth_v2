@@ -13,13 +13,21 @@ const httpServer = createServer(app);
 app.set('trust proxy', 1);
 
 // ── CORS origins ──────────────────────────────────────────────────────────────
-const DEFAULT_ORIGINS = ['http://localhost:3000', 'https://photobooth-v2-ten.vercel.app', 'https://photobooth-v2-xi.vercel.app'];
+const DEFAULT_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3002',
+  'https://photobooth-v2-ten.vercel.app',
+  'https://photobooth-v2-xi.vercel.app',
+  'https://photobooth-fzrn.onrender.com',
+];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : DEFAULT_ORIGINS);
 
 const io = new Server(httpServer, {
-  cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
+  cors: { origin: (origin, cb) => cb(null, true), methods: ['GET', 'POST'] },
 });
 app.set('io', io);
 
@@ -28,7 +36,7 @@ app.use(cors({
   origin: (origin, cb) => {
     // Allow requests with no origin (mobile apps, curl, Render health checks)
     if (!origin) return cb(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     return cb(null, false);
   },
   credentials: true,

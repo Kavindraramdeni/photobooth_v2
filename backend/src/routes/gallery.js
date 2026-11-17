@@ -20,6 +20,22 @@ router.get('/:slug', async (req, res) => {
       if (byId.data) event = byId.data;
     }
 
+    if (!event && (slug === 'demo' || slug === 'snapbooth-demo')) {
+      event = {
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'SnapBooth Grand Gala Demo',
+        slug,
+        date: new Date().toISOString().split('T')[0],
+        venue: 'Grand Palace Ballroom',
+        branding: {
+          primaryColor: '#8b5cf6',
+          secondaryColor: '#ec4899',
+          eventName: 'SnapBooth Grand Gala Demo',
+        },
+        settings: {},
+      };
+    }
+
     if (!event) return res.status(404).json({ error: 'Gallery not found' });
 
     // Check if gallery has expired
