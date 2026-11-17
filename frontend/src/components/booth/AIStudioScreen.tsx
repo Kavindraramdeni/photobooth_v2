@@ -37,6 +37,66 @@ export interface StyleItem {
 // Curated, high-production photobooth persona adventures & themes (Clean - No emojis in front of themes)
 const CURATED_STYLES: StyleItem[] = [
   {
+    key: 'cover_story',
+    name: 'Cover Story',
+    category: 'Red Carpet',
+    tagline: 'Celebrity red carpet gala with bespoke tuxedo/gown, paparazzi flashes & limousine',
+    gradient: 'linear-gradient(135deg, #09090b, #18181b, #27272a)',
+    accentColor: '#d4af37',
+    badge: 'Top Look',
+    preview_image_url: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'sakura_rush',
+    name: 'Sakura Rush',
+    category: 'Cinematic',
+    tagline: 'Joyful Japanese cherry blossom daylight with Mount Fuji backdrop',
+    gradient: 'linear-gradient(135deg, #831843, #db2777, #f472b6)',
+    accentColor: '#f472b6',
+    badge: 'Trending',
+    preview_image_url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'glamour_art_deco',
+    name: 'Glamour',
+    category: 'Art Deco',
+    tagline: '1920s Gatsby gold sequin luxury gala with grand piano and chandeliers',
+    gradient: 'linear-gradient(135deg, #451a03, #b45309, #fbbf24)',
+    accentColor: '#f59e0b',
+    badge: 'Luxury',
+    preview_image_url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'timeless_paris',
+    name: 'Timeless Paris',
+    category: 'Romantic',
+    tagline: 'Editorial fashion portrait beside a vintage convertible with Eiffel Tower backdrop',
+    gradient: 'linear-gradient(135deg, #1e1b4b, #3b82f6, #93c5fd)',
+    accentColor: '#38bdf8',
+    badge: 'Classic',
+    preview_image_url: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'royal_india',
+    name: 'Royal India',
+    category: 'Royalty',
+    tagline: 'Mughal palace court, ruby velvet embroidered sherwani/lehenga & royal throne',
+    gradient: 'linear-gradient(135deg, #78350f, #b45309, #d97706)',
+    accentColor: '#f59e0b',
+    badge: 'Wedding Favorite',
+    preview_image_url: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'bangkok_chase',
+    name: 'Bangkok Chase',
+    category: 'Action',
+    tagline: 'Cinematic night action movie hero riding an iconic tuk-tuk in neon rain',
+    gradient: 'linear-gradient(135deg, #022c22, #059669, #34d399)',
+    accentColor: '#10b981',
+    badge: 'Action',
+    preview_image_url: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=400&q=80',
+  },
+  {
     key: 'zootography_tiger',
     name: 'Zootography Tiger Safari',
     category: 'Zootography',
@@ -259,11 +319,15 @@ export function AIStudioScreen() {
   // Result state
   const [generatedPortraitUrl, setGeneratedPortraitUrl] = useState<string | null>(null);
   const [generatedCardUrl, setGeneratedCardUrl] = useState<string | null>(null);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [videoProcessing, setVideoProcessing] = useState(false);
+  const [moveType, setMoveType] = useState<'still' | 'glam_motion' | 'bullet_time'>('still');
   const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
 
-  // Active card template (e.g. Indian Wedding Mughal arch)
-  const cardTemplateId = (event?.branding?.cardTemplateId as string | undefined) || 'indian-wedding-portrait';
+  // Active card template (e.g. Indian Wedding Mughal arch or Tatler Magazine)
+  const defaultTemplate = selectedStyleKey === 'cover_story' ? 'tatler-magazine-cover' : 'indian-wedding-portrait';
+  const cardTemplateId = (event?.branding?.cardTemplateId as string | undefined) || defaultTemplate;
   const activeTemplate = getCardTemplateById(cardTemplateId);
 
   // Resolve best photo sources
@@ -401,6 +465,27 @@ export function AIStudioScreen() {
     setStep('result');
     setAIGenerating(false);
     toast.success('Transformation Complete!');
+
+    // If a motion move was chosen (Glam Motion or Bullet Time), initiate cinematic video
+    if (moveType !== 'still' && finalAiUrl) {
+      setVideoProcessing(true);
+      fetch(`${API_BASE}/api/ai/video-motion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          photoUrl: finalAiUrl,
+          effectType: moveType,
+          eventId: event.id,
+          photoId: currentPhoto.id,
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.sampleVideoUrl) setGeneratedVideoUrl(d.sampleVideoUrl);
+        })
+        .catch(() => {})
+        .finally(() => setVideoProcessing(false));
+    }
   }
 
   function handleContinueToShare() {
@@ -712,6 +797,39 @@ export function AIStudioScreen() {
 
               {/* Bottom Action Footer */}
               <div className="p-4 sm:p-6 bg-[#0e1022]/90 border-t border-white/10 backdrop-blur-xl flex-shrink-0">
+                {/* Pick The Move: Still Photo vs Glam Motion vs Bullet Time */}
+                <div className="mb-3.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-white/70">
+                      Pick The Move
+                    </span>
+                    <span className="text-[10px] text-purple-300 font-bold">
+                      {moveType === 'still' ? 'Standard 4×6 Card' : 'Cinematic Video Clip (Kling AI)'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'still', label: 'Still Photo', desc: 'Instant 4×6 Print' },
+                      { id: 'glam_motion', label: 'Glam Motion AI', desc: 'Slow-Mo Glambot' },
+                      { id: 'bullet_time', label: 'AI Bullet Time', desc: '360 Freeze Frame' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setMoveType(m.id as any)}
+                        className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer ${
+                          moveType === m.id
+                            ? 'bg-purple-600 border-purple-400 text-white shadow-lg'
+                            : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        }`}
+                      >
+                        <p className="text-xs font-black">{m.label}</p>
+                        <p className="text-[10px] opacity-70 mt-0.5">{m.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <motion.button
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
@@ -720,7 +838,9 @@ export function AIStudioScreen() {
                   className="w-full py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-xl shadow-purple-600/30 transition-all cursor-pointer"
                 >
                   <Wand2 className="w-5 h-5" />
-                  <span>Transform into {selectedStyle.name}</span>
+                  <span>
+                    Transform into {selectedStyle.name} {moveType !== 'still' ? '+ Video' : ''}
+                  </span>
                 </motion.button>
               </div>
             </div>

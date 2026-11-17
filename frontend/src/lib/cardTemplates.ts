@@ -460,9 +460,93 @@ function getRoyalMandapLandscapeSvg(opts?: { headline?: string; subtitle?: strin
   </svg>`;
 }
 
+function getTatlerMagazinePortraitSvg(opts?: { headline?: string; subtitle?: string; names?: string; date?: string }): string {
+  const masthead = 'TATLER';
+  const tagline = opts?.subtitle || 'WHERE CELEBRITY MEETS ENTERPRISE';
+  const headline = opts?.headline || 'THE NEW ICONS OF SUCCESS';
+  const names = opts?.names || 'HOW CELEBRITY ENTREPRENEURS ARE REDEFINING LUXURY';
+  const date = opts?.date || 'SPECIAL EDITION • 2026';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1800" width="1200" height="1800">
+    <defs>
+      <filter id="tatlerShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.85"/>
+      </filter>
+      <filter id="tatlerSubtle" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.9"/>
+      </filter>
+    </defs>
+
+    <!-- Top Masthead: TATLER -->
+    <text x="600" y="240" font-family="'Times New Roman', 'Playfair Display', Georgia, serif" font-size="200" font-weight="900" letter-spacing="48" fill="#ffffff" text-anchor="middle" filter="url(#tatlerShadow)">
+      ${masthead}
+    </text>
+
+    <!-- Masthead Tagline -->
+    <text x="600" y="300" font-family="'Montserrat', Arial, sans-serif" font-size="26" font-weight="800" letter-spacing="14" fill="#ffffff" text-anchor="middle" filter="url(#tatlerSubtle)">
+      ${tagline}
+    </text>
+
+    <!-- Main Headline -->
+    <g filter="url(#tatlerShadow)">
+      <text x="80" y="1320" font-family="'Times New Roman', 'Playfair Display', Georgia, serif" font-size="78" font-weight="900" letter-spacing="2" fill="#ffffff">
+        ${headline.split(' ').slice(0, 2).join(' ')}
+      </text>
+      <text x="80" y="1400" font-family="'Times New Roman', 'Playfair Display', Georgia, serif" font-size="78" font-weight="900" letter-spacing="2" fill="#ffffff">
+        ${headline.split(' ').slice(2, 4).join(' ') || 'OF SUCCESS'}
+      </text>
+      <text x="80" y="1480" font-family="'Times New Roman', 'Playfair Display', Georgia, serif" font-size="78" font-weight="900" letter-spacing="2" fill="#ffffff">
+        ${headline.split(' ').slice(4).join(' ')}
+      </text>
+    </g>
+
+    <!-- Deck Text -->
+    <g filter="url(#tatlerSubtle)">
+      <text x="80" y="1560" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="1" fill="#e2e8f0">
+        ${names}
+      </text>
+      <text x="80" y="1600" font-family="'Montserrat', Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="1" fill="#cbd5e1">
+        INNOVATION, LUXURY, AND GLOBAL INFLUENCE.
+      </text>
+    </g>
+
+    <!-- Bottom Barcode & Date Stamp -->
+    <rect x="910" y="1640" width="220" height="80" fill="#ffffff" rx="6"/>
+    <g fill="#000000">
+      <rect x="930" y="1655" width="4" height="48"/>
+      <rect x="940" y="1655" width="2" height="48"/>
+      <rect x="948" y="1655" width="7" height="48"/>
+      <rect x="965" y="1655" width="3" height="48"/>
+      <rect x="975" y="1655" width="5" height="48"/>
+      <rect x="990" y="1655" width="3" height="48"/>
+      <rect x="1005" y="1655" width="8" height="48"/>
+      <rect x="1025" y="1655" width="4" height="48"/>
+      <rect x="1045" y="1655" width="6" height="48"/>
+      <rect x="1065" y="1655" width="3" height="48"/>
+      <rect x="1080" y="1655" width="5" height="48"/>
+      <rect x="1100" y="1655" width="4" height="48"/>
+    </g>
+    <text x="80" y="1680" font-family="'Montserrat', Arial, sans-serif" font-size="22" font-weight="800" fill="#ffffff" letter-spacing="2" filter="url(#tatlerSubtle)">
+      ${date}
+    </text>
+  </svg>`;
+}
+
 // ─── 3. EXPORTED TEMPLATES REGISTRY ───────────────────────────────────────────
 
 export const CARD_TEMPLATES_PORTRAIT: CardTemplate[] = [
+  {
+    id: 'tatler-magazine-cover',
+    name: 'Tatler / Vogue Cover Story',
+    orientation: 'portrait',
+    category: 'corporate',
+    badge: 'Cover Story',
+    description: 'Authentic celebrity magazine masthead, headline typography, and barcode',
+    headlineDefault: 'THE NEW ICONS OF SUCCESS',
+    subtitleDefault: 'WHERE CELEBRITY MEETS ENTERPRISE',
+    photoSlot: { x: 0, y: 0, width: 1200, height: 1800 },
+    getOverlaySvg: getTatlerMagazinePortraitSvg,
+  },
   {
     id: 'indian-wedding-portrait',
     name: 'Royal Indian Wedding (Arch & Caricature)',

@@ -88,9 +88,60 @@ export function TemplateCanvasDesigner({
         : DEFAULT_CANVAS_CONFIG_PORTRAIT)
   );
 
-  const [activeTab, setActiveTab] = useState<'layout' | 'typography' | 'background'>('layout');
+  const [activeTab, setActiveTab] = useState<'layout' | 'typography' | 'background' | 'ai_frames'>('layout');
   const [selectedLayer, setSelectedLayer] = useState<'photo' | 'headline' | 'names' | 'date' | 'hashtag'>('photo');
   const [samplePhotoIndex, setSamplePhotoIndex] = useState(0);
+
+  // AI Frame Overlays State
+  const [themePrompt, setThemePrompt] = useState('Luxury Tuscan Vineyard with Olive Leaves and Gold Foil');
+  const [frameTitle, setFrameTitle] = useState(String(branding.templateHeadline || 'Celebration Gala'));
+  const [frameSubtitle, setFrameSubtitle] = useState(String(branding.templateSubtitle || 'Thank You For Celebrating With Us'));
+  const [frameSignature, setFrameSignature] = useState('With Love & Gratitude');
+  const [generatingFrame, setGeneratingFrame] = useState(false);
+  const [currentFrameOverlay, setCurrentFrameOverlay] = useState<string | null>(
+    (branding.frameUrl as string) || null
+  );
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+  const handleGenerateAIFrame = async () => {
+    setGeneratingFrame(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/ai/generate-frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          themeDescription: themePrompt,
+          orientation: config.orientation,
+          title: frameTitle,
+          subtitle: frameSubtitle,
+          signature: frameSignature,
+          logoUrl: (branding.logoUrl as string) || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Frame generation failed');
+      setCurrentFrameOverlay(data.frameUrl);
+      onBrandingChange('frameUrl', data.frameUrl);
+      toast.success('✨ Transparent AI Frame generated & applied!');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not generate frame');
+    } finally {
+      setGeneratingFrame(false);
+    }
+  };
+
+  const handleDownloadFramePNG = () => {
+    if (!currentFrameOverlay) {
+      toast.error('No frame overlay generated yet');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = currentFrameOverlay;
+    link.download = `frame_${config.orientation}_${Date.now()}.png`;
+    link.click();
+    toast.success('Transparent PNG exported!');
+  };
 
   const isLandscape = config.orientation === 'landscape';
 
@@ -342,17 +393,27 @@ export function TemplateCanvasDesigner({
                 {config.hashtag.text}
               </div>
             )}
+            {/* Transparent AI Frame Overlay */}
+            {currentFrameOverlay && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={currentFrameOverlay}
+                alt="AI Frame Overlay"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-20"
+              />
+            )}
           </div>
         </div>
 
         {/* Right Side: Visual Inspector & Controls (7 cols) */}
         <div className="lg:col-span-7 flex flex-col gap-5 bg-zinc-800/40 p-5 rounded-2xl border border-white/5">
           {/* Tab Selection */}
-          <div className="flex border-b border-white/10 pb-3 gap-2">
+          <div className="flex border-b border-white/10 pb-3 gap-2 overflow-x-auto scrollbar-none">
             {[
               { id: 'layout', label: 'Photo Slot & Layout', icon: Move },
               { id: 'typography', label: 'Typography & Text', icon: Type },
               { id: 'background', label: 'Themes & Borders', icon: Palette },
+              { id: 'ai_frames', label: 'AI Frame Overlays', icon: Sparkles },
             ].map((t) => {
               const Icon = t.icon;
               return (
@@ -731,6 +792,89 @@ export function TemplateCanvasDesigner({
                     />
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: AI FRAME OVERLAYS ENGINE */}
+          {activeTab === 'ai_frames' && (
+            <div className="space-y-4">
+              <div>
+                <span className="text-xs font-bold text-amber-400 block uppercase tracking-wider">
+                  Describe Theme — AI Designs Transparent Frame
+                </span>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Generates an ornate transparent PNG frame layered with client logo, event title, and signature.
+                </p>
+              </div>
+
+              {/* Theme Prompt Input */}
+              <div>
+                <label className="text-[11px] text-zinc-300 block mb-1 font-semibold">Event Theme Description</label>
+                <textarea
+                  rows={2}
+                  value={themePrompt}
+                  onChange={(e) => setThemePrompt(e.target.value)}
+                  placeholder="e.g. Luxury Tuscan Vineyard with Olive Leaves and Gold Foil"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 resize-none"
+                />
+              </div>
+
+              {/* Title, Subtitle, Signature Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Event Title</label>
+                  <input
+                    type="text"
+                    value={frameTitle}
+                    onChange={(e) => setFrameTitle(e.target.value)}
+                    placeholder="Rahul &amp; Priya Wedding"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Subtitle</label>
+                  <input
+                    type="text"
+                    value={frameSubtitle}
+                    onChange={(e) => setFrameSubtitle(e.target.value)}
+                    placeholder="November 18, 2026 • Jaipur"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] text-zinc-400 block mb-1">Digital Signature</label>
+                  <input
+                    type="text"
+                    value={frameSignature}
+                    onChange={(e) => setFrameSignature(e.target.value)}
+                    placeholder="With Love &amp; Gratitude"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateAIFrame}
+                  disabled={generatingFrame}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {generatingFrame ? 'Designing Frame…' : 'Generate AI Frame'}
+                </button>
+
+                {currentFrameOverlay && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadFramePNG}
+                    className="py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>Export Transparent PNG</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

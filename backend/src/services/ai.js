@@ -27,6 +27,54 @@ try {
 
 const AI_STYLES = {
 
+  cover_story: {
+    name: 'Cover Story',
+    category: 'Red Carpet',
+    prompt: 'Transform the person into a high-profile celebrity walking an exclusive red carpet event wearing a tailored bespoke black velvet tuxedo with satin peak lapels and silk bowtie (or elegant haute couture evening gown), surrounded by paparazzi photographers with flashing camera strobe lights and a sleek black luxury limousine. Photorealistic 35mm flash photography with authentic skin texture and natural lighting. Preserve the person exact face, smile, eyes, and likeness.',
+    negativePrompt: 'ugly, deformed, cartoon, plastic, distorted face, blurry, bad hands',
+    strength: 0.82,
+  },
+
+  sakura_rush: {
+    name: 'Sakura Rush',
+    category: 'Cinematic',
+    prompt: 'Transform the person into a joyful cinematic portrait in front of Mount Fuji with blooming pink cherry blossom trees (Sakura), warm golden spring daylight, soft cinematic breeze. Photorealistic 35mm film photography. Preserve the person exact face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, cartoon, flat, blurry',
+    strength: 0.80,
+  },
+
+  glamour_art_deco: {
+    name: 'Glamour Art Deco',
+    category: 'Gala',
+    prompt: 'Transform the person into a 1920s Great Gatsby luxury Art Deco grand ballroom gala portrait, golden sequined evening attire, sparkling crystal chandeliers, champagne glasses, warm amber party glow. Preserve the person exact face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, cartoon, modern, casual',
+    strength: 0.82,
+  },
+
+  timeless_paris: {
+    name: 'Timeless Paris',
+    category: 'Romantic',
+    prompt: 'Transform the person into a classic editorial fashion portrait in Paris with the Eiffel Tower in the background, posing beside a vintage European convertible car during golden hour, wearing elegant tailored coats. Preserve the person exact face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, cartoon, blurry, flat',
+    strength: 0.80,
+  },
+
+  royal_india: {
+    name: 'Royal India',
+    category: 'Royalty',
+    prompt: 'Transform the person into Indian royalty seated in a grand Rajasthan palace court with carved marble arches, golden floral mandap, wearing a magnificent ruby red and gold embroidered velvet royal sherwani (or lehenga) with layered pearls. Preserve the person exact face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, modern, western, casual, flat',
+    strength: 0.84,
+  },
+
+  bangkok_chase: {
+    name: 'Bangkok Chase',
+    category: 'Action',
+    prompt: 'Transform the person into an exhilarating cinematic action movie hero riding an iconic motorized tuk-tuk through a rain-soaked neon-lit Bangkok night street, vibrant neon reflections, motion blur, dramatic cinematic rim lighting. Preserve the person exact face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, cartoon, flat, daytime',
+    strength: 0.82,
+  },
+
   zootography_tiger: {
     name: 'Zootography Tiger Safari',
     category: 'Zootography',
@@ -237,7 +285,7 @@ function getStyleContext(styleKey, customPrompt = null) {
 // Uses @google/genai SDK with gemini-2.0-flash-exp model
 // Same approach as gembooth — SDK handles the image modality correctly
 async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
+  const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!GEMINI_KEY) return null;
 
   // Load @google/genai SDK

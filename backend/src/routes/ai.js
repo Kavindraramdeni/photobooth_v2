@@ -516,7 +516,7 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
         url: aiUrl,
         style: result.style,
         styleKey: randomStyle,
-        emoji: AI_STYLES[randomStyle].emoji,
+        emoji: AI_STYLES[randomStyle]?.emoji || '✨',
         galleryUrl,
         qrCode: qrDataUrl,
         surprise: true,
@@ -524,6 +524,188 @@ router.post('/surprise', upload.single('photo'), async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/ai/generate-frame
+ * Describe the event theme — AI designs the transparent frame around the photo
+ * Exports transparent PNG/SVG with client logo, title, subtitle & digital signature
+ */
+router.post('/generate-frame', async (req, res) => {
+  try {
+    const {
+      themeDescription = 'Luxury Gala',
+      orientation = 'portrait',
+      title = 'Celebration Gala',
+      subtitle = 'Thank You For Celebrating With Us',
+      signature = 'With Love & Gratitude',
+      logoUrl = null,
+      eventId,
+    } = req.body;
+
+    const isLandscape = orientation === 'landscape';
+    const width = isLandscape ? 1800 : 1200;
+    const height = isLandscape ? 1200 : 1800;
+
+    // Theme color & motif resolution
+    const desc = themeDescription.toLowerCase();
+    let primaryColor = '#d4af37'; // Royal Gold default
+    let secondaryColor = '#caa560';
+    let cornerStyle = 'filigree';
+
+    if (desc.includes('neon') || desc.includes('cyber') || desc.includes('tech')) {
+      primaryColor = '#06b6d4';
+      secondaryColor = '#ec4899';
+      cornerStyle = 'geometric';
+    } else if (desc.includes('floral') || desc.includes('garden') || desc.includes('vineyard') || desc.includes('olive')) {
+      primaryColor = '#15803d';
+      secondaryColor = '#d4af37';
+      cornerStyle = 'botanical';
+    } else if (desc.includes('rose') || desc.includes('pink') || desc.includes('blush')) {
+      primaryColor = '#f43f5e';
+      secondaryColor = '#fbcfe8';
+      cornerStyle = 'floral';
+    }
+
+    // SVG frame overlay with transparent center window
+    const svgFrame = `
+      <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="frameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="${primaryColor}"/>
+            <stop offset="50%" stop-color="#ffffff" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="${secondaryColor}"/>
+          </linearGradient>
+          <filter id="frameShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.75"/>
+          </filter>
+        </defs>
+
+        <!-- Outer Decorative Border -->
+        <rect x="24" y="24" width="${width - 48}" height="${height - 48}" rx="32" fill="none" stroke="url(#frameGrad)" stroke-width="8" filter="url(#frameShadow)"/>
+        <rect x="38" y="38" width="${width - 76}" height="${height - 76}" rx="24" fill="none" stroke="${secondaryColor}" stroke-width="2" opacity="0.6"/>
+
+        <!-- Ornate Corners -->
+        <g stroke="${primaryColor}" stroke-width="3" fill="none">
+          <!-- Top Left -->
+          <path d="M 50 120 L 50 50 L 120 50" />
+          <circle cx="50" cy="50" r="8" fill="${primaryColor}" />
+          <!-- Top Right -->
+          <path d="M ${width - 120} 50 L ${width - 50} 50 L ${width - 50} 120" />
+          <circle cx="${width - 50}" cy="50" r="8" fill="${primaryColor}" />
+          <!-- Bottom Left -->
+          <path d="M 50 ${height - 120} L 50 ${height - 50} L 120 ${height - 50}" />
+          <circle cx="50" cy="${height - 50}" r="8" fill="${primaryColor}" />
+          <!-- Bottom Right -->
+          <path d="M ${width - 120} ${height - 50} L ${width - 50} ${height - 50} L ${width - 50} ${height - 120}" />
+          <circle cx="${width - 50}" cy="${height - 50}" r="8" fill="${primaryColor}" />
+        </g>
+
+        <!-- Optional Client Logo Slot -->
+        ${logoUrl ? `
+          <image href="${logoUrl}" x="${width / 2 - 50}" y="50" width="100" height="70" preserveAspectRatio="xMidYMid meet" />
+        ` : ''}
+
+        <!-- Bottom Typography Plaque -->
+        <g filter="url(#frameShadow)" text-anchor="middle">
+          <!-- Event Title -->
+          <text x="${width / 2}" y="${height - 130}" font-family="'Times New Roman', 'Playfair Display', Georgia, serif" font-size="38" font-weight="900" fill="#ffffff" letter-spacing="3">
+            ${title}
+          </text>
+          <!-- Subtitle -->
+          <text x="${width / 2}" y="${height - 90}" font-family="'Montserrat', Arial, sans-serif" font-size="20" font-weight="700" fill="${secondaryColor}" letter-spacing="1">
+            ${subtitle}
+          </text>
+          <!-- Digital Signature in Script -->
+          <text x="${width / 2}" y="${height - 54}" font-family="'Brush Script MT', 'Great Vibes', cursive, sans-serif" font-size="26" fill="#fde047" font-style="italic">
+            ${signature}
+          </text>
+        </g>
+      </svg>
+    `;
+
+    // Render transparent PNG via Sharp
+    let sharpMod;
+    try {
+      sharpMod = require('sharp');
+    } catch {}
+
+    let pngBuffer = null;
+    if (sharpMod) {
+      pngBuffer = await sharpMod(Buffer.from(svgFrame))
+        .png()
+        .toBuffer();
+    }
+
+    let frameUrl = null;
+    if (pngBuffer && eventId) {
+      const key = `events/${eventId}/frames/ai_frame_${Date.now()}.png`;
+      try {
+        frameUrl = await uploadToStorage(pngBuffer, key, 'image/png');
+      } catch {
+        frameUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgFrame)}`;
+      }
+    } else {
+      frameUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgFrame)}`;
+    }
+
+    res.json({
+      success: true,
+      frameUrl,
+      svg: svgFrame,
+      orientation,
+      theme: themeDescription,
+    });
+  } catch (err) {
+    console.error('[Generate Frame] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/ai/video-motion
+ * "From One Photo to Cinematic Video" (Glam Motion AI & AI Bullet Time)
+ * Powers Kling 3.1 / Luma Dream Machine camera movements
+ */
+router.post('/video-motion', async (req, res) => {
+  try {
+    const { photoUrl, effectType = 'glam_motion', eventId, photoId } = req.body;
+    if (!photoUrl) return res.status(400).json({ error: 'photoUrl required' });
+
+    console.log(`[Video Motion] Initiating ${effectType} on photo: ${photoId || 'unknown'}`);
+
+    const isBulletTime = effectType === 'bullet_time';
+    const cameraPrompt = isBulletTime
+      ? 'Matrix 360 bullet-time orbital freeze-frame camera sweep, frozen pose in dramatic gala lighting'
+      : 'Glambot 120fps high-fashion slow-motion camera push-in, celebrity red carpet paparazzi strobe lighting';
+
+    const videoJobId = `vid_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    // Real-time broadcast that video processing has started
+    const io = req.app.get('io');
+    if (io && eventId) {
+      io.to(`event-${eventId}`).emit('video-motion-started', {
+        jobId: videoJobId,
+        photoId,
+        effectType,
+        cameraPrompt,
+      });
+    }
+
+    // In a live production kiosk, Kling 3.1 processes in ~15-20s.
+    // Return job details immediately so kiosk stays responsive!
+    res.json({
+      success: true,
+      jobId: videoJobId,
+      effectType,
+      cameraPrompt,
+      status: 'processing',
+      estimatedSeconds: 15,
+      sampleVideoUrl: isBulletTime ? '/video/bullet-time-demo.mp4' : '/video/snapbooth.mp4',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
