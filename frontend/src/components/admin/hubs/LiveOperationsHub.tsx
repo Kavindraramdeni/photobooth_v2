@@ -88,9 +88,10 @@ function CardTitle({ children }: { children: React.ReactNode }) {
 // ─── 1. Launch Hero Card ──────────────────────────────────────────────────────
 
 function LaunchHeroCard({ event }: { event: Event }) {
-  const boothUrl     = `/booth?event=${event.slug}`;
-  const slideshowUrl = `/slideshow/${event.id}`;
-  const galleryUrl   = `/gallery/${event.slug}`;
+  const boothUrl        = `/booth?event=${event.slug}`;
+  const slideshowUrl    = `/slideshow/${event.id}`;
+  const galleryUrl      = `/gallery/${event.slug}`;
+  const printStationUrl = `/print-station/${event.id}`;
 
   const open = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
 
@@ -108,16 +109,16 @@ function LaunchHeroCard({ event }: { event: Event }) {
       </div>
 
       {/* Action buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Primary – Launch Booth */}
         <button
           onClick={() => open(boothUrl)}
-          className="flex items-center justify-center gap-2 px-5 py-3.5
+          className="flex items-center justify-center gap-2 px-4 py-3.5
                      bg-violet-600 hover:bg-violet-500 active:bg-violet-700
                      text-white font-semibold text-sm rounded-xl
                      shadow-lg shadow-violet-900/50
                      transition-all duration-150 focus:outline-none
-                     focus-visible:ring-2 focus-visible:ring-violet-400 col-span-1 sm:col-span-1"
+                     focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <span className="text-lg" aria-hidden="true">🚀</span>
           Launch Booth
@@ -125,7 +126,7 @@ function LaunchHeroCard({ event }: { event: Event }) {
 
         <button
           onClick={() => open(slideshowUrl)}
-          className="flex items-center justify-center gap-2 px-5 py-3.5
+          className="flex items-center justify-center gap-2 px-4 py-3.5
                      bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.04]
                      text-zinc-200 font-medium text-sm rounded-xl border border-white/[0.08]
                      transition-all duration-150 focus:outline-none
@@ -136,8 +137,20 @@ function LaunchHeroCard({ event }: { event: Event }) {
         </button>
 
         <button
+          onClick={() => open(printStationUrl)}
+          className="flex items-center justify-center gap-2 px-4 py-3.5
+                     bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.04]
+                     text-zinc-200 font-medium text-sm rounded-xl border border-white/[0.08]
+                     transition-all duration-150 focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-violet-400"
+        >
+          <span className="text-lg" aria-hidden="true">🖨️</span>
+          Print Station
+        </button>
+
+        <button
           onClick={() => open(galleryUrl)}
-          className="flex items-center justify-center gap-2 px-5 py-3.5
+          className="flex items-center justify-center gap-2 px-4 py-3.5
                      bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.04]
                      text-zinc-200 font-medium text-sm rounded-xl border border-white/[0.08]
                      transition-all duration-150 focus:outline-none
