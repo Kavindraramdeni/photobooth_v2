@@ -6,7 +6,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip, setBoothToken } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
-import { getCardTemplateById, compositeCardPhoto } from '@/lib/cardTemplates';
+import { getCardTemplateById, compositeCardPhoto, compositeCustomCanvasTemplate, CanvasTemplateConfig } from '@/lib/cardTemplates';
 import toast from 'react-hot-toast';
 import { Sparkles, Camera, ArrowLeft } from 'lucide-react';
 
@@ -95,8 +95,21 @@ export function CountdownScreen() {
     const cardTemplateId = event?.branding?.cardTemplateId as string | undefined;
     const frameUrl = event?.branding?.frameUrl as string | null | undefined;
 
-    // 1. Check if an authentic 4x6 / 6x4 commemorative card template is active
-    if (cardTemplateId && cardTemplateId !== 'none' && cardTemplateId !== 'custom') {
+    // 1. Check if a custom canvas designer template is active
+    const canvasConfig = (event?.branding as any)?.canvasTemplateConfig as CanvasTemplateConfig | undefined;
+    if (cardTemplateId === 'custom-canvas' && canvasConfig) {
+      try {
+        return await compositeCustomCanvasTemplate(
+          blob,
+          canvasConfig
+        );
+      } catch (canvasErr) {
+        console.warn('[CountdownScreen] Custom canvas compositing error:', canvasErr);
+      }
+    }
+
+    // 2. Check if an authentic 4x6 / 6x4 commemorative card template is active
+    if (cardTemplateId && cardTemplateId !== 'none' && cardTemplateId !== 'custom' && cardTemplateId !== 'custom-canvas') {
       const template = getCardTemplateById(cardTemplateId);
       if (template) {
         try {
@@ -112,7 +125,7 @@ export function CountdownScreen() {
       }
     }
 
-    // 2. Custom uploaded frame PNG or external URL
+    // 3. Custom uploaded frame PNG or external URL
     if (!frameUrl) return blob;
 
     return new Promise((resolve) => {

@@ -10,7 +10,7 @@
 export interface PropItem {
   id: string;
   name: string;
-  category: 'eyewear' | 'headwear' | 'fun';
+  category: 'eyewear' | 'headwear' | 'fun' | 'wedding' | 'bubbles';
   icon: string;
   defaultX: number;
   defaultY: number;
@@ -151,6 +151,113 @@ export const PROP_CATALOG: PropItem[] = [
       <path d="M40,20 Q50,40 70,50 Q50,60 40,80 Q30,60 10,50 Q30,40 40,20 Z" fill="#fbbf24"/>
       <path d="M160,10 Q168,26 184,34 Q168,42 160,58 Q152,42 136,34 Q152,26 160,10 Z" fill="#a855f7"/>
       <path d="M110,50 Q115,62 127,68 Q115,74 110,86 Q105,74 93,68 Q105,62 110,50 Z" fill="#38bdf8"/>
+    </svg>`,
+  },
+
+  // Royal & Wedding Props
+  {
+    id: 'prop-turban',
+    name: 'Mughal Turban',
+    category: 'wedding',
+    icon: '👳',
+    defaultX: 50,
+    defaultY: 20,
+    defaultScale: 1.3,
+    svg: `<svg viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 75 Q15 45 40 30 Q60 15 85 25 Q105 40 100 75 Z" fill="#b91c1c" stroke="#7f1d1d" stroke-width="2" />
+      <path d="M25 65 Q60 55 95 65 Q90 80 60 82 Q30 80 25 65 Z" fill="#991b1b" />
+      <path d="M60 15 Q65 5 70 0 Q65 10 60 20 Z" fill="#caa560" stroke="#f59e0b" stroke-width="1.5" />
+      <circle cx="60" cy="28" r="7" fill="#10b981" stroke="#fde047" stroke-width="2" />
+      <circle cx="60" cy="28" r="2.5" fill="#fff" />
+    </svg>`,
+  },
+  {
+    id: 'prop-garland',
+    name: 'Flower Garland',
+    category: 'wedding',
+    icon: '💐',
+    defaultX: 50,
+    defaultY: 65,
+    defaultScale: 1.4,
+    svg: `<svg viewBox="0 0 140 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 10 C30 80 110 80 120 10" stroke="#f97316" stroke-width="14" stroke-linecap="round" fill="none" opacity="0.85" />
+      <path d="M25 15 C35 75 105 75 115 15" stroke="#facc15" stroke-width="9" stroke-linecap="round" fill="none" />
+      <circle cx="70" cy="74" r="9" fill="#ef4444" stroke="#fef08a" stroke-width="2"/>
+      <circle cx="50" cy="66" r="7" fill="#f97316"/>
+      <circle cx="90" cy="66" r="7" fill="#f97316"/>
+    </svg>`,
+  },
+  {
+    id: 'prop-bowtie',
+    name: 'Golden Bowtie',
+    category: 'wedding',
+    icon: '👔',
+    defaultX: 50,
+    defaultY: 72,
+    defaultScale: 1.0,
+    svg: `<svg viewBox="0 0 120 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="10,15 50,30 10,45" fill="#d4af37" stroke="#aa7c11" stroke-width="2"/>
+      <polygon points="110,15 70,30 110,45" fill="#d4af37" stroke="#aa7c11" stroke-width="2"/>
+      <circle cx="60" cy="30" r="10" fill="#fde047" stroke="#aa7c11" stroke-width="2"/>
+    </svg>`,
+  },
+
+  // Touchscreen Speech Bubbles & Badges
+  {
+    id: 'bubble-just-married',
+    name: 'Just Married',
+    category: 'bubbles',
+    icon: '💍',
+    defaultX: 50,
+    defaultY: 82,
+    defaultScale: 1.25,
+    svg: `<svg viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="grad-jm" x1="0" y1="0" x2="240" y2="70" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#ec4899" />
+          <stop offset="1" stop-color="#8b5cf6" />
+        </linearGradient>
+      </defs>
+      <rect x="5" y="5" width="230" height="60" rx="30" fill="url(#grad-jm)" stroke="#ffffff" stroke-width="4"/>
+      <text x="120" y="42" fill="#ffffff" font-size="20" font-weight="900" font-family="sans-serif" text-anchor="middle" letter-spacing="2">JUST MARRIED</text>
+    </svg>`,
+  },
+  {
+    id: 'bubble-best-day',
+    name: 'Best Day Ever',
+    category: 'bubbles',
+    icon: '🎉',
+    defaultX: 50,
+    defaultY: 82,
+    defaultScale: 1.25,
+    svg: `<svg viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="grad-bde" x1="0" y1="0" x2="240" y2="70" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#f59e0b" />
+          <stop offset="1" stop-color="#ef4444" />
+        </linearGradient>
+      </defs>
+      <rect x="5" y="5" width="230" height="60" rx="30" fill="url(#grad-bde)" stroke="#ffffff" stroke-width="4"/>
+      <text x="120" y="42" fill="#ffffff" font-size="20" font-weight="900" font-family="sans-serif" text-anchor="middle" letter-spacing="2">BEST DAY EVER</text>
+    </svg>`,
+  },
+  {
+    id: 'bubble-squad-goals',
+    name: 'Squad Goals',
+    category: 'bubbles',
+    icon: '🔥',
+    defaultX: 50,
+    defaultY: 82,
+    defaultScale: 1.25,
+    svg: `<svg viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="grad-sg" x1="0" y1="0" x2="240" y2="70" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#06b6d4" />
+          <stop offset="1" stop-color="#3b82f6" />
+        </linearGradient>
+      </defs>
+      <rect x="5" y="5" width="230" height="60" rx="30" fill="url(#grad-sg)" stroke="#ffffff" stroke-width="4"/>
+      <text x="120" y="42" fill="#ffffff" font-size="20" font-weight="900" font-family="sans-serif" text-anchor="middle" letter-spacing="2">SQUAD GOALS</text>
     </svg>`,
   },
 ];

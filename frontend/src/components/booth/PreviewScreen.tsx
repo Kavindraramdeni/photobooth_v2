@@ -22,6 +22,7 @@ import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
 import { EmailCaptureModal } from '@/components/booth/EmailCaptureModal';
 import { TemplateRenderer } from '@/components/booth/TemplateRenderer';
 import { PROP_CATALOG, PropItem } from '@/components/booth/ARPropsOverlay';
+import { executeSilentPrint } from '@/lib/silentPrint';
 import toast from 'react-hot-toast';
 
 // ── Print helper — single page, 4x6 (Portrait) & 6x4 (Landscape) native alignment ───
@@ -90,7 +91,7 @@ export function PreviewScreen() {
   const [showStickers, setShowStickers] = useState(false);
   const [placedStickers, setPlacedStickers] = useState<PlacedSticker[]>([]);
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
-  const [stickerCategory, setStickerCategory] = useState<'all' | 'eyewear' | 'headwear' | 'fun'>('all');
+  const [stickerCategory, setStickerCategory] = useState<'all' | 'wedding' | 'eyewear' | 'headwear' | 'bubbles' | 'fun'>('all');
   const photoContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-reset ring (30 seconds)
@@ -296,16 +297,47 @@ export function PreviewScreen() {
         event?.branding?.cardOrientation === 'landscape' ||
         (event?.branding?.cardTemplateId as string)?.includes('landscape')
       );
-      printPhotoOnly(
-        finalUrl,
-        eventName,
-        printScale,
-        Number(event?.settings?.printOffsetX ?? 0),
-        Number(event?.settings?.printOffsetY ?? 0),
-        isLandscape
-      );
-      await trackAction(event.id, 'photo_printed', { photoId: photo.id });
-      toast.success('Sent to printer! 🖨️');
+
+      // Check if silent background printing is enabled (default true)
+      const isSilent = event?.settings?.silentPrinting !== false;
+      const copies = Number(event?.settings?.printCopies) || 1;
+
+      if (isSilent) {
+        toast.loading('🖨️ Printing 4×6 Card... Sent to DNP printer!', { duration: 2500, id: 'print-toast' });
+        const res = await executeSilentPrint({
+          eventId: event.id,
+          photoId: photo.id,
+          photoUrl: finalUrl,
+          layout: isLandscape ? '6x4' : '4x6',
+          copies,
+        });
+        if (res.success) {
+          toast.success('Sent to printer! 🖨️', { id: 'print-toast' });
+        } else {
+          // Fallback to iframe print
+          printPhotoOnly(
+            finalUrl,
+            eventName,
+            printScale,
+            Number(event?.settings?.printOffsetX ?? 0),
+            Number(event?.settings?.printOffsetY ?? 0),
+            isLandscape
+          );
+          toast.success('Printed via local spooler 🖨️', { id: 'print-toast' });
+        }
+      } else {
+        printPhotoOnly(
+          finalUrl,
+          eventName,
+          printScale,
+          Number(event?.settings?.printOffsetX ?? 0),
+          Number(event?.settings?.printOffsetY ?? 0),
+          isLandscape
+        );
+        toast.success('Sent to printer! 🖨️');
+      }
+
+      await trackAction(event.id, 'photo_printed', { photoId: photo.id, silent: isSilent });
     } catch {
       toast.error('Printer out of paper or disconnected');
     }
@@ -739,17 +771,19 @@ export function PreviewScreen() {
             </div>
 
             {/* Category Filter Pills */}
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-none">
               {[
                 { id: 'all', label: 'All Props' },
+                { id: 'wedding', label: '👑 Royal & Wedding' },
                 { id: 'eyewear', label: '🕶️ Shades' },
-                { id: 'headwear', label: '👑 Hats & Crowns' },
+                { id: 'headwear', label: '🎩 Hats & Crowns' },
+                { id: 'bubbles', label: '💬 Speech Badges' },
                 { id: 'fun', label: '🎉 Fun & FX' },
               ].map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setStickerCategory(c.id as any)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
                     stickerCategory === c.id
                       ? 'bg-purple-600 text-white shadow-md'
                       : isLight

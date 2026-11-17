@@ -47,6 +47,7 @@ export interface Event {
     templateSubtitle?: string;
     templateNames?: string;
     templateDate?: string;
+    canvasTemplateConfig?: Record<string, unknown> | null;
   };
   settings: {
     countdownSeconds: number;
@@ -65,6 +66,10 @@ export interface Event {
     printCopies: number;
     printOffsetX?: number;
     printOffsetY?: number;
+    silentPrinting?: boolean;
+    paperRemaining?: number;
+    rollCapacity?: number;
+    printerName?: string;
     aiStyles: string[];
     sessionTimeout: number;
     operatorPin: string;

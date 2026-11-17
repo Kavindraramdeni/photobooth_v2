@@ -625,3 +625,304 @@ export async function compositeCardPhoto(
     photo.src = URL.createObjectURL(photoBlob);
   });
 }
+
+// ─── 5. VISUAL DRAG-AND-DROP CANVAS TEMPLATE ENGINE ─────────────────────────
+
+export interface CanvasTextLayer {
+  text: string;
+  yPercent: number; // 0-100%
+  fontSize: number; // px at 1200x1800 scale
+  color: string;
+  fontFamily: string;
+  enabled: boolean;
+  letterSpacing?: number;
+}
+
+export interface CanvasTemplateConfig {
+  orientation: 'portrait' | 'landscape';
+  backgroundTheme: string; // 'dark-gold' | 'ivory-silk' | 'midnight-gala' | 'rose-quartz' | 'clean-studio'
+  backgroundColor: string;
+  borderColor: string;
+  borderWidth: number; // px at scale
+  photoSlot: {
+    xPercent: number; // 0-100
+    yPercent: number; // 0-100
+    widthPercent: number; // 0-100
+    heightPercent: number; // 0-100
+    radius: number; // px
+    borderWidth: number;
+    borderColor: string;
+    shadowBlur: number;
+  };
+  headline: CanvasTextLayer;
+  names: CanvasTextLayer;
+  date: CanvasTextLayer;
+  hashtag: CanvasTextLayer;
+}
+
+export const DEFAULT_CANVAS_CONFIG_PORTRAIT: CanvasTemplateConfig = {
+  orientation: 'portrait',
+  backgroundTheme: 'dark-gold',
+  backgroundColor: '#0d0e15',
+  borderColor: '#d4af37',
+  borderWidth: 16,
+  photoSlot: {
+    xPercent: 50,
+    yPercent: 44,
+    widthPercent: 82,
+    heightPercent: 60,
+    radius: 28,
+    borderWidth: 6,
+    borderColor: '#caa560',
+    shadowBlur: 35,
+  },
+  headline: {
+    text: 'CELEBRATING THE WEDDING OF',
+    yPercent: 10,
+    fontSize: 26,
+    color: '#caa560',
+    fontFamily: 'Cinzel, serif',
+    enabled: true,
+    letterSpacing: 4,
+  },
+  names: {
+    text: 'Rahul & Priya',
+    yPercent: 80,
+    fontSize: 54,
+    color: '#fde047',
+    fontFamily: 'Playfair Display, serif',
+    enabled: true,
+    letterSpacing: 2,
+  },
+  date: {
+    text: 'November 18, 2026 • Royal Palace, Jaipur',
+    yPercent: 87,
+    fontSize: 24,
+    color: '#e2e8f0',
+    fontFamily: 'Montserrat, sans-serif',
+    enabled: true,
+    letterSpacing: 1,
+  },
+  hashtag: {
+    text: '#RahulWedsPriya',
+    yPercent: 93,
+    fontSize: 20,
+    color: '#caa560',
+    fontFamily: 'Montserrat, sans-serif',
+    enabled: true,
+    letterSpacing: 2,
+  },
+};
+
+export const DEFAULT_CANVAS_CONFIG_LANDSCAPE: CanvasTemplateConfig = {
+  orientation: 'landscape',
+  backgroundTheme: 'dark-gold',
+  backgroundColor: '#0d0e15',
+  borderColor: '#d4af37',
+  borderWidth: 16,
+  photoSlot: {
+    xPercent: 36,
+    yPercent: 50,
+    widthPercent: 60,
+    heightPercent: 78,
+    radius: 24,
+    borderWidth: 6,
+    borderColor: '#caa560',
+    shadowBlur: 35,
+  },
+  headline: {
+    text: 'CELEBRATING THE WEDDING OF',
+    yPercent: 24,
+    fontSize: 22,
+    color: '#caa560',
+    fontFamily: 'Cinzel, serif',
+    enabled: true,
+    letterSpacing: 3,
+  },
+  names: {
+    text: 'Rahul & Priya',
+    yPercent: 46,
+    fontSize: 48,
+    color: '#fde047',
+    fontFamily: 'Playfair Display, serif',
+    enabled: true,
+    letterSpacing: 2,
+  },
+  date: {
+    text: 'November 18, 2026 • Jaipur',
+    yPercent: 64,
+    fontSize: 22,
+    color: '#e2e8f0',
+    fontFamily: 'Montserrat, sans-serif',
+    enabled: true,
+    letterSpacing: 1,
+  },
+  hashtag: {
+    text: '#RahulWedsPriya',
+    yPercent: 78,
+    fontSize: 20,
+    color: '#caa560',
+    fontFamily: 'Montserrat, sans-serif',
+    enabled: true,
+    letterSpacing: 2,
+  },
+};
+
+/**
+ * Composite photo using custom visual canvas designer config
+ * Produces crisp 1200x1800 (Portrait) or 1800x1200 (Landscape) JPEG
+ */
+export async function compositeCustomCanvasTemplate(
+  photoBlob: Blob,
+  config: CanvasTemplateConfig
+): Promise<Blob> {
+  const isLandscape = config.orientation === 'landscape';
+  const targetW = isLandscape ? 1800 : 1200;
+  const targetH = isLandscape ? 1200 : 1800;
+
+  return new Promise((resolve) => {
+    const photo = new Image();
+    photo.crossOrigin = 'anonymous';
+
+    photo.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d')!;
+
+      // 1. Draw Background
+      ctx.fillStyle = config.backgroundColor || '#0d0e15';
+      ctx.fillRect(0, 0, targetW, targetH);
+
+      // Luxury Background Accents
+      if (config.backgroundTheme === 'dark-gold') {
+        const grad = ctx.createLinearGradient(0, 0, targetW, targetH);
+        grad.addColorStop(0, '#161824');
+        grad.addColorStop(0.5, '#0b0c13');
+        grad.addColorStop(1, '#1b1a29');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, targetW, targetH);
+      } else if (config.backgroundTheme === 'ivory-silk') {
+        const grad = ctx.createLinearGradient(0, 0, targetW, targetH);
+        grad.addColorStop(0, '#faf7f2');
+        grad.addColorStop(0.5, '#f4ece1');
+        grad.addColorStop(1, '#ede2d1');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, targetW, targetH);
+      } else if (config.backgroundTheme === 'midnight-gala') {
+        const grad = ctx.createRadialGradient(targetW / 2, targetH / 2, 100, targetW / 2, targetH / 2, targetW);
+        grad.addColorStop(0, '#1a1836');
+        grad.addColorStop(1, '#07060f');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, targetW, targetH);
+      }
+
+      // Outer Card Border
+      if (config.borderWidth > 0) {
+        ctx.strokeStyle = config.borderColor || '#d4af37';
+        ctx.lineWidth = config.borderWidth;
+        const inset = config.borderWidth / 2 + 10;
+        ctx.strokeRect(inset, inset, targetW - inset * 2, targetH - inset * 2);
+
+        // Thin inner decorative hairline
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = (config.borderColor || '#d4af37') + '88';
+        const innerInset = inset + 12;
+        ctx.strokeRect(innerInset, innerInset, targetW - innerInset * 2, targetH - innerInset * 2);
+      }
+
+      // 2. Draw Photo Slot
+      const slot = config.photoSlot;
+      const slotW = (slot.widthPercent / 100) * targetW;
+      const slotH = (slot.heightPercent / 100) * targetH;
+      const slotX = (slot.xPercent / 100) * targetW - slotW / 2;
+      const slotY = (slot.yPercent / 100) * targetH - slotH / 2;
+
+      // Photo Slot Shadow
+      if (slot.shadowBlur > 0) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = slot.shadowBlur;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 12;
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.roundRect(slotX, slotY, slotW, slotH, slot.radius || 0);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Draw Photo Inside Slot (Smart Cover)
+      const slotAspect = slotW / slotH;
+      const photoAspect = photo.naturalWidth / photo.naturalHeight;
+      let sx = 0, sy = 0, sWidth = photo.naturalWidth, sHeight = photo.naturalHeight;
+
+      if (photoAspect > slotAspect) {
+        sWidth = photo.naturalHeight * slotAspect;
+        sx = (photo.naturalWidth - sWidth) / 2;
+      } else {
+        sHeight = photo.naturalWidth / slotAspect;
+        sy = (photo.naturalHeight - sHeight) / 2;
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(slotX, slotY, slotW, slotH, slot.radius || 0);
+      ctx.clip();
+      ctx.drawImage(photo, sx, sy, sWidth, sHeight, slotX, slotY, slotW, slotH);
+      ctx.restore();
+
+      // Photo Slot Border
+      if (slot.borderWidth > 0) {
+        ctx.save();
+        ctx.strokeStyle = slot.borderColor || '#caa560';
+        ctx.lineWidth = slot.borderWidth;
+        ctx.beginPath();
+        ctx.roundRect(slotX, slotY, slotW, slotH, slot.radius || 0);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 3. Render Text Layers
+      const textLayers = [config.headline, config.names, config.date, config.hashtag];
+      textLayers.forEach((layer) => {
+        if (!layer || !layer.enabled || !layer.text) return;
+
+        ctx.save();
+        ctx.fillStyle = layer.color || '#ffffff';
+        ctx.font = `600 ${layer.fontSize}px ${layer.fontFamily || 'sans-serif'}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Letter spacing if supported
+        if (layer.letterSpacing && 'letterSpacing' in ctx) {
+          (ctx as any).letterSpacing = `${layer.letterSpacing}px`;
+        }
+
+        const textX = isLandscape && config.photoSlot.xPercent < 50
+          ? targetW * 0.77 // In landscape with left photo, place text on right side
+          : targetW / 2;
+        const textY = (layer.yPercent / 100) * targetH;
+
+        // Subtle drop shadow for crisp readability
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+
+        ctx.fillText(layer.text, textX, textY);
+        ctx.restore();
+      });
+
+      canvas.toBlob(
+        (compositedBlob) => {
+          resolve(compositedBlob || photoBlob);
+        },
+        'image/jpeg',
+        0.96
+      );
+    };
+
+    photo.onerror = () => resolve(photoBlob);
+    photo.src = URL.createObjectURL(photoBlob);
+  });
+}

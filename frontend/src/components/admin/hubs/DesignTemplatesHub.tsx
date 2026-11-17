@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon, Sparkles, CircleDot, PlayCircle, Film, Check, LayoutTemplate, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LiveKioskSimulator } from './LiveKioskSimulator';
+import { TemplateCanvasDesigner } from './TemplateCanvasDesigner';
 import {
   CARD_TEMPLATES_PORTRAIT,
   CARD_TEMPLATES_LANDSCAPE,
@@ -324,6 +325,9 @@ export function DesignTemplatesHub({
   // 4x6 / 6x4 Card Templates State
   const cardOrientation = (branding['cardOrientation'] as 'portrait' | 'landscape') || 'portrait';
   const cardTemplateId = String(branding['cardTemplateId'] ?? 'indian-wedding-portrait');
+  const [templateDesignerMode, setTemplateDesignerMode] = useState<'presets' | 'canvas'>(
+    cardTemplateId === 'custom-canvas' ? 'canvas' : 'presets'
+  );
   const frameUrl = String(branding['frameUrl'] ?? '');
   const templateHeadline = String(branding['templateHeadline'] ?? '');
   const templateSubtitle = String(branding['templateSubtitle'] ?? '');
@@ -758,6 +762,47 @@ export function DesignTemplatesHub({
             </div>
           </div>
 
+          {/* Designer Mode Switcher: Presets vs Visual Canvas Designer */}
+          <div className="flex bg-zinc-800/80 p-1 rounded-xl border border-white/10 text-xs font-bold w-fit">
+            <button
+              type="button"
+              onClick={() => setTemplateDesignerMode('presets')}
+              className={`px-4 py-2 rounded-lg transition-all ${
+                templateDesignerMode === 'presets'
+                  ? 'bg-violet-600 text-white shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              🎨 Curated 4×6 Presets &amp; Upload
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTemplateDesignerMode('canvas');
+                onBrandingChange('cardTemplateId', 'custom-canvas');
+              }}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                templateDesignerMode === 'canvas'
+                  ? 'bg-amber-500 text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Visual Drag &amp; Drop Designer
+            </button>
+          </div>
+
+          {templateDesignerMode === 'canvas' ? (
+            <div className="pt-2">
+              <TemplateCanvasDesigner
+                branding={branding}
+                onBrandingChange={onBrandingChange}
+                onSave={onSave}
+                saving={saving}
+              />
+            </div>
+          ) : (
+            <>
           {/* Orientation Switcher: Portrait 4x6 vs Landscape 6x4 */}
           <Row>
             <RowLabel
@@ -928,6 +973,8 @@ export function DesignTemplatesHub({
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </Section>
 

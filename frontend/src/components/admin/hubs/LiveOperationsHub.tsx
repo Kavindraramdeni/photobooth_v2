@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { LivePrinterMonitor } from './LivePrinterMonitor';
 import {
   Copy,
   Eye,
@@ -343,6 +344,9 @@ const LiveOperationsHub: React.FC<LiveOperationsHubProps> = ({ event, stats, API
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Full-width hero */}
         <LaunchHeroCard event={event} />
+
+        {/* Live Printer Queue & Paper Supply Monitor */}
+        <LivePrinterMonitor eventId={event.id} API_BASE={API_BASE} />
 
         {/* Operator PIN */}
         <OperatorPinCard event={event} />

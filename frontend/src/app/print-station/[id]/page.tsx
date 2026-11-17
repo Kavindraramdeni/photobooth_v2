@@ -101,6 +101,7 @@ export default function PrintStationPage() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printSuccess, setPrintSuccess] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [paperSupply, setPaperSupply] = useState<{ remaining: number; capacity: number } | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
 
@@ -121,6 +122,19 @@ export default function PrintStationPage() {
           const visible = (photoData.photos || []).filter((p: Photo) => !(p as any).is_hidden);
           setPhotos(visible);
         }
+
+        // Fetch printer status & paper supply
+        fetch(`${API_BASE}/api/print/status/${ev.id}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.printer) {
+              setPaperSupply({
+                remaining: d.printer.paperRemaining,
+                capacity: d.printer.rollCapacity || 400,
+              });
+            }
+          })
+          .catch(() => {});
       } catch (err) {
         console.error('[PrintStation] Load error:', err);
         toast.error('Could not connect to event print hub');
@@ -148,6 +162,15 @@ export default function PrintStationPage() {
 
     socket.on('disconnect', () => {
       setSocketConnected(false);
+    });
+
+    socket.on('printer-status-updated', (data: any) => {
+      if (data?.paperRemaining !== undefined) {
+        setPaperSupply({
+          remaining: data.paperRemaining,
+          capacity: data.rollCapacity || 400,
+        });
+      }
     });
 
     socket.on('photo-taken', (newPhoto: { photoId: string; thumbUrl: string; galleryUrl: string; mode?: string }) => {
@@ -190,6 +213,7 @@ export default function PrintStationPage() {
           photoId: selectedPhoto.id,
           copies,
           layout: isLandscape ? '6x4' : '4x6',
+          silent: true,
         }),
       }).catch((e) => console.warn('[PrintStation] Backend queue push warning:', e));
 
@@ -252,7 +276,15 @@ export default function PrintStationPage() {
         </div>
 
         {/* Live Hardware & Connection Status Pill */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {paperSupply && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/12 text-xs font-semibold backdrop-blur-md text-amber-400">
+              <span>📄</span>
+              <span>
+                {paperSupply.remaining} / {paperSupply.capacity} prints
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/12 text-xs font-semibold backdrop-blur-md">
             <span className="relative flex h-2 w-2">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
