@@ -27,9 +27,33 @@ try {
 
 const AI_STYLES = {
 
+  zootography_tiger: {
+    name: 'Zootography Tiger Safari',
+    category: 'Zootography',
+    prompt: 'Transform the person into a joyful 3D Pixar Disney animated safari explorer riding on the back of a giant friendly fluffy orange Bengal tiger with playful baby tiger cubs in a lush sunlit rainforest jungle, with cinematic lighting and soft fur textures. Preserve the person face, smile, and likeness in the animated character.',
+    negativePrompt: 'ugly, deformed, photorealistic, scary, realistic, flat',
+    strength: 0.85,
+  },
+
+  zootography_panda: {
+    name: 'Zootography Panda Hug',
+    category: 'Zootography',
+    prompt: 'Transform the person into a cheerful 3D Pixar Disney animated character happily hugging a giant adorable fluffy giant panda with playful baby pandas in a misty bamboo forest, soft lighting and rich fur textures. Preserve the person face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, photorealistic, flat, scary',
+    strength: 0.85,
+  },
+
+  zootography_dolphin: {
+    name: 'Zootography Dolphin Reef',
+    category: 'Zootography',
+    prompt: 'Transform the person into a happy 3D Pixar Disney animated diver swimming underwater with snorkel goggles, flippers, and playful friendly smiling dolphins, sea turtles and colorful coral reef, crystal turquoise water. Preserve the person face, smile, and likeness.',
+    negativePrompt: 'ugly, deformed, photorealistic, flat',
+    strength: 0.85,
+  },
+
   maharaja: {
     name: 'Royal Maharaja',
-    emoji: '👑',
+    category: 'Royalty',
     prompt: 'Transform this into a grand Indian royal Mughal emperor portrait with intricately embroidered velvet sherwani, pearl necklace, jeweled turban (kalgi), and warm royal palace architecture.',
     negativePrompt: 'modern, casual, distorted, ugly, blurry',
     strength: 0.82,
@@ -37,7 +61,7 @@ const AI_STYLES = {
 
   bollywood: {
     name: 'Bollywood Hero',
-    emoji: '🎬',
+    category: 'Cinema',
     prompt: 'Transform this into a blockbuster Bollywood cinema hero portrait with dramatic golden hour rim lighting, windblown hair, luxury formal attire, and cinematic film depth.',
     negativePrompt: 'blurry, cartoon, flat, distorted face',
     strength: 0.78,
@@ -498,6 +522,36 @@ async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
 
   switch (styleKey) {
+    case 'zootography_tiger':
+      // 3D Pixar Tiger Safari: Vibrant warm jungle warmth, emerald foliage radiance
+      img = img
+        .modulate({ brightness: 1.15, saturation: 2.1, hue: 8 })
+        .tint({ r: 255, g: 235, b: 200 })
+        .blur(0.25)
+        .sharpen({ sigma: 1.8, m1: 2.0, m2: 0.3 })
+        .gamma(0.92);
+      break;
+
+    case 'zootography_panda':
+      // 3D Pixar Panda Hug: Soft bamboo green tones, luminous highlights, velvet fur softness
+      img = img
+        .modulate({ brightness: 1.14, saturation: 1.8, hue: 4 })
+        .tint({ r: 240, g: 255, b: 240 })
+        .blur(0.25)
+        .sharpen({ sigma: 1.6, m1: 1.8, m2: 0.4 })
+        .gamma(0.94);
+      break;
+
+    case 'zootography_dolphin':
+      // 3D Pixar Dolphin Reef: Crystal turquoise and aqua ocean glow, radiant highlights
+      img = img
+        .modulate({ brightness: 1.18, saturation: 2.2, hue: -12 })
+        .tint({ r: 180, g: 245, b: 255 })
+        .blur(0.2)
+        .sharpen({ sigma: 2.0, m1: 2.2, m2: 0.3 })
+        .gamma(0.90);
+      break;
+
     case 'maharaja':
       // Royal Maharaja: Rich golden-amber tones, warm royal saturation, lifted contrast
       img = img

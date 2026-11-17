@@ -13,12 +13,7 @@ import {
   Sliders,
   Image as ImageIcon,
   Layers,
-  Crown,
-  Film,
-  Zap,
-  Palette,
   Camera,
-  Heart,
 } from 'lucide-react';
 import { useBoothStore, Photo } from '@/lib/store';
 import { ensureBoothToken, getBoothHeaders } from '@/lib/api';
@@ -31,41 +26,71 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 export interface StyleItem {
   key: string;
   name: string;
+  category: string;
   tagline: string;
-  emoji: string;
   gradient: string;
   accentColor: string;
   badge?: string;
   preview_image_url?: string | null;
 }
 
-// 8 Curated, high-production commercial photobooth persona styles
+// Curated, high-production photobooth persona adventures & themes (Clean - No emojis in front of themes)
 const CURATED_STYLES: StyleItem[] = [
+  {
+    key: 'zootography_tiger',
+    name: 'Zootography Tiger Safari',
+    category: 'Zootography',
+    tagline: 'Ride on the back of a giant Pixar tiger with cubs in a sunlit jungle',
+    gradient: 'linear-gradient(135deg, #7c2d12, #ea580c, #f59e0b)',
+    accentColor: '#f97316',
+    badge: 'Adventure',
+    preview_image_url: 'https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'zootography_panda',
+    name: 'Zootography Panda Hug',
+    category: 'Zootography',
+    tagline: 'Cuddle a giant fluffy panda with baby pandas in a misty bamboo forest',
+    gradient: 'linear-gradient(135deg, #064e3b, #059669, #10b981)',
+    accentColor: '#10b981',
+    badge: 'Adventure',
+    preview_image_url: 'https://images.unsplash.com/photo-1527118732049-c88155f2107c?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    key: 'zootography_dolphin',
+    name: 'Zootography Dolphin Reef',
+    category: 'Zootography',
+    tagline: 'Swim underwater with goggles, fins, and smiling dolphins over coral reef',
+    gradient: 'linear-gradient(135deg, #083344, #0891b2, #06b6d4)',
+    accentColor: '#06b6d4',
+    badge: 'Adventure',
+    preview_image_url: 'https://images.unsplash.com/photo-1570481662006-a3a1374699e8?auto=format&fit=crop&w=400&q=80',
+  },
   {
     key: 'maharaja',
     name: 'Royal Maharaja',
-    tagline: 'Imperial Mughal sherwani, jeweled kalgi & palace court',
-    emoji: '👑',
+    category: 'Royalty',
+    tagline: 'Imperial Mughal velvet sherwani, jeweled kalgi & palace court',
     gradient: 'linear-gradient(135deg, #78350f, #b45309, #d97706)',
     accentColor: '#f59e0b',
-    badge: 'Royal Wedding Favorite',
+    badge: 'Wedding Favorite',
     preview_image_url: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=400&q=80',
   },
   {
     key: 'bollywood',
     name: 'Bollywood Hero',
+    category: 'Cinema',
     tagline: 'Blockbuster red carpet glamour & cinema rim lighting',
-    emoji: '🎬',
     gradient: 'linear-gradient(135deg, #1e1b4b, #312e81, #4f46e5)',
     accentColor: '#6366f1',
-    badge: 'Popular',
+    badge: 'Red Carpet',
     preview_image_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
   },
   {
     key: 'cyberpunk',
     name: 'Cyberpunk 2099',
+    category: 'Sci-Fi',
     tagline: 'Electric neon rain, cyber visor & futuristic megacity',
-    emoji: '⚡',
     gradient: 'linear-gradient(135deg, #0f172a, #581c87, #06b6d4)',
     accentColor: '#06b6d4',
     badge: 'Futuristic',
@@ -74,28 +99,28 @@ const CURATED_STYLES: StyleItem[] = [
   {
     key: 'pixar',
     name: '3D Animation',
+    category: 'Animation',
     tagline: 'Charming Disney / Pixar animated character styling',
-    emoji: '🎨',
     gradient: 'linear-gradient(135deg, #ec4899, #8b5cf6, #3b82f6)',
     accentColor: '#ec4899',
-    badge: 'Family Favorite',
+    badge: 'Family',
     preview_image_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
   },
   {
     key: 'hollywood_noir',
     name: 'Vintage Hollywood',
+    category: 'Vintage',
     tagline: '1940s silver screen monochrome & high-contrast elegance',
-    emoji: '🎞️',
     gradient: 'linear-gradient(135deg, #18181b, #27272a, #52525b)',
     accentColor: '#e4e4e7',
-    badge: 'Timeless',
+    badge: 'Monochrome',
     preview_image_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
   },
   {
     key: 'mandap',
     name: 'Royal Mandap',
+    category: 'Heritage',
     tagline: 'Festive marigold courtyard & traditional palace floral arch',
-    emoji: '🌺',
     gradient: 'linear-gradient(135deg, #831843, #be185d, #f97316)',
     accentColor: '#f97316',
     badge: 'Traditional',
@@ -104,8 +129,8 @@ const CURATED_STYLES: StyleItem[] = [
   {
     key: 'comic',
     name: 'Pop Art Comic',
+    category: 'Pop Art',
     tagline: 'Bold Marvel comic panels, cel-shading & Ben-Day dots',
-    emoji: '💥',
     gradient: 'linear-gradient(135deg, #b91c1c, #dc2626, #facc15)',
     accentColor: '#facc15',
     badge: 'Action',
@@ -114,8 +139,8 @@ const CURATED_STYLES: StyleItem[] = [
   {
     key: 'eighties',
     name: 'Retro 80s Synth',
+    category: 'Retro',
     tagline: 'Vibrant neon grid, synthwave sunset & retro film glow',
-    emoji: '🪩',
     gradient: 'linear-gradient(135deg, #4a044e, #701a75, #c026d3)',
     accentColor: '#f43f5e',
     badge: 'Retro',
@@ -128,7 +153,7 @@ type ViewMode = 'split' | 'card' | 'portrait';
 
 const GENERATING_PHASES = [
   'Detecting facial landmarks & contours...',
-  'Tailoring royal attire & accessories...',
+  'Tailoring scene elements & attire...',
   'Sculpting cinematic studio lighting & depth...',
   'Finalizing high-definition commemorative portrait...',
 ];
@@ -151,22 +176,20 @@ async function applyClientAestheticFilter(sourceUrl: string, styleKey: string): 
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Apply distinct artistic treatments per style
       if (styleKey === 'hollywood_noir') {
         // Silver screen B&W
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const d = imgData.data;
         for (let i = 0; i < d.length; i += 4) {
           const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          // S-curve contrast
           const contrast = Math.min(255, Math.max(0, (gray - 128) * 1.35 + 128));
           d[i] = contrast;
           d[i + 1] = contrast;
           d[i + 2] = contrast;
         }
         ctx.putImageData(imgData, 0, 0);
-      } else if (styleKey === 'maharaja') {
-        // Royal amber-gold warmth
+      } else if (styleKey === 'zootography_tiger' || styleKey === 'maharaja') {
+        // Warm golden amber radiance
         ctx.save();
         ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
         ctx.globalCompositeOperation = 'color';
@@ -175,8 +198,8 @@ async function applyClientAestheticFilter(sourceUrl: string, styleKey: string): 
         ctx.globalCompositeOperation = 'multiply';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
-      } else if (styleKey === 'cyberpunk') {
-        // Neon cyan / magenta shift
+      } else if (styleKey === 'zootography_dolphin' || styleKey === 'cyberpunk') {
+        // Turquoise / neon cyan
         ctx.save();
         ctx.fillStyle = 'rgba(6, 182, 212, 0.22)';
         ctx.globalCompositeOperation = 'screen';
@@ -185,21 +208,21 @@ async function applyClientAestheticFilter(sourceUrl: string, styleKey: string): 
         ctx.globalCompositeOperation = 'overlay';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
+      } else if (styleKey === 'zootography_panda') {
+        // Bamboo emerald warmth
+        ctx.save();
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.18)';
+        ctx.globalCompositeOperation = 'soft-light';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
       } else if (styleKey === 'bollywood') {
-        // Cinematic warm rim
+        // Cinema warm rim
         ctx.save();
         ctx.fillStyle = 'rgba(238, 242, 255, 0.12)';
         ctx.globalCompositeOperation = 'soft-light';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'rgba(249, 115, 22, 0.14)';
         ctx.globalCompositeOperation = 'color';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } else if (styleKey === 'mandap') {
-        // Marigold golden festive
-        ctx.save();
-        ctx.fillStyle = 'rgba(251, 146, 60, 0.20)';
-        ctx.globalCompositeOperation = 'multiply';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
       } else {
@@ -229,7 +252,7 @@ export function AIStudioScreen() {
   } = useBoothStore();
 
   const [styles, setStyles] = useState<StyleItem[]>(CURATED_STYLES);
-  const [selectedStyleKey, setSelectedStyleKey] = useState<string>('maharaja');
+  const [selectedStyleKey, setSelectedStyleKey] = useState<string>('zootography_tiger');
   const [step, setStep] = useState<Step>('select');
   const [generatingPhaseIndex, setGeneratingPhaseIndex] = useState(0);
 
@@ -244,7 +267,6 @@ export function AIStudioScreen() {
   const activeTemplate = getCardTemplateById(cardTemplateId);
 
   // Resolve best photo sources
-  // If the guest has a raw camera capture, prefer it for AI transformation
   const originalSourceUrl = currentPhoto?.rawUrl || currentPhoto?.url || '';
   const initialCardPreviewUrl = currentPhoto?.cardUrl || currentPhoto?.url || '';
 
@@ -260,15 +282,14 @@ export function AIStudioScreen() {
           const customMapped: StyleItem[] = customList.map((s: any) => ({
             key: s.style_key || s.id,
             name: s.name,
-            tagline: s.prompt ? s.prompt.slice(0, 55) + '...' : 'Custom Event Style',
-            emoji: s.emoji || '✨',
+            category: 'Event Custom',
+            tagline: s.prompt ? s.prompt.slice(0, 55) + '...' : 'Custom Event Theme',
             gradient: 'linear-gradient(135deg, #4c1d95, #6d28d9, #9333ea)',
             accentColor: '#a855f7',
             badge: 'Event Exclusive',
             preview_image_url: s.preview_image_url,
           }));
 
-          // Put custom event styles first, followed by curated presets
           const combined = [...customMapped, ...CURATED_STYLES.filter((c) => !customMapped.some((m) => m.key === c.key))];
           setStyles(combined);
           setSelectedStyleKey(combined[0].key);
@@ -348,7 +369,7 @@ export function AIStudioScreen() {
 
     // Zero-Failure Fallback: If cloud AI was unreachable, apply client canvas filter
     if (!finalAiUrl) {
-      console.log('[AIStudio] Engaging instant aesthetic fallback for style:', selectedStyleKey);
+      console.log('[AIStudio] Engaging instant aesthetic fallback for theme:', selectedStyleKey);
       finalAiUrl = await applyClientAestheticFilter(originalSourceUrl, selectedStyleKey);
       finalAiId = `ai-local-${Date.now()}`;
     }
@@ -379,14 +400,12 @@ export function AIStudioScreen() {
 
     setStep('result');
     setAIGenerating(false);
-    toast.success('AI Transformation Complete! ✨', { icon: '✨' });
+    toast.success('Transformation Complete!');
   }
 
-  // Navigate to share screen with the transformed photo
   function handleContinueToShare() {
     if (!currentPhoto) return;
 
-    // Use card URL if template active, or portrait URL
     const activeUrl = (viewMode === 'card' && generatedCardUrl) ? generatedCardUrl : (generatedPortraitUrl || currentPhoto.url);
 
     setCurrentPhoto({
@@ -402,7 +421,6 @@ export function AIStudioScreen() {
     setScreen('share');
   }
 
-  // Trigger quick 4x6 print
   function handleQuickPrint() {
     const printUrl = generatedCardUrl || generatedPortraitUrl || currentPhoto?.url;
     if (!printUrl) return;
@@ -427,7 +445,7 @@ export function AIStudioScreen() {
       `);
       printWindow.document.close();
     }
-    toast.success('Sent to printer! 🖨️');
+    toast.success('Sent to printer!');
   }
 
   function handleBack() {
@@ -440,11 +458,6 @@ export function AIStudioScreen() {
     }
   }
 
-  const branding = event?.branding;
-  const themeMode = (branding?.themeMode as string) || 'dark';
-  const isLight = themeMode === 'light';
-  const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
-
   return (
     <div className="w-full h-full flex flex-col bg-[#0b0c1e] text-white select-none overflow-hidden relative z-10">
       {/* ── Top Header Bar ─────────────────────────────────────────── */}
@@ -454,19 +467,19 @@ export function AIStudioScreen() {
           className="text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white/90 border border-white/10"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>{step === 'result' ? 'Change Style' : 'Back to Preview'}</span>
+          <span>{step === 'result' ? 'Change Theme' : 'Back to Preview'}</span>
         </button>
 
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)]">
-            <Sparkles className="w-4 h-4 animate-pulse" />
+            <Sparkles className="w-4 h-4" />
           </div>
           <div>
             <h2 className="font-black text-sm tracking-wide uppercase bg-gradient-to-r from-purple-300 via-pink-300 to-amber-200 bg-clip-text text-transparent">
               SnapBooth AI Studio
             </h2>
             <p className="text-[10px] text-white/50 tracking-wider font-semibold">
-              {step === 'select' && 'STEP 1 • CHOOSE YOUR AI PERSONA'}
+              {step === 'select' && 'STEP 1 • CHOOSE YOUR THEME'}
               {step === 'generating' && 'STEP 2 • TRANSFORMING PORTRAIT'}
               {step === 'result' && 'STEP 3 • MASTERPIECE READY'}
             </p>
@@ -524,11 +537,10 @@ export function AIStudioScreen() {
                   className="w-full h-full object-contain"
                 />
 
-                {/* Subtle overlay badge */}
                 <div className="absolute bottom-4 left-4 right-4 text-center pointer-events-none">
                   <span className="px-4 py-2 rounded-full text-xs font-black tracking-wide bg-black/70 backdrop-blur-md text-white/90 border border-white/20 shadow-xl inline-flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                    Pick an AI Look to Transform
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Select a theme to transform
                   </span>
                 </div>
               </div>
@@ -537,7 +549,6 @@ export function AIStudioScreen() {
             {/* STEP 2: GENERATING (Scanning Laser Beam Experience) */}
             {step === 'generating' && (
               <div className="relative h-full max-h-[72vh] rounded-3xl overflow-hidden border-2 border-purple-500/50 shadow-[0_0_50px_rgba(168,85,247,0.4)] bg-black/60 flex items-center justify-center" style={{ aspectRatio: '4/6' }}>
-                {/* Source Photo being scanned */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={originalSourceUrl}
@@ -580,7 +591,7 @@ export function AIStudioScreen() {
                     originalUrl={originalSourceUrl}
                     transformedUrl={generatedPortraitUrl}
                     originalLabel="RAW PHOTO"
-                    transformedLabel={`${selectedStyle.name.toUpperCase()} ✨`}
+                    transformedLabel={selectedStyle.name.toUpperCase()}
                     className="max-h-[72vh] w-auto shadow-2xl"
                   />
                 )}
@@ -623,27 +634,26 @@ export function AIStudioScreen() {
 
         {/* ── RIGHT PANE: Touch-Optimized Kiosk Control Hub ─────────── */}
         <div className="w-full md:w-1/2 flex flex-col bg-[#111328]/70 border-t md:border-t-0 md:border-l border-white/10 min-h-0 overflow-hidden">
-          {/* STEP 1: CHOOSE LOOK */}
+          {/* STEP 1: CHOOSE THEME */}
           {step === 'select' && (
             <div className="flex-1 flex flex-col min-h-0">
               <div className="p-4 sm:p-6 pb-2 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
-                      <span>Choose Your Look</span>
-                      <Sparkles className="w-5 h-5 text-amber-400" />
+                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                      Choose Your Theme
                     </h3>
                     <p className="text-white/60 text-xs mt-0.5">
-                      Tap a persona tile below to transform your photo with studio AI
+                      Select a theme to transform into an adventure or cinematic look
                     </p>
                   </div>
                   <div className="px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-bold">
-                    {styles.length} Styles
+                    {styles.length} Themes
                   </div>
                 </div>
               </div>
 
-              {/* Styles Scrollable Grid (Frictionless, No text box!) */}
+              {/* Themes Grid - Clean, No icons in front of theme names */}
               <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-2 min-h-0">
                 <div className="grid grid-cols-2 gap-3 pb-4">
                   {styles.map((style) => {
@@ -654,7 +664,7 @@ export function AIStudioScreen() {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.96 }}
                         onClick={() => setSelectedStyleKey(style.key)}
-                        className={`relative rounded-3xl p-3 text-left overflow-hidden border-2 transition-all flex flex-col justify-between min-h-[140px] cursor-pointer ${
+                        className={`relative rounded-3xl p-3.5 text-left overflow-hidden border-2 transition-all flex flex-col justify-between min-h-[135px] cursor-pointer ${
                           isSelected
                             ? 'border-purple-400 ring-4 ring-purple-500/30 bg-purple-950/40 shadow-[0_0_24px_rgba(168,85,247,0.4)]'
                             : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
@@ -662,7 +672,7 @@ export function AIStudioScreen() {
                       >
                         {/* Background Thumbnail if available */}
                         {style.preview_image_url && (
-                          <div className="absolute inset-0 opacity-30 pointer-events-none">
+                          <div className="absolute inset-0 opacity-25 pointer-events-none">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={style.preview_image_url}
@@ -673,21 +683,19 @@ export function AIStudioScreen() {
                           </div>
                         )}
 
-                        {/* Top Row: Emoji & Badge / Check */}
+                        {/* Top Row: Category Badge & Selection Checkmark (No emoji/icon) */}
                         <div className="flex items-center justify-between relative z-10">
-                          <span className="text-2xl drop-shadow">{style.emoji}</span>
-                          {isSelected ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/15 text-white/90 backdrop-blur-md border border-white/10">
+                            {style.badge || style.category}
+                          </span>
+                          {isSelected && (
                             <div className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center shadow-lg">
                               <CheckCircle2 className="w-4 h-4" />
                             </div>
-                          ) : style.badge ? (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/15 text-white/80 border border-white/10">
-                              {style.badge}
-                            </span>
-                          ) : null}
+                          )}
                         </div>
 
-                        {/* Bottom Row: Name & Tagline */}
+                        {/* Bottom Row: Theme Name & Tagline (No icons in front of name) */}
                         <div className="relative z-10 mt-3">
                           <p className="text-white font-black text-sm tracking-tight leading-tight">
                             {style.name}
@@ -711,8 +719,8 @@ export function AIStudioScreen() {
                   disabled={aiGenerating}
                   className="w-full py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-xl shadow-purple-600/30 transition-all cursor-pointer"
                 >
-                  <Wand2 className="w-5 h-5 animate-bounce" />
-                  <span>Transform into {selectedStyle.name} ✨</span>
+                  <Wand2 className="w-5 h-5" />
+                  <span>Transform into {selectedStyle.name}</span>
                 </motion.button>
               </div>
             </div>
@@ -723,14 +731,14 @@ export function AIStudioScreen() {
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6">
               <div className="relative">
                 <div className="w-28 h-28 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-4xl animate-bounce">{selectedStyle.emoji}</span>
+                <div className="absolute inset-0 flex items-center justify-center text-purple-400">
+                  <Wand2 className="w-10 h-10 animate-pulse" />
                 </div>
               </div>
 
               <div>
                 <h3 className="text-2xl font-black text-white tracking-tight">
-                  Crafting {selectedStyle.name} Look
+                  Crafting {selectedStyle.name}
                 </h3>
                 <p className="text-white/60 text-xs max-w-sm mt-2 leading-relaxed">
                   Our neural photo engine is applying authentic lighting, tailored garments, and high-fidelity art styling...
@@ -753,7 +761,9 @@ export function AIStudioScreen() {
               <div className="space-y-4">
                 <div className="p-4 rounded-3xl bg-purple-950/30 border border-purple-500/30">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl">{selectedStyle.emoji}</span>
+                    <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
                     <div>
                       <h4 className="font-black text-white text-base">
                         {selectedStyle.name} Masterpiece
@@ -765,7 +775,6 @@ export function AIStudioScreen() {
                   </div>
                 </div>
 
-                {/* View switcher description */}
                 <div className="p-4 rounded-3xl bg-white/5 border border-white/10 space-y-2">
                   <p className="text-xs font-bold text-white/80 uppercase tracking-wider flex items-center gap-2">
                     <Layers className="w-4 h-4 text-purple-400" />
@@ -790,7 +799,6 @@ export function AIStudioScreen() {
 
               {/* Action Buttons */}
               <div className="space-y-3 pt-6 border-t border-white/10">
-                {/* 1. Share & Download (Primary) */}
                 <motion.button
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
@@ -801,7 +809,6 @@ export function AIStudioScreen() {
                   <span>Get Photo on Phone (QR & WhatsApp)</span>
                 </motion.button>
 
-                {/* 2. Print 4x6 Card */}
                 <motion.button
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
@@ -812,7 +819,6 @@ export function AIStudioScreen() {
                   <span>Print 4×6 Card Now</span>
                 </motion.button>
 
-                {/* 3. Try Another Look */}
                 <motion.button
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
@@ -823,7 +829,7 @@ export function AIStudioScreen() {
                   className="w-full py-3 px-6 rounded-2xl bg-transparent hover:bg-white/10 text-white/70 hover:text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  <span>Try a Different Style</span>
+                  <span>Try a Different Theme</span>
                 </motion.button>
               </div>
             </div>
