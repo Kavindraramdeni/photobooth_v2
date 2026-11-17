@@ -4,6 +4,7 @@ const router = express.Router();
 
 const { generateAIImage, applyAIFilter, AI_STYLES } = require('../services/ai');
 const { uploadToStorage } = require('../services/storage');
+const { dispatchCloudAutoSync } = require('../services/cloudSync');
 const { generateQRDataURL, buildGalleryUrl, generateUniqueShortCode } = require('../services/sharing');
 const supabase = require('../services/database');
 const requireAuth = require('../middleware/requireAuth');
@@ -343,9 +344,17 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
 
     // Resolve event details safely
     let eventSlug = 'gallery';
+    let loadedEvent = null;
     try {
-      const { data: event } = await supabase.from('events').select('id, slug, name').eq('id', eventId).maybeSingle();
-      if (event?.slug) eventSlug = event.slug;
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('id, slug, name, owner_id, settings, branding')
+        .eq('id', eventId)
+        .maybeSingle();
+      if (eventData) {
+        loadedEvent = eventData;
+        if (eventData.slug) eventSlug = eventData.slug;
+      }
     } catch (e) {
       console.warn('[AI Generate] Event fetch warning:', e.message);
     }
@@ -374,19 +383,53 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
       qrDataUrl = await generateQRDataURL(galleryUrl);
     } catch { /* ignore QR error */ }
 
+    const aiPhotoRecord = {
+      id: aiId,
+      event_id: eventId,
+      owner_id: loadedEvent?.owner_id || null,
+      url: aiUrl,
+      thumb_url: aiUrl,
+      gallery_url: galleryUrl,
+      storage_key: storageKey,
+      mode: 'ai',
+      short_code: shortCode,
+      metadata: { style: styleKey, originalPhotoId: photoId },
+      is_hidden: false,
+      created_at: new Date().toISOString(),
+    };
+
+    let savedPhoto = aiPhotoRecord;
     try {
-      await supabase.from('photos').insert({
-        id: aiId,
-        event_id: eventId,
-        url: aiUrl,
-        gallery_url: galleryUrl,
-        storage_key: storageKey,
-        mode: 'ai',
-        short_code: shortCode,
-        metadata: { style: styleKey, originalPhotoId: photoId },
-      });
+      const { data: dbPhoto, error: dbErr } = await supabase
+        .from('photos')
+        .insert(aiPhotoRecord)
+        .select()
+        .maybeSingle();
+      if (dbErr) {
+        console.warn('[AI Generate] DB insert non-fatal warning:', dbErr.message);
+      } else if (dbPhoto) {
+        savedPhoto = dbPhoto;
+      }
     } catch (dbErr) {
       console.warn('[AI Generate] DB insert non-fatal warning:', dbErr.message);
+    }
+
+    // Broadcast new photo event via Socket.IO for live gallery & slideshow
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`event-${eventId}`).emit('photo-taken', {
+        photoId: aiId,
+        thumbUrl: aiUrl,
+        galleryUrl,
+        mode: 'ai',
+        timestamp: new Date().toISOString(),
+      });
+      io.to(`event-${eventId}`).emit('new-photo', savedPhoto);
+    }
+
+    // Dispatch background cloud sync (Dropbox / Google Drive / Webhooks)
+    if (loadedEvent) {
+      dispatchCloudAutoSync(loadedEvent, savedPhoto, result.buffer).catch(() => {});
     }
 
     // Track analytics (non-blocking)
@@ -407,6 +450,7 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
         styleKey,
         galleryUrl,
         qrCode: qrDataUrl,
+        photo: savedPhoto,
       },
     });
   } catch (error) {

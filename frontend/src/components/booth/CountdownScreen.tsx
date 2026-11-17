@@ -8,7 +8,7 @@ import { uploadPhoto, createGIF, createStrip, setBoothToken } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
 import { getCardTemplateById, compositeCardPhoto, compositeCustomCanvasTemplate, CanvasTemplateConfig } from '@/lib/cardTemplates';
 import toast from 'react-hot-toast';
-import { Sparkles, Camera, ArrowLeft } from 'lucide-react';
+import { Sparkles, Camera, ArrowLeft, Upload } from 'lucide-react';
 
 // ── Web Audio API sounds ─────────────────────────────────────────────────────
 function playBeep(frequency = 880, duration = 0.12, volume = 0.3) {
@@ -427,6 +427,36 @@ export function CountdownScreen() {
           >
             <ArrowLeft className="w-4 h-4" /> Cancel
           </button>
+
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-purple-600/90 hover:bg-purple-500 text-white cursor-pointer transition-all text-xs font-bold shadow-lg border border-purple-400/40 active:scale-95">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    processCaptures([file]);
+                  }
+                }}
+              />
+            </label>
+            <button
+              onClick={() => {
+                fetch('/sample_portrait.jpg')
+                  .then((r) => r.blob())
+                  .then((blob) => processCaptures([blob]))
+                  .catch(() => toast.error('Sample portrait unavailable'));
+              }}
+              className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-full bg-[#181938]/90 hover:bg-white/20 text-white/80 text-xs font-medium border border-slate-700"
+              title="Test with Sample Portrait"
+            >
+              <span>Sample Photo</span>
+            </button>
+          </div>
 
           {/* Active Mode Badge */}
           <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#181938]/95 border-2 border-slate-700 text-white text-xs font-black shadow-lg">

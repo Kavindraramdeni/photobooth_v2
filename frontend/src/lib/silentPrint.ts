@@ -5,6 +5,7 @@
  */
 
 import { api } from './api';
+import { queueOfflinePrint } from './offlineQueue';
 
 export interface SilentPrintOptions {
   eventId: string;
@@ -37,7 +38,13 @@ export async function executeSilentPrint(options: SilentPrintOptions): Promise<{
     });
     jobId = res.data?.job?.id;
   } catch (err: any) {
-    console.warn('[SilentPrint] Queue enqueue warning:', err.message);
+    console.warn('[SilentPrint] Queue enqueue warning, caching to Touchpix-grade offline queue:', err.message);
+    queueOfflinePrint({
+      eventId,
+      photoId: photoId || `photo-${Date.now()}`,
+      photoUrl,
+      copies,
+    }).catch(() => {});
   }
 
   // 2. Trigger silent physical driver spooling via hidden iframe

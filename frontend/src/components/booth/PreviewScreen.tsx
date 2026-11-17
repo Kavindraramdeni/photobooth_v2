@@ -17,7 +17,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
-import { trackAction } from '@/lib/api';
+import { trackAction, uploadPhoto } from '@/lib/api';
 import { LeadCaptureModal } from '@/components/booth/LeadCaptureModal';
 import { EmailCaptureModal } from '@/components/booth/EmailCaptureModal';
 import { TemplateRenderer } from '@/components/booth/TemplateRenderer';
@@ -271,6 +271,24 @@ export function PreviewScreen() {
         downloadUrl: finalUrl,
       });
       toast.dismiss(t);
+
+      // Upload baked photo to server in background so QR code & cloud gallery reflect stickers
+      if (finalUrl.startsWith('data:') && event?.id) {
+        fetch(finalUrl)
+          .then((r) => r.blob())
+          .then((blob) => uploadPhoto(blob, event.id, (photo as any).sessionId || (photo as any).session_id || '', photo.mode || 'single', photo.id))
+          .then((upRes) => {
+            if (upRes?.photo) {
+              setCurrentPhoto({
+                ...photo,
+                ...upRes.photo,
+                url: upRes.photo.url || finalUrl,
+                galleryUrl: upRes.photo.gallery_url || finalUrl,
+              });
+            }
+          })
+          .catch((err) => console.warn('[PreviewScreen] Baked sticker upload notice:', err));
+      }
     }
 
     if (settings?.leadCapture) {
@@ -292,6 +310,14 @@ export function PreviewScreen() {
           galleryUrl: finalUrl,
           downloadUrl: finalUrl,
         });
+
+        // Background upload
+        if (finalUrl.startsWith('data:') && event?.id) {
+          fetch(finalUrl)
+            .then((r) => r.blob())
+            .then((blob) => uploadPhoto(blob, event.id, (photo as any).sessionId || (photo as any).session_id || '', photo.mode || 'single', photo.id))
+            .catch(() => {});
+        }
       }
       const isLandscape = Boolean(
         event?.branding?.cardOrientation === 'landscape' ||

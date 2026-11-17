@@ -15,10 +15,11 @@ import {
   Layers,
   Camera,
   Film,
+  Upload,
 } from 'lucide-react';
 import { generateInAppMotionVideo } from '@/lib/inAppMotionEngine';
 import { useBoothStore, Photo } from '@/lib/store';
-import { ensureBoothToken, getBoothHeaders } from '@/lib/api';
+import { ensureBoothToken, getBoothHeaders, uploadPhoto } from '@/lib/api';
 import { getCardTemplateById, compositeCardPhoto } from '@/lib/cardTemplates';
 import { BeforeAfterSlider } from './BeforeAfterSlider';
 import toast from 'react-hot-toast';
@@ -332,6 +333,7 @@ export function AIStudioScreen() {
   const [moveType, setMoveType] = useState<'still' | 'glam_motion' | 'bullet_time'>('still');
   const [aiPhotoId, setAiPhotoId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [customSourceUrl, setCustomSourceUrl] = useState<string | null>(null);
 
   // Active card template (e.g. Indian Wedding Mughal arch or Tatler Magazine)
   const defaultTemplate = selectedStyleKey === 'cover_story' ? 'tatler-magazine-cover' : 'indian-wedding-portrait';
@@ -339,9 +341,23 @@ export function AIStudioScreen() {
   const activeTemplate = getCardTemplateById(cardTemplateId);
 
   // Resolve best photo sources with bulletproof fallback so viewport is never black
-  const DEFAULT_SAMPLE_PORTRAIT = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
-  const originalSourceUrl = currentPhoto?.rawUrl || currentPhoto?.url || DEFAULT_SAMPLE_PORTRAIT;
-  const initialCardPreviewUrl = currentPhoto?.cardUrl || currentPhoto?.url || originalSourceUrl;
+  const DEFAULT_SAMPLE_PORTRAIT = '/sample_portrait.jpg';
+  const originalSourceUrl = customSourceUrl || currentPhoto?.rawUrl || currentPhoto?.url || DEFAULT_SAMPLE_PORTRAIT;
+  const initialCardPreviewUrl = customSourceUrl || currentPhoto?.cardUrl || currentPhoto?.url || originalSourceUrl;
+
+  function handleCustomPhotoUpload(file: File) {
+    const url = URL.createObjectURL(file);
+    setCustomSourceUrl(url);
+    if (currentPhoto) {
+      setCurrentPhoto({
+        ...currentPhoto,
+        url,
+        rawUrl: url,
+        cardUrl: url,
+      });
+    }
+    toast.success('Custom portrait loaded! Ready to transform.');
+  }
 
   // Load custom event styles from server if configured, merging with curated defaults
   useEffect(() => {
@@ -479,6 +495,31 @@ export function AIStudioScreen() {
     setStep('result');
     setAIGenerating(false);
     toast.success('Transformation Complete!');
+
+    // Ensure the generated AI image is saved to the database and appears in event gallery
+    if (finalAiUrl && event?.id) {
+      (async () => {
+        try {
+          const fetchImg = await fetch(finalAiUrl);
+          const aiBlob = await fetchImg.blob();
+          const uploadRes = await uploadPhoto(
+            aiBlob,
+            event.id,
+            (currentPhoto as any)?.session_id || (currentPhoto as any)?.sessionId || '',
+            'ai',
+            finalAiId || undefined
+          );
+          if (uploadRes?.photo?.id) {
+            setAiPhotoId(uploadRes.photo.id);
+            if (uploadRes.photo.url) {
+              setGeneratedPortraitUrl(uploadRes.photo.url);
+            }
+          }
+        } catch (saveErr) {
+          console.warn('[AIStudio] Background save to DB notice:', saveErr);
+        }
+      })();
+    }
 
     // If a motion move was chosen (Glam Motion or Bullet Time), generate cinematic video client-side for $0
     if (moveType !== 'still' && finalAiUrl) {
@@ -625,7 +666,33 @@ export function AIStudioScreen() {
             )}
           </div>
         ) : (
-          <div className="w-24" />
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white cursor-pointer text-xs font-bold border border-purple-400/40 active:scale-95 transition-all shadow-md">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleCustomPhotoUpload(file);
+                }}
+              />
+            </label>
+            <button
+              onClick={() => {
+                fetch('/sample_portrait.jpg')
+                  .then((r) => r.blob())
+                  .then((b) => handleCustomPhotoUpload(new File([b], 'sample_portrait.jpg', { type: 'image/jpeg' })))
+                  .catch(() => toast.error('Sample portrait unavailable'));
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 text-xs font-medium border border-white/10 hidden sm:block"
+              title="Test with Sample Portrait"
+            >
+              Sample
+            </button>
+          </div>
         )}
       </div>
 
@@ -644,11 +711,24 @@ export function AIStudioScreen() {
                   className="w-full h-full object-contain"
                 />
 
-                <div className="absolute bottom-4 left-4 right-4 text-center pointer-events-none">
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-center gap-2 pointer-events-auto">
                   <span className="px-4 py-2 rounded-full text-xs font-black tracking-wide bg-black/70 backdrop-blur-md text-white/90 border border-white/20 shadow-xl inline-flex items-center gap-2">
                     <Sparkles className="w-3.5 h-3.5 text-purple-400" />
                     Select a theme to transform
                   </span>
+                  <label className="px-3 py-2 rounded-full text-xs font-bold bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/30 shadow-xl cursor-pointer inline-flex items-center gap-1.5 transition-all">
+                    <Upload className="w-3 h-3 text-purple-300" />
+                    <span>Change Photo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleCustomPhotoUpload(file);
+                      }}
+                    />
+                  </label>
                 </div>
               </div>
             )}

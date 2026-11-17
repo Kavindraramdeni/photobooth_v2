@@ -29,13 +29,27 @@ export interface OfflinePhotoRecord {
 export type QueuedPhoto = OfflinePhotoRecord;
 
 export const DB_NAME = 'snapbooth_offline_db';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const STORE_NAME = 'offline_photos';
+export const PRINT_STORE_NAME = 'offline_prints';
+
+export interface OfflinePrintRecord {
+  id: string;
+  eventId: string;
+  photoId: string;
+  photoUrl: string;
+  copies: number;
+  timestamp: number;
+  status: 'pending' | 'printing' | 'completed' | 'failed';
+  lastError?: string;
+}
 
 // In-memory fallback if IndexedDB is unavailable (SSR, private browsing restricted, etc.)
 const memoryStore = new Map<string, OfflinePhotoRecord>();
+const printMemoryStore = new Map<string, OfflinePrintRecord>();
 
 let isSyncInProgress = false;
+let isPrintSyncInProgress = false;
 
 /**
  * Open IndexedDB connection safely
@@ -56,6 +70,12 @@ export function openOfflineDB(): Promise<IDBDatabase | null> {
           store.createIndex('eventId', 'eventId', { unique: false });
           store.createIndex('status', 'status', { unique: false });
           store.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(PRINT_STORE_NAME)) {
+          const printStore = db.createObjectStore(PRINT_STORE_NAME, { keyPath: 'id' });
+          printStore.createIndex('eventId', 'eventId', { unique: false });
+          printStore.createIndex('status', 'status', { unique: false });
+          printStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
       };
 
@@ -418,4 +438,154 @@ export async function processOfflineQueue(
   }
 
   return syncQueuedPhotos(undefined, eventId, onProgress);
+}
+
+// ── Touchpix-Grade Offline Print Queue ─────────────────────────────────────
+
+/**
+ * Queue a print job into IndexedDB for zero-loss offline kiosk printing
+ */
+export async function queueOfflinePrint(job: {
+  eventId: string;
+  photoId: string;
+  photoUrl: string;
+  copies?: number;
+}): Promise<OfflinePrintRecord> {
+  const id = `print-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const record: OfflinePrintRecord = {
+    id,
+    eventId: job.eventId,
+    photoId: job.photoId,
+    photoUrl: job.photoUrl,
+    copies: job.copies || 1,
+    timestamp: Date.now(),
+    status: 'pending',
+  };
+
+  printMemoryStore.set(id, record);
+
+  const db = await openOfflineDB();
+  if (!db) return record;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction([PRINT_STORE_NAME], 'readwrite');
+      const store = tx.objectStore(PRINT_STORE_NAME);
+      const req = store.put(record);
+      req.onsuccess = () => resolve(record);
+      req.onerror = () => resolve(record);
+    } catch {
+      resolve(record);
+    }
+  });
+}
+
+/**
+ * Retrieve queued offline print jobs
+ */
+export async function getQueuedPrints(eventId?: string): Promise<OfflinePrintRecord[]> {
+  const db = await openOfflineDB();
+  if (!db) {
+    let list = Array.from(printMemoryStore.values());
+    if (eventId) list = list.filter((p) => p.eventId === eventId);
+    return list.sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction([PRINT_STORE_NAME], 'readonly');
+      const store = tx.objectStore(PRINT_STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        let results = (req.result as OfflinePrintRecord[]) || [];
+        if (eventId) results = results.filter((p) => p.eventId === eventId);
+        resolve(results.sort((a, b) => a.timestamp - b.timestamp));
+      };
+      req.onerror = () => {
+        let list = Array.from(printMemoryStore.values());
+        if (eventId) list = list.filter((p) => p.eventId === eventId);
+        resolve(list.sort((a, b) => a.timestamp - b.timestamp));
+      };
+    } catch {
+      let list = Array.from(printMemoryStore.values());
+      if (eventId) list = list.filter((p) => p.eventId === eventId);
+      resolve(list.sort((a, b) => a.timestamp - b.timestamp));
+    }
+  });
+}
+
+/**
+ * Remove a print job from IndexedDB
+ */
+export async function removeQueuedPrint(id: string): Promise<void> {
+  printMemoryStore.delete(id);
+  const db = await openOfflineDB();
+  if (!db) return;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction([PRINT_STORE_NAME], 'readwrite');
+      const store = tx.objectStore(PRINT_STORE_NAME);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+/**
+ * Sync queued print jobs to the print server or local printer
+ */
+export async function syncQueuedPrints(eventId?: string): Promise<{ synced: number; failed: number }> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return { synced: 0, failed: 0 };
+  if (isPrintSyncInProgress) return { synced: 0, failed: 0 };
+
+  isPrintSyncInProgress = true;
+  try {
+    const prints = await getQueuedPrints(eventId);
+    const pending = prints.filter((p) => p.status === 'pending' || p.status === 'failed');
+    if (pending.length === 0) return { synced: 0, failed: 0 };
+
+    let synced = 0;
+    let failed = 0;
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+    for (const job of pending) {
+      try {
+        const res = await fetch(`${API_BASE}/api/print/silent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventId: job.eventId,
+            photoId: job.photoId,
+            photoUrl: job.photoUrl,
+            copies: job.copies,
+          }),
+        });
+        if (res.ok) {
+          await removeQueuedPrint(job.id);
+          synced++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+    return { synced, failed };
+  } finally {
+    isPrintSyncInProgress = false;
+  }
+}
+
+// ── Reactive Window Online Listener (Auto-flushes queue on reconnect) ──────
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    console.log('[OfflineQueue] Connection restored! Flushing photo & print queues...');
+    syncQueuedPhotos();
+    syncQueuedPrints();
+  });
 }

@@ -5,6 +5,7 @@ const sharp = require('sharp');
 const router = express.Router();
 
 const { uploadToStorage } = require('../services/storage');
+const { dispatchCloudAutoSync } = require('../services/cloudSync');
 const {
   applyBrandingOverlay,
   createPhotoStrip,
@@ -267,6 +268,9 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
       photo: finalPhoto,
     }).catch(() => {});
 
+    // Dispatch background cloud sync (Dropbox / Google Drive / Webhooks)
+    dispatchCloudAutoSync(event, finalPhoto, processedBuffer).catch(() => {});
+
     res.json({
       success: true,
       photo: {
@@ -339,6 +343,17 @@ router.post('/gif', upload.array('frames', 10), requireBoothSession, async (req,
       metadata: { frameCount: frames.length },
     });
 
+    const gifPhotoRecord = {
+      id: gifId,
+      event_id: eventId,
+      session_id: sessionId,
+      url: gifUrl,
+      gallery_url: galleryUrl,
+      storage_key: storageKey,
+      mode: type,
+    };
+    dispatchCloudAutoSync(event, gifPhotoRecord, gifBuffer).catch(() => {});
+
     res.json({
       success: true,
       gif: {
@@ -399,6 +414,18 @@ router.post('/strip', upload.array('photos', 4), requireBoothSession, async (req
       action: 'strip_created',
       metadata: { frameCount: photos.length },
     });
+
+    const stripPhotoRecord = {
+      id: stripId,
+      event_id: eventId,
+      session_id: sessionId,
+      url: stripUrl,
+      gallery_url: galleryUrl,
+      storage_key: storageKey,
+      mode: 'strip',
+      short_code: shortCode,
+    };
+    dispatchCloudAutoSync(event, stripPhotoRecord, stripBuffer).catch(() => {});
 
     res.json({
       success: true,
