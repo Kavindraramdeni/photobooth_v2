@@ -87,12 +87,17 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
     if (!req.file) return res.status(400).json({ error: 'No photo provided' });
     if (!eventId) return res.status(400).json({ error: 'Event ID required' });
 
-    // Get event branding from DB
+    // Get event branding from DB (by ID or slug)
     let { data: event } = await supabase
       .from('events')
       .select('*')
       .eq('id', eventId)
       .maybeSingle();
+
+    if (!event) {
+      const bySlug = await supabase.from('events').select('*').eq('slug', eventId).maybeSingle();
+      if (bySlug?.data) event = bySlug.data;
+    }
 
     if (!event && (eventId === '00000000-0000-0000-0000-000000000001' || eventId === 'snapbooth-demo' || eventId === 'demo')) {
       event = {

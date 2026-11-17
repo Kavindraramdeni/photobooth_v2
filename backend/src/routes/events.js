@@ -682,10 +682,12 @@ router.get('/:id/styles', async (req, res) => {
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
 
-    if (error) throw error;
+    if (error && error.code !== 'PGRST116') {
+      console.warn('[events/:id/styles] Notice:', error.message);
+    }
     res.json({ styles: styles || [] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ styles: [] });
   }
 });
 
@@ -1054,7 +1056,7 @@ router.get('/:id/frames', async (req, res) => {
       .order('sort_order', { ascending: true });
     res.json({ frames: frames || [] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ frames: [] });
   }
 });
 

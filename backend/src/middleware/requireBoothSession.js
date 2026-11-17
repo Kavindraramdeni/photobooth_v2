@@ -32,8 +32,28 @@ async function requireBoothSession(req, res, next) {
     // 1. Check if token is a signed scoped token (booth or operator)
     const sessionPayload = verifyToken(token);
     if (sessionPayload && (sessionPayload.role === 'booth' || sessionPayload.role === 'operator')) {
-      if (targetEventId && sessionPayload.eventId && sessionPayload.eventId !== targetEventId) {
-        return res.status(403).json({ error: 'Valid event booth session required' });
+      const isDemoMatch = (
+        (sessionPayload.eventId === '00000000-0000-0000-0000-000000000001' && (targetEventId === 'snapbooth-demo' || targetEventId === 'demo')) ||
+        (targetEventId === '00000000-0000-0000-0000-000000000001' && (sessionPayload.eventId === 'snapbooth-demo' || sessionPayload.eventId === 'demo'))
+      );
+
+      if (targetEventId && sessionPayload.eventId && sessionPayload.eventId !== targetEventId && !isDemoMatch) {
+        // Check if targetEventId is an event slug matching sessionPayload.eventId
+        let slugMatched = false;
+        try {
+          const { data: evBySlug } = await supabase
+            .from('events')
+            .select('id')
+            .eq('slug', targetEventId)
+            .maybeSingle();
+          if (evBySlug && evBySlug.id === sessionPayload.eventId) {
+            slugMatched = true;
+          }
+        } catch {}
+
+        if (!slugMatched) {
+          return res.status(403).json({ error: 'Valid event booth session required' });
+        }
       }
       req.boothSession = sessionPayload;
       req.sessionEventId = sessionPayload.eventId;

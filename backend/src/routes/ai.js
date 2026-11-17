@@ -342,7 +342,7 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
       result = await applyAIFilter(imageBuffer, styleKey);
     }
 
-    // Resolve event details safely
+    // Resolve event details safely (by ID, slug, or demo fallback)
     let eventSlug = 'gallery';
     let loadedEvent = null;
     try {
@@ -354,6 +354,24 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
       if (eventData) {
         loadedEvent = eventData;
         if (eventData.slug) eventSlug = eventData.slug;
+      } else {
+        const { data: bySlug } = await supabase
+          .from('events')
+          .select('id, slug, name, owner_id, settings, branding')
+          .eq('slug', eventId)
+          .maybeSingle();
+        if (bySlug) {
+          loadedEvent = bySlug;
+          if (bySlug.slug) eventSlug = bySlug.slug;
+        }
+      }
+      if (!loadedEvent && (eventId === '00000000-0000-0000-0000-000000000001' || eventId === 'snapbooth-demo' || eventId === 'demo')) {
+        loadedEvent = {
+          id: '00000000-0000-0000-0000-000000000001',
+          name: 'SnapBooth Grand Gala Demo',
+          slug: 'snapbooth-demo',
+        };
+        eventSlug = 'snapbooth-demo';
       }
     } catch (e) {
       console.warn('[AI Generate] Event fetch warning:', e.message);
