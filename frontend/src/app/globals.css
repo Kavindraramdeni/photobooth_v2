@@ -192,10 +192,10 @@ body.booth-mode {
 
 /* Photobooth specific animations */
 @keyframes countdown-pulse {
-  0% { transform: scale(1.4); opacity: 0; filter: blur(8px); }
-  30% { transform: scale(1); opacity: 1; filter: blur(0px); }
-  85% { transform: scale(1); opacity: 1; filter: blur(0px); }
-  100% { transform: scale(0.85); opacity: 0; filter: blur(4px); }
+  0% { transform: scale(1.35); opacity: 0; }
+  25% { transform: scale(1); opacity: 1; }
+  85% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0; }
 }
 
 @keyframes flash {

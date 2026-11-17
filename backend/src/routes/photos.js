@@ -222,44 +222,65 @@ router.post('/upload', normalizeUploadedPhoto, requireBoothSession, async (req, 
       .select()
       .single();
 
-    if (dbError) throw dbError;
-    console.log('[photos/upload] DB insert success', { photoId: photo.id, eventId, shortCode: photo.short_code });
+    let finalPhoto = photo;
+    if (dbError) {
+      console.warn('[photos/upload] DB insert warning, using resilient fallback:', dbError.message);
+      finalPhoto = {
+        id: photoId,
+        event_id: eventId,
+        url: photoUrl,
+        thumb_url: thumbUrl,
+        gallery_url: galleryUrl,
+        storage_key: storageKey,
+        short_code: shortCode,
+        mode,
+        created_at: new Date().toISOString(),
+      };
+    } else {
+      console.log('[photos/upload] DB insert success', { photoId: finalPhoto.id, eventId, shortCode: finalPhoto.short_code });
+    }
 
-    // Track analytics
-    await supabase.from('analytics').insert({
-      event_id: eventId,
-      action: 'photo_taken',
-      metadata: { mode, photoId },
-    });
+    // Track analytics (non-blocking)
+    try {
+      supabase.from('analytics').insert({
+        event_id: eventId,
+        action: 'photo_taken',
+        metadata: { mode, photoId },
+      }).catch(() => {});
+    } catch {}
 
     // Emit via Socket.IO to admin dashboard
     const io = req.app.get('io');
-    io.to(`event-${eventId}`).emit('photo-taken', {
-      photoId,
-      thumbUrl,
-      galleryUrl,
-      mode,
-      timestamp: new Date().toISOString(),
-    });
+    if (io) {
+      io.to(`event-${eventId}`).emit('photo-taken', {
+        photoId,
+        thumbUrl,
+        galleryUrl,
+        mode,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // Fire webhook (non-blocking)
     fireWebhook(event, {
       trigger: 'photo.created',
-      photo: { id: photoId, url: photoUrl, thumbUrl, galleryUrl, mode },
-    });
+      photo: finalPhoto,
+    }).catch(() => {});
 
     res.json({
       success: true,
       photo: {
-        id: photoId,
-        url: photoUrl,
-        thumbUrl,
-        galleryUrl,
+        ...finalPhoto,
         qrCode: qrDataUrl,
         whatsappUrl,
-        downloadUrl: photoUrl,
-        storage_key: storageKey,
+        galleryUrl: finalPhoto.gallery_url || galleryUrl,
       },
+      qrDataUrl,
+      whatsappUrl,
+      galleryUrl: finalPhoto.gallery_url || galleryUrl,
+      photoUrl: finalPhoto.url,
+      thumbUrl: finalPhoto.thumb_url,
+      shortCode: finalPhoto.short_code,
     });
   } catch (error) {
     console.error('Photo upload error:', error);

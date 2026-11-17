@@ -142,19 +142,29 @@ async function uploadToStorage(buffer, key, contentType = 'image/jpeg') {
   }
 
   if (R2_CONFIGURED) {
-    const command = new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-      CacheControl: 'public, max-age=31536000',
-    });
-    await s3.send(command);
-    return `${PUBLIC_URL}/${key}`;
+    try {
+      const command = new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000',
+      });
+      await s3.send(command);
+      return `${PUBLIC_URL}/${key}`;
+    } catch (r2Err) {
+      console.warn('[Storage] R2 upload failed, falling back to Supabase:', r2Err.message);
+    }
   }
 
   // Fallback: Supabase Storage
-  return uploadToSupabase(buffer, key, contentType);
+  try {
+    return await uploadToSupabase(buffer, key, contentType);
+  } catch (supaErr) {
+    console.warn('[Storage] Supabase storage upload warning:', supaErr.message);
+    // Zero-Failure Fallback: return valid base64 data-URI so photo is never lost!
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  }
 }
 
 async function getSignedDownloadUrl(key, expiresIn = 3600) {

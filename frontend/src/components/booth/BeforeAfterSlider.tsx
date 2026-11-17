@@ -57,7 +57,7 @@ export function BeforeAfterSlider({
       onMouseMove={handleMouseMove}
       onTouchMove={handleTouchMove}
       onClick={(e) => handleMove(e.clientX)}
-      className={`relative select-none overflow-hidden rounded-3xl border border-white/20 shadow-2xl cursor-ew-resize group ${className}`}
+      className={`relative select-none overflow-hidden rounded-3xl border border-white/20 shadow-2xl cursor-ew-resize group w-auto h-full max-h-[72vh] ${className}`}
       style={{ aspectRatio }}
     >
       {/* 1. Transformed (After) Image - Full background */}

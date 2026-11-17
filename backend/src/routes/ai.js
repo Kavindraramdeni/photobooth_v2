@@ -285,16 +285,21 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
           .maybeSingle();
 
         if (photo?.url) {
-          // Download photo using built-in https/http
-          imageBuffer = await new Promise((resolve, reject) => {
-            const mod = photo.url.startsWith('https') ? require('https') : require('http');
-            mod.get(photo.url, (response) => {
-              const chunks = [];
-              response.on('data', chunk => chunks.push(chunk));
-              response.on('end', () => resolve(Buffer.concat(chunks)));
-              response.on('error', reject);
-            }).on('error', reject);
-          });
+          if (photo.url.startsWith('data:')) {
+            const cleanBase64 = photo.url.replace(/^data:image\/\w+;base64,/, '');
+            imageBuffer = Buffer.from(cleanBase64, 'base64');
+          } else {
+            // Download photo using built-in https/http
+            imageBuffer = await new Promise((resolve, reject) => {
+              const mod = photo.url.startsWith('https') ? require('https') : require('http');
+              mod.get(photo.url, (response) => {
+                const chunks = [];
+                response.on('data', chunk => chunks.push(chunk));
+                response.on('end', () => resolve(Buffer.concat(chunks)));
+                response.on('error', reject);
+              }).on('error', reject);
+            });
+          }
         }
       } catch (dlErr) {
         console.warn('[AI Generate] Photo download warning:', dlErr.message);

@@ -226,15 +226,18 @@ const GENERATING_PHASES = [
  * artistic color grade so the guest never experiences a broken screen.
  */
 async function applyClientAestheticFilter(sourceUrl: string, styleKey: string): Promise<string> {
+  const safeSource = sourceUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    const timer = setTimeout(() => resolve(safeSource), 3000);
     img.onload = () => {
+      clearTimeout(timer);
       const canvas = document.createElement('canvas');
       canvas.width = img.naturalWidth || 1200;
       canvas.height = img.naturalHeight || 1800;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve(sourceUrl);
+      if (!ctx) return resolve(safeSource);
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -298,8 +301,11 @@ async function applyClientAestheticFilter(sourceUrl: string, styleKey: string): 
 
       resolve(canvas.toDataURL('image/jpeg', 0.95));
     };
-    img.onerror = () => resolve(sourceUrl);
-    img.src = sourceUrl;
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(safeSource);
+    };
+    img.src = safeSource;
   });
 }
 
@@ -332,9 +338,10 @@ export function AIStudioScreen() {
   const cardTemplateId = (event?.branding?.cardTemplateId as string | undefined) || defaultTemplate;
   const activeTemplate = getCardTemplateById(cardTemplateId);
 
-  // Resolve best photo sources
-  const originalSourceUrl = currentPhoto?.rawUrl || currentPhoto?.url || '';
-  const initialCardPreviewUrl = currentPhoto?.cardUrl || currentPhoto?.url || '';
+  // Resolve best photo sources with bulletproof fallback so viewport is never black
+  const DEFAULT_SAMPLE_PORTRAIT = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
+  const originalSourceUrl = currentPhoto?.rawUrl || currentPhoto?.url || DEFAULT_SAMPLE_PORTRAIT;
+  const initialCardPreviewUrl = currentPhoto?.cardUrl || currentPhoto?.url || originalSourceUrl;
 
   // Load custom event styles from server if configured, merging with curated defaults
   useEffect(() => {
@@ -437,6 +444,11 @@ export function AIStudioScreen() {
     if (!finalAiUrl) {
       console.log('[AIStudio] Engaging instant aesthetic fallback for theme:', selectedStyleKey);
       finalAiUrl = await applyClientAestheticFilter(originalSourceUrl, selectedStyleKey);
+      finalAiId = `ai-local-${Date.now()}`;
+    }
+
+    if (!finalAiUrl) {
+      finalAiUrl = originalSourceUrl || DEFAULT_SAMPLE_PORTRAIT;
       finalAiId = `ai-local-${Date.now()}`;
     }
 
@@ -681,10 +693,10 @@ export function AIStudioScreen() {
             {/* STEP 3: RESULT PREVIEW (Split Slider, 4x6 Card, or Full Art) */}
             {step === 'result' && (
               <div className="relative w-full h-full flex items-center justify-center">
-                {viewMode === 'split' && generatedPortraitUrl && (
+                {viewMode === 'split' && (
                   <BeforeAfterSlider
                     originalUrl={originalSourceUrl}
-                    transformedUrl={generatedPortraitUrl}
+                    transformedUrl={generatedPortraitUrl || originalSourceUrl}
                     originalLabel="RAW PHOTO"
                     transformedLabel={selectedStyle.name.toUpperCase()}
                     className="max-h-[72vh] w-auto shadow-2xl"

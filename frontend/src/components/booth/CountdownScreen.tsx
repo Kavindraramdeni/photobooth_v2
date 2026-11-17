@@ -276,6 +276,8 @@ export function CountdownScreen() {
           setCurrentPhoto({
             id: clientPhotoId,
             url: localPreviewUrl,
+            rawUrl: localPreviewUrl,
+            cardUrl: localPreviewUrl,
             thumbUrl: localPreviewUrl,
             thumb_url: localPreviewUrl,
             downloadUrl: localPreviewUrl,
