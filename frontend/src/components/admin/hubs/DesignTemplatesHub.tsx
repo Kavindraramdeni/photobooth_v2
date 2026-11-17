@@ -307,13 +307,13 @@ export function DesignTemplatesHub({
           <Row>
             <RowLabel
               label="Kiosk Welcome Flow"
-              sub="Option A: direct mode buttons on welcome wallpaper vs Option B: cinematic Tap to Start."
+              sub="Select the kiosk idle screen experience style."
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => onBrandingChange('welcomeFlow', 'floating')}
-                className={`p-3 rounded-xl text-xs font-bold transition-all flex items-start gap-2.5 text-left border ${
+                className={`p-3 rounded-2xl text-xs font-bold transition-all flex items-start gap-2.5 text-left border ${
                   welcomeFlow === 'floating'
                     ? 'bg-violet-600/20 text-white border-violet-500 shadow-md shadow-violet-600/20'
                     : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
@@ -323,7 +323,7 @@ export function DesignTemplatesHub({
                 <div>
                   <p className="font-semibold text-white">Option A: Floating Spheres</p>
                   <p className="text-[11px] text-zinc-400 font-normal mt-0.5">
-                    LumaBooth style: floating circular mode buttons (Photo, Strip, GIF) directly on screen
+                    Floating circular mode buttons directly on screen
                   </p>
                 </div>
               </button>
@@ -331,7 +331,7 @@ export function DesignTemplatesHub({
               <button
                 type="button"
                 onClick={() => onBrandingChange('welcomeFlow', 'cinematic')}
-                className={`p-3 rounded-xl text-xs font-bold transition-all flex items-start gap-2.5 text-left border ${
+                className={`p-3 rounded-2xl text-xs font-bold transition-all flex items-start gap-2.5 text-left border ${
                   welcomeFlow === 'cinematic'
                     ? 'bg-violet-600/20 text-white border-violet-500 shadow-md shadow-violet-600/20'
                     : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
@@ -341,7 +341,7 @@ export function DesignTemplatesHub({
                 <div>
                   <p className="font-semibold text-white">Option B: Cinematic Hero</p>
                   <p className="text-[11px] text-zinc-400 font-normal mt-0.5">
-                    SnapBooth classic: central &ldquo;Tap to Start&rdquo; ring leading to style selection cards
+                    Central &ldquo;Tap to Start&rdquo; ring leading to style selection cards
                   </p>
                 </div>
               </button>

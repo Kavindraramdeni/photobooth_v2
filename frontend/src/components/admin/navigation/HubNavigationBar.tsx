@@ -29,8 +29,8 @@ interface HubNavigationBarProps {
 export default function HubNavigationBar({ activeHub, onHubChange, dirtyHubs }: HubNavigationBarProps) {
   return (
     <>
-      {/* ── Desktop / Tablet: top horizontal pill bar ──────────────────── */}
-      <nav className="hidden sm:flex items-center gap-1 p-1 bg-zinc-900/60 backdrop-blur-xl border border-white/[0.06] rounded-2xl">
+      {/* ── Desktop / Tablet: Apple Liquid Glass pill dock ──────────────────── */}
+      <nav className="hidden sm:flex items-center gap-1.5 p-1.5 backdrop-blur-2xl bg-white/[0.05] border border-white/12 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] ring-1 ring-inset ring-white/[0.05]">
         {HUBS.map(({ id, label, Icon }) => {
           const isActive = activeHub === id;
           const isDirty = dirtyHubs?.has(id);
@@ -39,10 +39,10 @@ export default function HubNavigationBar({ activeHub, onHubChange, dirtyHubs }: 
               key={id}
               onClick={() => onHubChange(id)}
               aria-current={isActive ? 'page' : undefined}
-              className={`relative flex items-center gap-2 px-3 md:px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex-1 justify-center whitespace-nowrap ${
+              className={`relative flex items-center gap-2 px-3.5 md:px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex-1 justify-center whitespace-nowrap ${
                 isActive
-                  ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/25'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30 border border-white/25 ring-1 ring-white/10'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-transparent'
               }`}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -56,8 +56,8 @@ export default function HubNavigationBar({ activeHub, onHubChange, dirtyHubs }: 
         })}
       </nav>
 
-      {/* ── Mobile: fixed bottom dock ───────────────────────────────────── */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 flex items-stretch bg-zinc-950/95 backdrop-blur-xl border-t border-white/[0.08] safe-area-pb">
+      {/* ── Mobile: fixed bottom dock with Apple Liquid Glass ───────────────── */}
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 flex items-stretch backdrop-blur-2xl bg-zinc-950/90 border-t border-white/12 shadow-2xl safe-area-pb">
         {HUBS.map(({ id, mobileLabel, Icon }) => {
           const isActive = activeHub === id;
           const isDirty = dirtyHubs?.has(id);

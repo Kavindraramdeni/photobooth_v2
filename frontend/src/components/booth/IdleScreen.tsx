@@ -59,8 +59,6 @@ export function IdleScreen() {
     setMode(m as any);
     if (leadEnabled && gatingMode === 'before_capture') {
       setScreen('lead');
-    } else if (m === 'aistudio') {
-      setScreen('style');
     } else {
       setScreen('countdown');
     }

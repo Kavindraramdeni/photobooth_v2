@@ -26,17 +26,24 @@ function generateSlug(name) {
  */
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { data: events, error } = await supabase
+    let query = supabase
       .from('events')
       .select(`
         id, name, slug, date, venue, status, created_at,
         photos(count)
       `)
-      .eq('owner_id', req.user.id)
+      .neq('status', 'archived')
       .order('date', { ascending: false });
 
+    // Allow owners to see their events + any unassigned demo/shared events; admin sees all
+    if (req.user.role !== 'admin') {
+      query = query.or(`owner_id.eq.${req.user.id},owner_id.is.null`);
+    }
+
+    const { data: events, error } = await query;
+
     if (error) throw error;
-    res.json({ events });
+    res.json({ events: events || [] });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -200,14 +207,29 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * PUT /api/events/:id
- * Update event (Authenticated owner only)
+ * Update event (Authenticated owner or admin; automatically claims unowned demo events)
  */
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, date, venue, clientName, clientEmail, branding, settings, status, gallery_password, operator_pin } = req.body;
 
-    // Strict allowlist — forbid changing owner_id, id, created_at
+    // First fetch existing event to verify ownership or unowned status
+    const { data: existingEvent, error: findError } = await supabase
+      .from('events')
+      .select('id, owner_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (findError || !existingEvent) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (existingEvent.owner_id && existingEvent.owner_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
+    // Strict allowlist — forbid changing id, created_at
     const safeUpdates = {
       ...(name && { name }),
       ...(date && { date }),
@@ -221,6 +243,8 @@ router.put('/:id', requireAuth, async (req, res) => {
       ...((operator_pin !== undefined || settings?.operatorPin !== undefined) && {
         operator_pin: String(operator_pin !== undefined ? operator_pin : settings.operatorPin),
       }),
+      // Claim unowned event for this authenticated user
+      ...(!existingEvent.owner_id && req.user.id ? { owner_id: req.user.id } : {}),
       updated_at: new Date().toISOString(),
     };
 
@@ -228,12 +252,11 @@ router.put('/:id', requireAuth, async (req, res) => {
       .from('events')
       .update(safeUpdates)
       .eq('id', id)
-      .eq('owner_id', req.user.id)
       .select()
       .single();
 
     if (error || !event) {
-      return res.status(404).json({ error: 'Event not found or access denied' });
+      return res.status(500).json({ error: error?.message || 'Could not update event' });
     }
 
     // Broadcast event-updated with sanitized settings and branding to Socket.IO room event-${id}
@@ -259,18 +282,40 @@ router.put('/:id', requireAuth, async (req, res) => {
 
 /**
  * DELETE /api/events/:id
- * Archive an event (Authenticated owner only)
+ * Archive / delete an event (Authenticated owner or admin)
  */
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const { error, count } = await supabase
+    const { data: existingEvent, error: findError } = await supabase
+      .from('events')
+      .select('id, owner_id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (findError || !existingEvent) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (existingEvent.owner_id && existingEvent.owner_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
+    // Soft-delete by setting status = 'archived'
+    const { error: archiveError } = await supabase
       .from('events')
       .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', req.params.id)
-      .eq('owner_id', req.user.id);
+      .eq('id', req.params.id);
 
-    if (error || count === 0) {
-      return res.status(404).json({ error: 'Event not found or access denied' });
+    if (archiveError) {
+      // Fallback hard delete
+      const { error: deleteError } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', req.params.id);
+
+      if (deleteError) {
+        return res.status(500).json({ error: deleteError.message });
+      }
     }
 
     res.json({ success: true });

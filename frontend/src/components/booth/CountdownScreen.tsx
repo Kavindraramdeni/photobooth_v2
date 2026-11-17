@@ -170,6 +170,20 @@ export function CountdownScreen() {
             result = await uploadPhoto(composited[0], event.id, sessionId, 'single', clientPhotoId);
             await removeQueuedPhoto(clientPhotoId);
             setCurrentPhoto(result.photo);
+
+            // Dual Photo Save (LumaBooth style):
+            // When a template or frame is active, save both the templated photo AND the original raw camera capture into the gallery!
+            const hasTemplateOverlay = Boolean(event?.branding?.frameUrl || (event?.branding as any)?.templateOverlayUrl);
+            if (hasTemplateOverlay && frames[0]) {
+              const rawClientPhotoId =
+                typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                  ? crypto.randomUUID()
+                  : `raw-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+              uploadPhoto(frames[0], event.id, sessionId, 'raw', rawClientPhotoId).catch((rawErr) => {
+                console.warn('[CountdownScreen] Dual save raw photo upload:', rawErr);
+              });
+            }
+
             setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
           } else if (mode === 'strip') {
             result = await createStrip(composited, event.id, clientPhotoId, sessionId);

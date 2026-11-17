@@ -55,22 +55,28 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-auto">
+    <div className="min-h-screen bg-gradient-to-br from-[#0c0d18] via-[#090a12] to-[#150f29] text-white overflow-auto relative">
+      {/* Apple Liquid Glass Ambient Light blooms */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-32 left-1/4 w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-1/4 -right-20 w-[450px] h-[450px] bg-indigo-600/10 rounded-full blur-[130px]" />
+      </div>
+
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4">
+      <div className="border-b border-white/10 backdrop-blur-2xl bg-white/[0.02] px-6 py-4 relative z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 border border-white/20">
               <Camera className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg">SnapBooth AI</h1>
+              <h1 className="font-extrabold text-lg tracking-tight">SnapBooth AI</h1>
               <p className="text-white/40 text-xs">Operator Dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {user && (
-              <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
+              <div className="hidden sm:flex items-center gap-2 text-sm text-gray-300">
                 <Link href="/account"
                   className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300 hover:bg-violet-600/50 transition"
                   title="Account settings">
@@ -81,14 +87,14 @@ export default function AdminPage() {
             )}
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all shadow-lg shadow-violet-500/25 border border-white/15"
             >
               <Plus className="w-4 h-4" />
               New Event
             </button>
             <button
               onClick={async () => { await logout(); router.push('/login'); }}
-              className="flex items-center gap-1.5 text-gray-400 hover:text-white px-3 py-2.5 rounded-xl hover:bg-white/5 text-sm transition"
+              className="flex items-center gap-1.5 text-gray-400 hover:text-white px-3 py-2.5 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/10 text-sm transition"
               title="Sign out"
             >
               <LogOut className="w-4 h-4" />
@@ -143,7 +149,7 @@ export default function AdminPage() {
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl shimmer-bg" />
+              <div key={i} className="h-24 rounded-3xl shimmer-bg" />
             ))}
           </div>
         ) : (
@@ -154,24 +160,26 @@ export default function AdminPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="bg-white/5 border border-white/10 rounded-2xl p-4"
+                className="backdrop-blur-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 rounded-3xl p-4 shadow-xl transition-all"
               >
                 <div className={`${card.color} mb-2`}>{card.icon}</div>
-                <div className="text-2xl font-bold">{card.value.toLocaleString()}</div>
-                <div className="text-white/40 text-xs">{card.label}</div>
+                <div className="text-2xl font-black tracking-tight">{card.value.toLocaleString()}</div>
+                <div className="text-white/40 text-xs font-medium">{card.label}</div>
               </motion.div>
             ))}
           </div>
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white/5 rounded-xl p-1 mb-6 w-fit">
+        <div className="flex gap-1.5 backdrop-blur-2xl bg-white/[0.04] border border-white/10 rounded-2xl p-1.5 mb-6 w-fit shadow-lg">
           {(['events', 'analytics'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all capitalize ${
-                tab === t ? 'bg-purple-600 text-white' : 'text-white/50 hover:text-white'
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all capitalize ${
+                tab === t
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/25 border border-white/20'
+                  : 'text-white/50 hover:text-white hover:bg-white/5'
               }`}
             >
               {t === 'events' ? '📅 Events' : '📊 Analytics'}

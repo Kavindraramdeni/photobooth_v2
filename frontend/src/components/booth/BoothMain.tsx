@@ -46,10 +46,19 @@ export function BoothMain() {
   const themeClass = isLight ? 'theme-light' : 'theme-dark';
   const primaryColor = (branding?.primaryColor as string) || '#7c3aed';
 
-  // Video or Image ONLY rendered on the Idle attract screen when that specific mode is selected
-  const showVideo = activeBgMode === 'video' && screen === 'idle';
+  // Video or Image rendered on Idle attract screen, and gently blurred on workflow screens for consistent Liquid Glass ambience
+  const showVideo = activeBgMode === 'video';
   const videoSrc = userMediaUrl || '/video/snapbooth.mp4';
-  const showImage = activeBgMode === 'image' && screen === 'idle' && Boolean(userMediaUrl);
+  const showImage = activeBgMode === 'image' && Boolean(userMediaUrl);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (showVideo && videoRef.current) {
+      videoRef.current.play().catch((err) => {
+        console.warn('[BoothMain] Video autoplay hindered by browser policy:', err);
+      });
+    }
+  }, [showVideo, videoSrc, screen]);
 
   // Background sync for offline photo queue
   useEffect(() => {
@@ -173,22 +182,40 @@ export function BoothMain() {
 
   return (
     <div
-      className={`booth-container relative ${themeClass} ${isLight ? 'bg-slate-100 text-slate-900' : 'bg-[#0a0a12] text-white'}`}
+      className={`booth-container relative ${themeClass} ${
+        isLight
+          ? 'bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100 text-slate-900'
+          : 'bg-gradient-to-br from-[#0c0d1b] via-[#090a14] to-[#140e28] text-white'
+      }`}
       onTouchStart={resetTimeout}
       onClick={resetTimeout}
     >
-      {/* Background Media: ONLY rendered on the Idle attract screen when Video or Image mode is explicitly active */}
+      {/* Apple Liquid Glass Ambient Light Orbs */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-violet-600/15 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 -right-32 w-80 h-80 bg-indigo-600/15 rounded-full blur-[90px]" />
+        <div className="absolute -bottom-32 left-1/3 w-96 h-96 bg-purple-700/10 rounded-full blur-[110px]" />
+      </div>
+
+      {/* Background Media: Clear on Idle attract screen, Liquid Glass Frosted Blur on Workflow Screens */}
       {showVideo && (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
           <video
+            ref={videoRef}
             src={videoSrc}
             autoPlay
             muted
             loop
             playsInline
-            className="absolute inset-0 w-full h-full object-cover"
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${
+              screen === 'idle' ? 'scale-100 opacity-100' : 'scale-105 opacity-40 blur-2xl'
+            }`}
           />
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
+          <div className={`absolute inset-0 pointer-events-none transition-all duration-500 ${
+            screen === 'idle'
+              ? 'bg-gradient-to-t from-black/60 via-black/15 to-black/35'
+              : 'bg-black/60 backdrop-blur-3xl'
+          }`} />
         </div>
       )}
 
@@ -198,9 +225,15 @@ export function BoothMain() {
           <img
             src={userMediaUrl}
             alt="Event Background"
-            className="absolute inset-0 w-full h-full object-cover"
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${
+              screen === 'idle' ? 'scale-100 opacity-100' : 'scale-105 opacity-40 blur-2xl'
+            }`}
           />
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/55 via-black/15 to-black/35" />
+          <div className={`absolute inset-0 pointer-events-none transition-all duration-500 ${
+            screen === 'idle'
+              ? 'bg-gradient-to-t from-black/60 via-black/15 to-black/35'
+              : 'bg-black/60 backdrop-blur-3xl'
+          }`} />
         </div>
       )}
 

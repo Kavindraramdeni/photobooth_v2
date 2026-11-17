@@ -374,20 +374,20 @@ export function PreviewScreen() {
       }}
       onTouchStart={restartAutoResetTimer}
     >
-      {/* Top Header: Clean, Minimalist Studio Bar */}
+      {/* Top Header: Apple Liquid Glass Bar */}
       <div
         className={`flex-shrink-0 flex items-center justify-between px-6 py-4 border-b z-20 ${
           isLight
-            ? 'bg-white/90 backdrop-blur-md border-black/5 text-slate-900 shadow-sm'
-            : 'bg-[#121424]/90 backdrop-blur-md border-white/10 text-white shadow-md'
+            ? 'bg-white/80 backdrop-blur-2xl border-black/5 text-slate-900 shadow-sm'
+            : 'backdrop-blur-2xl bg-white/[0.07] border-white/12 text-white shadow-xl'
         }`}
       >
         <button
           onClick={() => setScreen('style')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm border ${
             isLight
-              ? 'bg-black/5 hover:bg-black/10 text-slate-700'
-              : 'bg-white/10 hover:bg-white/15 text-slate-200'
+              ? 'bg-black/5 hover:bg-black/10 text-slate-700 border-black/10'
+              : 'backdrop-blur-md bg-white/10 hover:bg-white/20 text-slate-200 border-white/20'
           }`}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -453,8 +453,8 @@ export function PreviewScreen() {
             }}
             className={`relative rounded-3xl overflow-hidden max-h-full transition-all duration-300 ${
               isLight
-                ? 'bg-white p-2.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.18)] border border-black/5'
-                : 'bg-[#181938] p-2.5 shadow-[0_30px_70px_-20px_rgba(0,0,0,0.8)] border border-white/10'
+                ? 'bg-white/90 backdrop-blur-2xl p-2.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.18)] border border-black/10'
+                : 'backdrop-blur-2xl bg-white/[0.05] p-2.5 shadow-[0_30px_70px_-20px_rgba(0,0,0,0.7)] border border-white/20 ring-1 ring-inset ring-white/10'
             }`}
           >
             {/* Filtered Photo + Branding Template */}
@@ -834,7 +834,9 @@ export function PreviewScreen() {
       {/* Bottom Bar: Done / Print & Share */}
       <div
         className={`flex-shrink-0 p-5 sm:p-6 border-t z-20 ${
-          isLight ? 'bg-white/95 border-black/5 shadow-lg' : 'bg-[#121424]/95 border-white/10 shadow-2xl'
+          isLight
+            ? 'bg-white/80 backdrop-blur-2xl border-black/5 shadow-lg'
+            : 'backdrop-blur-2xl bg-white/[0.06] border-white/12 shadow-2xl'
         }`}
       >
         <motion.button

@@ -129,10 +129,10 @@ export default function EventManagePage() {
   // ── Loading skeleton ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-[#0c0d18] via-[#090a12] to-[#150f29] flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-12 h-12 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-zinc-500 text-sm">Loading event…</p>
+          <p className="text-zinc-400 text-sm font-medium">Loading event…</p>
         </div>
       </div>
     );
@@ -141,27 +141,29 @@ export default function EventManagePage() {
   if (!event) return null;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      {/* ── Global gradient background ───────────────────────────────────── */}
-      <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-600/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-indigo-600/5 rounded-full blur-3xl" />
+    <div className="min-h-screen bg-gradient-to-br from-[#0c0d18] via-[#090a12] to-[#150f29] relative overflow-hidden">
+      {/* ── Apple Liquid Glass Ambient Light blooms ─────────────────────────────────── */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-32 left-1/4 w-[500px] h-[500px] bg-violet-600/12 rounded-full blur-[140px]" />
+        <div className="absolute bottom-1/4 -right-20 w-[450px] h-[450px] bg-indigo-600/10 rounded-full blur-[130px]" />
+        <div className="absolute top-1/2 left-1/3 w-[350px] h-[350px] bg-fuchsia-600/8 rounded-full blur-[150px]" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-8">
 
-        {/* ── Page Header ──────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* ── Page Header: Apple Liquid Glass Banner ────────────────────────── */}
+        <div className="flex items-start justify-between gap-4 mb-6 backdrop-blur-2xl bg-white/[0.04] border border-white/12 p-4 sm:p-5 rounded-3xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] ring-1 ring-inset ring-white/[0.05]">
+          <div className="flex items-center gap-3.5 min-w-0">
             <Link
               href="/admin"
-              className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex-shrink-0"
+              className="p-2.5 rounded-2xl backdrop-blur-md bg-white/[0.06] border border-white/10 text-zinc-300 hover:text-white hover:bg-white/15 hover:border-white/20 transition-all flex-shrink-0 shadow-sm"
+              title="Back to Events"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5" />
             </Link>
             <div className="min-w-0">
-              <h1 className="text-white font-bold text-lg sm:text-xl truncate">{event.name}</h1>
-              <p className="text-zinc-500 text-xs sm:text-sm truncate">
+              <h1 className="text-white font-extrabold text-lg sm:text-2xl truncate tracking-tight">{event.name}</h1>
+              <p className="text-zinc-400 text-xs sm:text-sm truncate mt-0.5">
                 {event.venue && `${event.venue} · `}
                 {event.date ? new Date(event.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date set'}
               </p>
@@ -173,7 +175,7 @@ export default function EventManagePage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-bold transition-all shadow-lg shadow-violet-500/25 flex-shrink-0"
+              className="hidden sm:flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white text-sm font-bold transition-all shadow-lg shadow-violet-500/30 border border-white/20 flex-shrink-0"
             >
               <Save className="w-4 h-4" />
               {saving ? 'Saving…' : 'Save Changes'}
