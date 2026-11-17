@@ -35,19 +35,28 @@ export interface Event {
     frameUrl?: string | null;
     themeMode?: 'light' | 'dark';
     backgroundMode?: 'light' | 'dark' | 'video' | 'image';
+    welcomeFlow?: 'floating' | 'cinematic';
+    glassmorphism?: boolean;
     wallpaperUrl?: string | null;
     fontFamily?: string;
   };
   settings: {
     countdownSeconds: number;
+    countdownFirstShot?: number;
+    countdownOtherShots?: number;
+    interShotPause?: number;
     photosPerSession: number;
     allowRetakes: boolean;
+    allowStrip?: boolean;
     allowAI: boolean;
     allowGIF: boolean;
     allowBoomerang: boolean;
+    dualCaptureGif?: boolean;
     allowFrameOverlays?: boolean;
     allowPrint: boolean;
     printCopies: number;
+    printOffsetX?: number;
+    printOffsetY?: number;
     aiStyles: string[];
     sessionTimeout: number;
     operatorPin: string;

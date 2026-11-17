@@ -32,6 +32,8 @@ export function LiveKioskSimulator({
   const rawBgMode = String(branding['backgroundMode'] ?? '');
   const wallpaperUrl = String(branding['wallpaperUrl'] ?? '');
   const idleMediaUrl = String(branding['idleMediaUrl'] ?? '');
+  const welcomeFlow = String(branding['welcomeFlow'] ?? 'floating');
+  const glassmorphism = branding['glassmorphism'] !== false;
   const mediaUrl = wallpaperUrl || idleMediaUrl;
   const isVideoMedia = Boolean(mediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
 
@@ -172,18 +174,56 @@ export function LiveKioskSimulator({
                       <h4 className="font-black text-xl text-white tracking-tight leading-tight drop-shadow-md">{eventName}</h4>
                     )}
 
-                    {/* Studio Camera Shutter Button */}
-                    <div
-                      className="w-24 h-24 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer border-2 border-white/40 transition-transform active:scale-95"
-                      style={{
-                        background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
-                        boxShadow: `0 12px 30px ${primaryColor}77`,
-                      }}
-                      onClick={() => setSimScreen('style')}
-                    >
-                      <Camera className="w-6 h-6 mb-1 text-white" />
-                      <span className="text-[9px] uppercase tracking-wider font-black">Tap to Start</span>
-                    </div>
+                    {welcomeFlow === 'floating' ? (
+                      /* Option A: Floating Glass Spheres Mode Grid */
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { name: 'Photo', emoji: '📸' },
+                            { name: 'Strip', emoji: '🎞️' },
+                            { name: 'GIF', emoji: '🎬' },
+                            { name: 'Loop', emoji: '⚡' },
+                            { name: 'AI', emoji: '✨' },
+                          ].map((btn) => (
+                            <div
+                              key={btn.name}
+                              onClick={() => setSimScreen(btn.name === 'AI' ? 'style' : 'capture')}
+                              className={`w-12 h-12 rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform active:scale-90 ${
+                                glassmorphism
+                                  ? 'backdrop-blur-md bg-white/20 border border-white/50 shadow-lg'
+                                  : 'bg-white/80 text-black border border-white/30 shadow'
+                              }`}
+                              style={{
+                                boxShadow: `0 4px 12px ${primaryColor}40`,
+                              }}
+                            >
+                              <span className="text-sm leading-none">{btn.emoji}</span>
+                              <span className="text-[7px] font-black text-white drop-shadow uppercase mt-0.5">
+                                {btn.name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-[7px] text-white/70 font-semibold uppercase tracking-wider">
+                          Direct Mode Tap
+                        </span>
+                      </div>
+                    ) : (
+                      /* Option B: Studio Camera Shutter Button */
+                      <div
+                        className={`w-24 h-24 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer border-2 transition-transform active:scale-95 ${
+                          glassmorphism ? 'backdrop-blur-md border-white/60' : 'border-white/40'
+                        }`}
+                        style={{
+                          background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
+                          boxShadow: `0 12px 30px ${primaryColor}77`,
+                        }}
+                        onClick={() => setSimScreen('style')}
+                      >
+                        <Camera className="w-6 h-6 mb-1 text-white" />
+                        <span className="text-[9px] uppercase tracking-wider font-black">Tap to Start</span>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}

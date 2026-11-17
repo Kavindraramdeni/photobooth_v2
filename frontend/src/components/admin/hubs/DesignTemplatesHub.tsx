@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon } from 'lucide-react';
+import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon, Sparkles, CircleDot, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LiveKioskSimulator } from './LiveKioskSimulator';
 
@@ -240,6 +240,8 @@ export function DesignTemplatesHub({
   const rawBgMode = String(branding['backgroundMode'] ?? '');
   const wallpaperUrl = String(branding['wallpaperUrl'] ?? '');
   const idleMediaUrl = String(branding['idleMediaUrl'] ?? '');
+  const welcomeFlow = String(branding['welcomeFlow'] ?? 'floating');
+  const glassmorphism = branding['glassmorphism'] !== false;
   const mediaUrl = wallpaperUrl || idleMediaUrl;
   const isVideoMedia = Boolean(mediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
 
@@ -296,6 +298,78 @@ export function DesignTemplatesHub({
                   <span className="leading-tight">{m.label}</span>
                 </button>
               ))}
+            </div>
+          </Row>
+        </Section>
+
+        {/* Section 2 — Welcome Screen Flow & Liquid Glass Styling */}
+        <Section icon={Sparkles} title="Welcome Screen Flow & Glass Styling">
+          <Row>
+            <RowLabel
+              label="Kiosk Welcome Flow"
+              sub="Option A: direct mode buttons on welcome wallpaper vs Option B: cinematic Tap to Start."
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => onBrandingChange('welcomeFlow', 'floating')}
+                className={`p-3 rounded-xl text-xs font-bold transition-all flex items-start gap-2.5 text-left border ${
+                  welcomeFlow === 'floating'
+                    ? 'bg-violet-600/20 text-white border-violet-500 shadow-md shadow-violet-600/20'
+                    : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
+                }`}
+              >
+                <CircleDot className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Option A: Floating Spheres</p>
+                  <p className="text-[11px] text-zinc-400 font-normal mt-0.5">
+                    LumaBooth style: floating circular mode buttons (Photo, Strip, GIF) directly on screen
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onBrandingChange('welcomeFlow', 'cinematic')}
+                className={`p-3 rounded-xl text-xs font-bold transition-all flex items-start gap-2.5 text-left border ${
+                  welcomeFlow === 'cinematic'
+                    ? 'bg-violet-600/20 text-white border-violet-500 shadow-md shadow-violet-600/20'
+                    : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
+                }`}
+              >
+                <PlayCircle className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Option B: Cinematic Hero</p>
+                  <p className="text-[11px] text-zinc-400 font-normal mt-0.5">
+                    SnapBooth classic: central &ldquo;Tap to Start&rdquo; ring leading to style selection cards
+                  </p>
+                </div>
+              </button>
+            </div>
+          </Row>
+
+          <Row>
+            <RowLabel
+              label="Liquid Glass Styling (Glassmorphism)"
+              sub="Apple Vision Pro refractive frosted glass with specular rims and ambient blur."
+            />
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onBrandingChange('glassmorphism', !glassmorphism)}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer ${
+                  glassmorphism ? 'bg-violet-600' : 'bg-zinc-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    glassmorphism ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className="text-xs font-semibold text-zinc-300">
+                {glassmorphism ? 'Active (Liquid Glass)' : 'Flat Styling'}
+              </span>
             </div>
           </Row>
         </Section>

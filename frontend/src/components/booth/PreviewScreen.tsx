@@ -25,7 +25,7 @@ import { PROP_CATALOG, PropItem } from '@/components/booth/ARPropsOverlay';
 import toast from 'react-hot-toast';
 
 // ── Print helper — single page, robust layout ─────────────────────────────────
-function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
+function printPhotoOnly(photoUrl: string, eventName: string, scale = 98, offsetX = 0, offsetY = 0) {
   const existing = document.getElementById('__snapbooth_print_frame');
   if (existing) existing.remove();
   const iframe = document.createElement('iframe');
@@ -44,7 +44,7 @@ function printPhotoOnly(photoUrl: string, eventName: string, scale = 98) {
     '@media print { html, body { height:auto; overflow:hidden; }',
     '  * { page-break-after:avoid !important; page-break-before:avoid !important; page-break-inside:avoid !important; }',
     '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
-    '.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; }',
+    `.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; transform:translate(${offsetX}mm, ${offsetY}mm); }`,
     'img { width:100%; height:auto; max-height:5.4in; object-fit:contain; display:block; }',
     '.footer { font-size:8pt; color:#555; text-align:center; } .en { font-size:9pt; font-weight:bold; color:#333; }',
   ].join(' ');
@@ -292,7 +292,13 @@ export function PreviewScreen() {
           downloadUrl: finalUrl,
         });
       }
-      printPhotoOnly(finalUrl, eventName, printScale);
+      printPhotoOnly(
+        finalUrl,
+        eventName,
+        printScale,
+        Number(event?.settings?.printOffsetX ?? 0),
+        Number(event?.settings?.printOffsetY ?? 0)
+      );
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer! 🖨️');
     } catch {

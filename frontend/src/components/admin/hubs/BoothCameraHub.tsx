@@ -4,6 +4,7 @@ import {
   Camera, RefreshCw, Sparkles,
   Volume2, FlipHorizontal, RotateCcw,
   Clock, Tablet, Wand2, Crown, Glasses,
+  Timer, Film,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -220,6 +221,115 @@ function CaptureModeCard({
             </div>
           );
         })}
+      </div>
+    </Card>
+  );
+}
+
+// ── Multi-Shot & Capture Timing Card (Phase 1 & 2 Features) ───────────────────
+
+function CaptureTimingCard({
+  settings,
+  onSettingsChange,
+}: {
+  settings: Record<string, unknown>;
+  onSettingsChange: (key: string, value: unknown) => void;
+}) {
+  const countdownFirstShot = Number(settings['countdownFirstShot'] ?? settings['countdownSeconds'] ?? 5);
+  const countdownOtherShots = Number(settings['countdownOtherShots'] ?? 3);
+  const interShotPause = Number(settings['interShotPause'] ?? 2);
+  const dualCaptureGif = Boolean(settings['dualCaptureGif'] ?? false);
+
+  return (
+    <Card
+      title="Multi-Shot & Capture Timing"
+      subtitle="Granular countdown timings per photo and simultaneous dual capture"
+      icon={Timer}
+    >
+      <div className="space-y-6">
+        {/* Countdown Photo 1 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-zinc-200 text-sm font-medium">Countdown Photo 1</p>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              Initial timer allowing guests to assemble and look at the camera lens
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={countdownFirstShot}
+              onChange={(e) => onSettingsChange('countdownFirstShot', Number(e.target.value))}
+              className="w-32 accent-violet-500"
+            />
+            <span className="w-12 text-center text-xs font-mono font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 py-1 rounded-lg">
+              {countdownFirstShot}s
+            </span>
+          </div>
+        </div>
+
+        <div className="h-px bg-white/[0.04]" />
+
+        {/* Countdown Other Photos */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-zinc-200 text-sm font-medium">Countdown Other Photos</p>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              Timer between consecutive shots in strip or burst modes (faster momentum)
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={countdownOtherShots}
+              onChange={(e) => onSettingsChange('countdownOtherShots', Number(e.target.value))}
+              className="w-32 accent-violet-500"
+            />
+            <span className="w-12 text-center text-xs font-mono font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 py-1 rounded-lg">
+              {countdownOtherShots}s
+            </span>
+          </div>
+        </div>
+
+        <div className="h-px bg-white/[0.04]" />
+
+        {/* Inter-Shot Display Pause */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-zinc-200 text-sm font-medium">Display Each Photo (Pose Flash)</p>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              Pause between shots to show guests their captured photo before the next pose
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={1}
+              max={5}
+              value={interShotPause}
+              onChange={(e) => onSettingsChange('interShotPause', Number(e.target.value))}
+              className="w-32 accent-violet-500"
+            />
+            <span className="w-12 text-center text-xs font-mono font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 py-1 rounded-lg">
+              {interShotPause}s
+            </span>
+          </div>
+        </div>
+
+        <div className="h-px bg-white/[0.04]" />
+
+        {/* Dual Capture: Strip + GIF */}
+        <ToggleRow
+          icon={Film}
+          label="Also Generate GIF (Dual Capture)"
+          desc="When guests choose Photo Strip, automatically generate both the 4-shot strip for printing and an animated GIF for social sharing"
+          checked={dualCaptureGif}
+          onChange={(v) => onSettingsChange('dualCaptureGif', v)}
+        />
       </div>
     </Card>
   );
@@ -642,6 +752,9 @@ export function BoothCameraHub({
     <div className="space-y-6">
       {/* Capture Modes */}
       <CaptureModeCard settings={settings} onSettingsChange={onSettingsChange} />
+
+      {/* Multi-Shot & Capture Timing */}
+      <CaptureTimingCard settings={settings} onSettingsChange={onSettingsChange} />
 
       {/* Camera Settings */}
       <CameraSettingsCard settings={settings} onSettingsChange={onSettingsChange} />

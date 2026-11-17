@@ -61,6 +61,7 @@ export function CountdownScreen() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [phase, setPhase] = useState<'ready' | 'countdown' | 'capturing' | 'processing'>('ready');
   const [shotsTaken, setShotsTaken] = useState(0);
+  const [poseBanner, setPoseBanner] = useState<string | null>(null);
 
   // Camera warm-up
   const [isCameraReady, setIsCameraReady] = useState(false);
@@ -70,6 +71,9 @@ export function CountdownScreen() {
 
   const totalShots = mode === 'strip' ? STRIP_COUNT : mode === 'gif' ? GIF_COUNT : mode === 'boomerang' ? BOOMERANG_COUNT : 1;
   const countdownSeconds = event?.settings?.countdownSeconds ?? 3;
+  const countdownFirstShot = Number(event?.settings?.countdownFirstShot ?? countdownSeconds);
+  const countdownOtherShots = Number(event?.settings?.countdownOtherShots ?? 3);
+  const interShotPause = Number(event?.settings?.interShotPause ?? 2);
   const soundEnabled = (event?.settings?.countdownSound as boolean) !== false;
   const roamingMode = (event?.settings?.roamingMode as boolean) ?? false;
 
@@ -169,8 +173,21 @@ export function CountdownScreen() {
             setScreen(mode === 'aistudio' ? 'aistudio' : 'preview');
           } else if (mode === 'strip') {
             result = await createStrip(composited, event.id, clientPhotoId, sessionId);
+            let dualGifUrl = '';
+            if (event?.settings?.dualCaptureGif) {
+              try {
+                const gifRes = await createGIF(composited, event.id, 'gif', `gif-${clientPhotoId}`, sessionId);
+                dualGifUrl = gifRes?.gif?.url || gifRes?.gif?.downloadUrl || '';
+              } catch (gifErr) {
+                console.warn('[CountdownScreen] Dual capture GIF generation failed:', gifErr);
+              }
+            }
             await removeQueuedPhoto(clientPhotoId);
-            setCurrentPhoto({ ...result.strip, mode: 'strip' });
+            setCurrentPhoto({
+              ...result.strip,
+              mode: 'strip',
+              ...(dualGifUrl ? { gifUrl: dualGifUrl } : {}),
+            });
             setScreen('preview');
           } else if (mode === 'gif' || mode === 'boomerang') {
             result = await createGIF(composited, event.id, mode, clientPhotoId, sessionId);
@@ -234,7 +251,8 @@ export function CountdownScreen() {
           await sleep(150);
         } else {
           setPhase('countdown');
-          for (let i = countdownSeconds; i >= 1; i--) {
+          const currentDuration = shot === 0 ? countdownFirstShot : countdownOtherShots;
+          for (let i = currentDuration; i >= 1; i--) {
             if (cancelled) return;
             setCountdown(i);
             if (soundEnabled) playBeep(i === 1 ? 1200 : 880, 0.14, 0.35);
@@ -252,7 +270,10 @@ export function CountdownScreen() {
         setShotsTaken(shot + 1);
 
         if (shot < totalShots - 1) {
-          await sleep(850);
+          // Display each photo inter-shot pose review pause
+          setPoseBanner(`Pose #${shot + 2} coming up!`);
+          await sleep(interShotPause * 1000);
+          setPoseBanner(null);
         }
       }
 
@@ -446,6 +467,24 @@ export function CountdownScreen() {
                     </span>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Inter-Shot Pose Flash Banner */}
+        <AnimatePresence>
+          {poseBanner && (
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: -15 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+            >
+              <div className="px-8 py-5 rounded-3xl bg-black/80 backdrop-blur-2xl border border-white/20 text-white font-black text-2xl sm:text-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center gap-4">
+                <Sparkles className="w-8 h-8 text-amber-400 animate-pulse" />
+                <span className="tracking-tight">{poseBanner}</span>
               </div>
             </motion.div>
           )}

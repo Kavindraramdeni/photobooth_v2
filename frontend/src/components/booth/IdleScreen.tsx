@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Settings, X, AlertCircle, RefreshCw, Lock, CheckCircle2, ChevronRight, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { Camera, Settings, X, AlertCircle, RefreshCw, Lock, CheckCircle2, ChevronRight, Sparkles, Image as ImageIcon, Printer, Volume2, FlipHorizontal, Sliders } from 'lucide-react';
 import { useBoothStore } from '@/lib/store';
 import { operatorLogin, getBoothSession } from '@/lib/api';
 import { getPendingCount, syncQueuedPhotos } from '@/lib/offlineQueue';
 import toast from 'react-hot-toast';
 
 export function IdleScreen() {
-  const { event, setScreen, resetSession } = useBoothStore();
+  const { event, setScreen, setMode, resetSession } = useBoothStore();
 
   // Operator panel state
   const [showPanel, setShowPanel] = useState(false);
@@ -23,6 +23,10 @@ export function IdleScreen() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [offlinePendingCount, setOfflinePendingCount] = useState(0);
   const [isManualSyncing, setIsManualSyncing] = useState(false);
+
+  // In-kiosk quick operator controls
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+  const [operatorCountdown, setOperatorCountdown] = useState<number>(3);
 
   // Secret corner operator trigger (long press or multi-tap)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,6 +42,54 @@ export function IdleScreen() {
   const isLight = themeMode === 'light';
   const eventName = (branding?.eventName as string) || event?.name || 'SnapBooth';
   const logoUrl = (branding?.logoUrl as string) || null;
+  const welcomeFlow = (branding?.welcomeFlow as string) || 'floating';
+  const glassmorphism = branding?.glassmorphism !== false;
+
+  const availableModes = [
+    { id: 'single', name: 'Photo', emoji: '📸', desc: 'Single Portrait' },
+    ...(settings?.allowStrip !== false ? [{ id: 'strip', name: 'Strip', emoji: '🎞️', desc: '4-Shot Strip' }] : []),
+    ...(settings?.allowGIF !== false ? [{ id: 'gif', name: 'GIF', emoji: '🎬', desc: 'Burst Animation' }] : []),
+    ...(settings?.allowBoomerang !== false ? [{ id: 'boomerang', name: 'Boomerang', emoji: '⚡', desc: 'Loop Video' }] : []),
+    ...(settings?.allowAI !== false ? [{ id: 'aistudio', name: 'AI Studio', emoji: '✨', desc: 'AI Transformation' }] : []),
+  ];
+
+  const handleSelectModeDirect = (m: string) => {
+    const leadEnabled = Boolean((settings as Record<string, unknown>)?.enableLeadCapture);
+    const gatingMode = String((settings as Record<string, unknown>)?.leadGatingMode || 'before_capture');
+    setMode(m as any);
+    if (leadEnabled && gatingMode === 'before_capture') {
+      setScreen('lead');
+    } else if (m === 'aistudio') {
+      setScreen('style');
+    } else {
+      setScreen('countdown');
+    }
+  };
+
+  const handleQuickTestPrint = () => {
+    const win = window.open('', '_blank', 'width=600,height=800');
+    if (!win) {
+      toast.error('Could not open print window. Check pop-up blocker.');
+      return;
+    }
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>SnapBooth In-Kiosk Test Print</title>
+          <style>
+            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <h2>🖨️ SnapBooth Kiosk Printer Check OK</h2>
+          <p>Event: <strong>${eventName}</strong></p>
+          <p>Timestamp: ${new Date().toLocaleTimeString()}</p>
+          <script>window.onload = () => window.print();<\/script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
 
   // Time gating checks
   const [gated, setGated] = useState(false);
@@ -274,48 +326,99 @@ export function IdleScreen() {
               )}
             </div>
 
-            {/* Studio Shutter Trigger: Physical, Tactile, Luminous */}
-            <div className="relative flex items-center justify-center pt-2">
-              {/* Outer Breathing Radial Halo */}
-              <div
-                className="absolute w-64 h-64 sm:w-72 sm:h-72 rounded-full animate-ping opacity-20 pointer-events-none"
-                style={{ backgroundColor: primaryColor }}
-              />
-              <div
-                className="absolute w-56 h-56 sm:w-64 sm:h-64 rounded-full blur-2xl opacity-40 pointer-events-none"
-                style={{ backgroundColor: primaryColor }}
-              />
+            {/* Welcome Screen Flow: Option A (Floating Glass Spheres) vs Option B (Cinematic Studio) */}
+            {welcomeFlow === 'floating' ? (
+              <div className="flex flex-col items-center justify-center gap-6 pt-2 w-full max-w-3xl mx-auto">
+                <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-8">
+                  {availableModes.map((m) => (
+                    <motion.button
+                      key={m.id}
+                      whileHover={{ scale: 1.08, y: -6 }}
+                      whileTap={{ scale: 0.94 }}
+                      onClick={() => handleSelectModeDirect(m.id)}
+                      className="group relative flex flex-col items-center justify-center cursor-pointer select-none"
+                    >
+                      {/* Refractive Liquid Glass Sphere */}
+                      <div
+                        className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${
+                          glassmorphism
+                            ? 'backdrop-blur-2xl bg-white/[0.14] dark:bg-black/35 border-2 border-white/40 shadow-[0_20px_45px_rgba(0,0,0,0.35)]'
+                            : 'bg-white/90 dark:bg-slate-900/90 border border-white/20 shadow-xl'
+                        }`}
+                        style={{
+                          boxShadow: `0 20px 45px ${primaryColor}40, inset 0 2px 6px rgba(255,255,255,0.6)`,
+                        }}
+                      >
+                        {/* Specular Rim / Liquid Glass Lens Flare */}
+                        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/60 via-white/10 to-transparent pointer-events-none" />
 
-              {/* Physical Studio Ring Button */}
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  const leadEnabled = Boolean((settings as Record<string, unknown>)?.enableLeadCapture);
-                  const gatingMode = String((settings as Record<string, unknown>)?.leadGatingMode || 'before_capture');
-                  if (leadEnabled && gatingMode === 'before_capture') {
-                    setScreen('lead');
-                  } else {
-                    setScreen('style');
-                  }
-                }}
-                className="relative z-10 w-52 h-52 sm:w-60 sm:h-60 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer border-4 border-white/30 transition-all btn-arcade group"
-                style={{
-                  background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
-                  boxShadow: `0 24px 60px ${primaryColor}66, inset 0 2px 4px rgba(255,255,255,0.4)`,
-                }}
-              >
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/15 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner">
-                  <Camera className="w-9 h-9 sm:w-11 sm:h-11 text-white" />
+                        {/* Inner Colored Ambient Core */}
+                        <div
+                          className="absolute inset-2.5 rounded-full opacity-25 blur-md pointer-events-none transition-opacity group-hover:opacity-80"
+                          style={{ backgroundColor: primaryColor }}
+                        />
+
+                        {/* Mode Emoji / Icon */}
+                        <span className="relative z-10 text-3xl sm:text-4xl mb-0.5 filter drop-shadow-md group-hover:scale-110 transition-transform duration-300">
+                          {m.emoji}
+                        </span>
+                        <span className="relative z-10 text-[11px] sm:text-xs font-black tracking-wider uppercase text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                          {m.name}
+                        </span>
+                      </div>
+                    </motion.button>
+                  ))}
                 </div>
-                <span className="text-xl sm:text-2xl font-black tracking-wider uppercase">
-                  Tap to Start
-                </span>
-                <span className="text-[11px] font-bold tracking-widest text-white/80 uppercase mt-0.5">
-                  Touch screen
-                </span>
-              </motion.button>
-            </div>
+                <p className="text-xs font-semibold text-white/80 drop-shadow-md tracking-wider uppercase">
+                  Touch any mode to start
+                </p>
+              </div>
+            ) : (
+              /* Studio Shutter Trigger: Physical, Tactile, Luminous (Cinematic Option B) */
+              <div className="relative flex items-center justify-center pt-2">
+                {/* Outer Breathing Radial Halo */}
+                <div
+                  className="absolute w-64 h-64 sm:w-72 sm:h-72 rounded-full animate-ping opacity-20 pointer-events-none"
+                  style={{ backgroundColor: primaryColor }}
+                />
+                <div
+                  className="absolute w-56 h-56 sm:w-64 sm:h-64 rounded-full blur-2xl opacity-40 pointer-events-none"
+                  style={{ backgroundColor: primaryColor }}
+                />
+
+                {/* Physical Studio Ring Button */}
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    const leadEnabled = Boolean((settings as Record<string, unknown>)?.enableLeadCapture);
+                    const gatingMode = String((settings as Record<string, unknown>)?.leadGatingMode || 'before_capture');
+                    if (leadEnabled && gatingMode === 'before_capture') {
+                      setScreen('lead');
+                    } else {
+                      setScreen('style');
+                    }
+                  }}
+                  className={`relative z-10 w-52 h-52 sm:w-60 sm:h-60 rounded-full flex flex-col items-center justify-center text-white font-black shadow-2xl cursor-pointer transition-all btn-arcade group ${
+                    glassmorphism ? 'backdrop-blur-2xl border-4 border-white/40' : 'border-4 border-white/30'
+                  }`}
+                  style={{
+                    background: `linear-gradient(135deg, ${primaryColor}, #4338ca)`,
+                    boxShadow: `0 24px 60px ${primaryColor}66, inset 0 2px 4px rgba(255,255,255,0.4)`,
+                  }}
+                >
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/15 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner">
+                    <Camera className="w-9 h-9 sm:w-11 sm:h-11 text-white" />
+                  </div>
+                  <span className="text-xl sm:text-2xl font-black tracking-wider uppercase">
+                    Tap to Start
+                  </span>
+                  <span className="text-[11px] font-bold tracking-widest text-white/80 uppercase mt-0.5">
+                    Touch screen
+                  </span>
+                </motion.button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -446,6 +549,71 @@ export function IdleScreen() {
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Live</span>
+                  </div>
+                </div>
+
+                {/* Operator Quick Kiosk Controls */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 space-y-3">
+                  <p className="text-white/40 text-[11px] font-semibold uppercase tracking-wider">Quick In-Kiosk Controls</p>
+
+                  {/* Camera Facing Lens Switch */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-white text-xs font-medium flex items-center gap-1.5">
+                      <FlipHorizontal className="w-3.5 h-3.5 text-purple-400" /> Camera Lens
+                    </span>
+                    <button
+                      onClick={() => {
+                        const next = cameraFacing === 'user' ? 'environment' : 'user';
+                        setCameraFacing(next);
+                        if (typeof window !== 'undefined') localStorage.setItem('sb_camera_facing', next);
+                        toast.success(`Lens set to ${next === 'user' ? 'Front Wide' : 'Back Camera'}`);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-colors"
+                    >
+                      {cameraFacing === 'user' ? 'Front Wide' : 'Back Camera'}
+                    </button>
+                  </div>
+
+                  {/* Countdown Timer Quick Adjuster */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-white text-xs font-medium flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-purple-400" /> Countdown: {operatorCountdown}s
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          const val = Math.max(1, operatorCountdown - 1);
+                          setOperatorCountdown(val);
+                          if (typeof window !== 'undefined') localStorage.setItem('sb_quick_countdown', String(val));
+                        }}
+                        className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center transition-colors"
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => {
+                          const val = Math.min(10, operatorCountdown + 1);
+                          setOperatorCountdown(val);
+                          if (typeof window !== 'undefined') localStorage.setItem('sb_quick_countdown', String(val));
+                        }}
+                        className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Test Print Feed */}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-white text-xs font-medium flex items-center gap-1.5">
+                      <Printer className="w-3.5 h-3.5 text-purple-400" /> Printer Check
+                    </span>
+                    <button
+                      onClick={handleQuickTestPrint}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-bold transition-colors"
+                    >
+                      Test Feed
+                    </button>
                   </div>
                 </div>
 

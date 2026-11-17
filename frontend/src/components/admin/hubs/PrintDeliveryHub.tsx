@@ -188,6 +188,79 @@ export function PrintDeliveryHub({
     win.document.close();
   }
 
+  // ─── Calibration Grid Print ──────────────────────────────────────────────
+
+  function handlePrintCalibrationGrid() {
+    const win = window.open('', '_blank', 'width=800,height=1000');
+    if (!win) {
+      toast.error('Could not open calibration print window. Check pop-up blocker.');
+      return;
+    }
+    const offX = Number(settings.printOffsetX ?? 0);
+    const offY = Number(settings.printOffsetY ?? 0);
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Printer Alignment Calibration Grid — SnapBooth</title>
+          <style>
+            @page { size: 4in 6in portrait; margin: 0; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              width: 4in; height: 6in; margin: 0; padding: 0;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              background: #fff; color: #000;
+              -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
+            .grid-container {
+              width: 100%; height: 100%;
+              position: relative;
+              border: 2px solid #000;
+              transform: translate(${offX}mm, ${offY}mm);
+            }
+            .border-guide {
+              position: absolute; inset: 5mm; border: 1px dashed #777;
+            }
+            .crosshair-h {
+              position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #000;
+            }
+            .crosshair-v {
+              position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #000;
+            }
+            .center-box {
+              position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              background: #fff; border: 1.5px solid #000; padding: 12px 16px; text-align: center;
+              font-size: 11px; z-index: 10; border-radius: 6px;
+            }
+            .corner { position: absolute; font-size: 9px; font-weight: bold; }
+            .tl { top: 8px; left: 8px; }
+            .tr { top: 8px; right: 8px; text-align: right; }
+            .bl { bottom: 8px; left: 8px; }
+            .br { bottom: 8px; right: 8px; text-align: right; }
+          </style>
+        </head>
+        <body>
+          <div class="grid-container">
+            <div class="border-guide"></div>
+            <div class="crosshair-h"></div>
+            <div class="crosshair-v"></div>
+            <div class="corner tl">⌜ TOP-LEFT<br>0mm, 0mm</div>
+            <div class="corner tr">TOP-RIGHT ⌝<br>101.6mm, 0mm</div>
+            <div class="corner bl">⌞ BOTTOM-LEFT<br>0mm, 152.4mm</div>
+            <div class="corner br">BOTTOM-RIGHT ⌟<br>101.6mm, 152.4mm</div>
+            <div class="center-box">
+              <strong style="font-size: 13px;">SNAPBOOTH 4×6&Prime; CALIBRATION</strong><br>
+              Current Offset: X = ${offX}mm | Y = ${offY}mm<br>
+              <span style="font-size: 9px; color: #555;">Measure margins with ruler & adjust X/Y sliders in Admin</span>
+            </div>
+          </div>
+          <script>window.onload = () => window.print();<\/script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  }
+
   // ─── Send test email ─────────────────────────────────────────────────────
 
   async function handleSendTestEmail() {
@@ -310,12 +383,62 @@ export function PrintDeliveryHub({
           </select>
         </SettingRow>
 
-        <div className="pt-1">
+        <div className="h-px bg-white/10 my-1" />
+
+        {/* Printer Hardware Alignment Calibration */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-white/80 text-sm font-semibold">📐 Hardware Alignment Calibration</span>
+            <span className="text-xs text-white/40">Fine-tune DNP/Citizen/Sinfonia feed</span>
+          </div>
+
+          <SettingRow label={`Horizontal Offset (X): ${Number(settings.printOffsetX ?? 0)} mm`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-10}
+                max={10}
+                step={0.5}
+                value={Number(settings.printOffsetX ?? 0)}
+                onChange={(e) => onSettingsChange('printOffsetX', Number(e.target.value))}
+                className="w-32 accent-indigo-400"
+              />
+              <span className="w-12 text-center text-xs font-mono font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 py-0.5 rounded">
+                {Number(settings.printOffsetX ?? 0)}mm
+              </span>
+            </div>
+          </SettingRow>
+
+          <SettingRow label={`Vertical Offset (Y): ${Number(settings.printOffsetY ?? 0)} mm`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-10}
+                max={10}
+                step={0.5}
+                value={Number(settings.printOffsetY ?? 0)}
+                onChange={(e) => onSettingsChange('printOffsetY', Number(e.target.value))}
+                className="w-32 accent-indigo-400"
+              />
+              <span className="w-12 text-center text-xs font-mono font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 py-0.5 rounded">
+                {Number(settings.printOffsetY ?? 0)}mm
+              </span>
+            </div>
+          </SettingRow>
+        </div>
+
+        <div className="pt-2 flex flex-wrap gap-2">
           <button
             onClick={handleTestPrint}
             className="flex items-center gap-2 bg-white/10 hover:bg-white/15 border border-white/15 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
             🖨️ Send Test Page
+          </button>
+          <button
+            onClick={handlePrintCalibrationGrid}
+            className="flex items-center gap-2 bg-indigo-600/30 hover:bg-indigo-600/40 border border-indigo-500/40 text-indigo-200 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            📐 Print Alignment Test Grid
           </button>
         </div>
       </Card>
