@@ -271,9 +271,9 @@ export function DesignTemplatesHub({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] 2xl:grid-cols-[1fr_480px] gap-8 items-start">
       {/* ── LEFT: Settings Panel ── */}
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0">
 
         {/* Section 1 — Booth Background & Theme (Strictly Mutually Exclusive) */}
         <Section icon={Sun} title="Booth Background & Theme">
@@ -527,7 +527,7 @@ export function DesignTemplatesHub({
       </div>
 
       {/* ── RIGHT: Live Kiosk Simulator ── */}
-      <div className="order-first lg:order-last">
+      <div className="order-first xl:order-last min-w-0 w-full flex justify-center">
         <LiveKioskSimulator
           branding={branding}
           settings={settings}

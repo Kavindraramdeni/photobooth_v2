@@ -1,10 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Camera, RefreshCw, Sparkles,
   Volume2, FlipHorizontal, RotateCcw,
   Clock, Tablet, Wand2, Crown, Glasses,
-  Timer, Film,
+  Timer, Film, SlidersHorizontal,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -79,20 +80,20 @@ function Card({
 }) {
   return (
     <div
-      className={`bg-zinc-900/40 backdrop-blur-xl border border-white/[0.04] rounded-2xl overflow-hidden shadow-2xl ${className}`}
+      className={`backdrop-blur-2xl bg-white/[0.04] border border-white/10 rounded-3xl overflow-hidden shadow-2xl ring-1 ring-inset ring-white/[0.05] transition-all duration-300 hover:border-white/15 ${className}`}
     >
       {(title || subtitle) && (
-        <div className="px-6 py-4 border-b border-white/[0.04] bg-white/[0.01]">
-          <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+        <div className="px-6 py-4.5 border-b border-white/10 bg-white/[0.02]">
+          <h3 className="text-white font-bold text-base flex items-center gap-2.5">
             {Icon && <Icon className="w-4 h-4 text-violet-400" />}
             {title}
           </h3>
           {subtitle && (
-            <p className="text-zinc-500 text-xs mt-0.5">{subtitle}</p>
+            <p className="text-zinc-400 text-xs mt-0.5">{subtitle}</p>
           )}
         </div>
       )}
-      <div className="p-6">{children}</div>
+      <div className="p-6 sm:p-7">{children}</div>
     </div>
   );
 }
@@ -739,6 +740,18 @@ function SaveBar({
   );
 }
 
+// ── Category Group Definitions ──────────────────────────────────────────────────
+
+type GroupTab = 'capture' | 'timing' | 'effects' | 'session' | 'all';
+
+const GROUPS = [
+  { id: 'capture' as const, label: 'Capture & Camera', icon: Camera, desc: 'Photo modes & camera behavior' },
+  { id: 'timing' as const,  label: 'Timing & Multi-Shot', icon: Timer, desc: 'Countdowns & multi-shot timers' },
+  { id: 'effects' as const, label: 'Glam & Beauty', icon: Sparkles, desc: 'Beauty smoothing, glam filter & AR props' },
+  { id: 'session' as const, label: 'Kiosk Session', icon: Clock, desc: 'Idle timeouts & roaming mode' },
+  { id: 'all' as const,     label: 'All Settings', icon: SlidersHorizontal, desc: 'View all grouped sections' },
+];
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function BoothCameraHub({
@@ -748,28 +761,63 @@ export function BoothCameraHub({
   saving,
   dirty,
 }: BoothCameraHubProps) {
+  const [activeTab, setActiveTab] = useState<GroupTab>('capture');
+
   return (
     <div className="space-y-6">
-      {/* Capture Modes */}
-      <CaptureModeCard settings={settings} onSettingsChange={onSettingsChange} />
+      {/* ── Apple Liquid Glass Group Navigation Bar ── */}
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 backdrop-blur-2xl bg-white/[0.05] border border-white/12 rounded-2xl shadow-xl ring-1 ring-inset ring-white/[0.05]">
+        {GROUPS.map((g) => {
+          const Icon = g.icon;
+          const isActive = activeTab === g.id;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => setActiveTab(g.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 ${
+                isActive
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 border border-white/20 ring-1 ring-white/10'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.05] border border-transparent'
+              }`}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              <span>{g.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-      {/* Multi-Shot & Capture Timing */}
-      <CaptureTimingCard settings={settings} onSettingsChange={onSettingsChange} />
+      {/* ── Group 1: Capture & Camera ── */}
+      {(activeTab === 'capture' || activeTab === 'all') && (
+        <div className="space-y-6">
+          <CaptureModeCard settings={settings} onSettingsChange={onSettingsChange} />
+          <CameraSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+        </div>
+      )}
 
-      {/* Camera Settings */}
-      <CameraSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+      {/* ── Group 2: Timing & Multi-Shot ── */}
+      {(activeTab === 'timing' || activeTab === 'all') && (
+        <div className="space-y-6">
+          <CaptureTimingCard settings={settings} onSettingsChange={onSettingsChange} />
+        </div>
+      )}
 
-      {/* Beauty Mode */}
-      <BeautyModeCard settings={settings} onSettingsChange={onSettingsChange} />
+      {/* ── Group 3: Glam, Beauty & AR Props ── */}
+      {(activeTab === 'effects' || activeTab === 'all') && (
+        <div className="space-y-6">
+          <BeautyModeCard settings={settings} onSettingsChange={onSettingsChange} />
+          <CelebrityGlamCard settings={settings} onSettingsChange={onSettingsChange} />
+          <DigitalPropsCard settings={settings} onSettingsChange={onSettingsChange} />
+        </div>
+      )}
 
-      {/* Celebrity Glam Mode */}
-      <CelebrityGlamCard settings={settings} onSettingsChange={onSettingsChange} />
-
-      {/* AR Digital Props & Stickers */}
-      <DigitalPropsCard settings={settings} onSettingsChange={onSettingsChange} />
-
-      {/* Session Settings */}
-      <SessionSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+      {/* ── Group 4: Session & Kiosk Control ── */}
+      {(activeTab === 'session' || activeTab === 'all') && (
+        <div className="space-y-6">
+          <SessionSettingsCard settings={settings} onSettingsChange={onSettingsChange} />
+        </div>
+      )}
 
       {/* Save Bar */}
       <SaveBar dirty={dirty} saving={saving} onSave={onSave} />

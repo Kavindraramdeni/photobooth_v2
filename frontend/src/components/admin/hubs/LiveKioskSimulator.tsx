@@ -53,9 +53,9 @@ export function LiveKioskSimulator({
   const samplePhotoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
 
   return (
-    <div className="sticky top-6 flex flex-col items-center">
+    <div className="sticky top-6 flex flex-col items-center w-full max-w-full">
       {/* Simulator Control Header */}
-      <div className="w-full flex items-center justify-between mb-3 px-1">
+      <div className="w-full flex items-center justify-between mb-3 px-1 gap-2">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-slate-800 dark:text-white font-black text-xs uppercase tracking-wider">Live Kiosk Simulator</span>
@@ -87,14 +87,14 @@ export function LiveKioskSimulator({
 
       {/* Virtual Device Frame (iPad Pro Style) */}
       <div
-        className={`relative transition-all duration-500 ease-out p-3.5 sm:p-4 rounded-[42px] ${
+        className={`relative transition-all duration-500 ease-out p-3 sm:p-4 rounded-[36px] sm:rounded-[42px] max-w-full overflow-hidden ${
           isLight
             ? 'bg-[#e2e8f0] border-4 border-[#cbd5e1] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.15)]'
             : 'bg-[#1a1a24] border-4 border-[#2d2d3d] shadow-[0_24px_70px_-15px_rgba(0,0,0,0.8)]'
         } ${
           orientation === 'portrait'
-            ? 'w-[320px] sm:w-[350px] h-[520px] sm:h-[570px]'
-            : 'w-[480px] sm:w-[540px] h-[340px] sm:h-[370px]'
+            ? 'w-[300px] sm:w-[330px] h-[500px] sm:h-[550px]'
+            : 'w-full max-w-[440px] h-[290px] sm:h-[320px]'
         }`}
       >
         {/* iPad Top Camera Notch */}
