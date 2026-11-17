@@ -929,6 +929,25 @@ router.post('/:id/upload-asset', requireAuth, requireEventOwner, uploadAsset.sin
 
       if (frameError) throw frameError;
 
+      // Also persist to branding.frameUrl and set cardTemplateId = 'custom'
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('branding')
+        .eq('id', eventId)
+        .single();
+
+      if (eventData) {
+        const updatedBranding = {
+          ...eventData.branding,
+          frameUrl: url,
+          cardTemplateId: 'custom',
+        };
+        await supabase
+          .from('events')
+          .update({ branding: updatedBranding })
+          .eq('id', eventId);
+      }
+
       console.log(`[Upload] Frame: ${url}`);
       return res.json({ success: true, url, type: 'frame', frame });
     }

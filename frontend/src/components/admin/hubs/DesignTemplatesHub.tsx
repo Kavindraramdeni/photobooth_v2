@@ -1,9 +1,15 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon, Sparkles, CircleDot, PlayCircle, Film, Check } from 'lucide-react';
+import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon, Sparkles, CircleDot, PlayCircle, Film, Check, LayoutTemplate, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LiveKioskSimulator } from './LiveKioskSimulator';
+import {
+  CARD_TEMPLATES_PORTRAIT,
+  CARD_TEMPLATES_LANDSCAPE,
+  getCardTemplateById,
+  CardTemplate,
+} from '@/lib/cardTemplates';
 
 // ── Built-in Media Presets ────────────────────────────────────────────────────
 
@@ -314,6 +320,58 @@ export function DesignTemplatesHub({
   const isPrimaryTooLight = hexToLuma(primaryColor.length === 7 ? primaryColor : '#7c3aed') > 215;
 
   const colorInputRef = useRef<HTMLInputElement>(null);
+
+  // 4x6 / 6x4 Card Templates State
+  const cardOrientation = (branding['cardOrientation'] as 'portrait' | 'landscape') || 'portrait';
+  const cardTemplateId = String(branding['cardTemplateId'] ?? 'indian-wedding-portrait');
+  const frameUrl = String(branding['frameUrl'] ?? '');
+  const templateHeadline = String(branding['templateHeadline'] ?? '');
+  const templateSubtitle = String(branding['templateSubtitle'] ?? '');
+  const templateNames = String(branding['templateNames'] ?? '');
+  const templateDate = String(branding['templateDate'] ?? '');
+
+  const activeTemplates = cardOrientation === 'landscape' ? CARD_TEMPLATES_LANDSCAPE : CARD_TEMPLATES_PORTRAIT;
+
+  const handleSelectTemplate = (templateId: string) => {
+    onBrandingChange('cardTemplateId', templateId);
+    if (templateId === 'none') {
+      onBrandingChange('frameUrl', '');
+      return;
+    }
+    const tpl = getCardTemplateById(templateId);
+    if (tpl) {
+      onBrandingChange('cardOrientation', tpl.orientation);
+      const svg = tpl.getOverlaySvg({
+        headline: templateHeadline || tpl.headlineDefault,
+        subtitle: templateSubtitle || tpl.subtitleDefault,
+        names: templateNames,
+        date: templateDate,
+      });
+      const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+      onBrandingChange('frameUrl', dataUri);
+    }
+  };
+
+  const handleOrientationChange = (orient: 'portrait' | 'landscape') => {
+    onBrandingChange('cardOrientation', orient);
+    const defaultId = orient === 'portrait' ? 'indian-wedding-portrait' : 'indian-wedding-landscape';
+    handleSelectTemplate(defaultId);
+  };
+
+  const handleUpdateTemplateText = (field: 'templateHeadline' | 'templateSubtitle' | 'templateNames' | 'templateDate', val: string) => {
+    onBrandingChange(field, val);
+    const tpl = getCardTemplateById(cardTemplateId);
+    if (tpl) {
+      const svg = tpl.getOverlaySvg({
+        headline: field === 'templateHeadline' ? val : (templateHeadline || tpl.headlineDefault),
+        subtitle: field === 'templateSubtitle' ? val : (templateSubtitle || tpl.subtitleDefault),
+        names: field === 'templateNames' ? val : templateNames,
+        date: field === 'templateDate' ? val : templateDate,
+      });
+      const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+      onBrandingChange('frameUrl', dataUri);
+    }
+  };
 
   const BG_MODES = [
     { id: 'light', label: 'White Studio', emoji: '☀️', desc: 'White theme, no media' },
@@ -683,6 +741,192 @@ export function DesignTemplatesHub({
               <span>
                 <strong>{currentBgMode === 'light' ? 'White Studio' : 'Dark Studio'} active:</strong> Background image and video are disabled for a pure, distraction-free studio backdrop.
               </span>
+            </div>
+          )}
+        </Section>
+
+        {/* Section 4 — 4×6 Commemorative Print Card Templates & Overlays */}
+        <Section icon={LayoutTemplate} title="4×6 Print Card Templates & Overlays">
+          {/* Paper Calibration & Format Notice */}
+          <div className="p-3 bg-violet-950/30 border border-violet-500/30 rounded-xl text-xs text-violet-200 flex items-start gap-2.5">
+            <Printer className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-semibold text-white">4×6 Paper Print Calibration</p>
+              <p className="text-zinc-400 leading-relaxed">
+                The guest photo is placed directly in the center window with edge blending. Saves both the branded 4×6 print card and the clean raw photo to the gallery.
+              </p>
+            </div>
+          </div>
+
+          {/* Orientation Switcher: Portrait 4x6 vs Landscape 6x4 */}
+          <Row>
+            <RowLabel
+              label="Card Orientation"
+              sub="Portrait (1200×1800) for couples/solos vs Landscape (1800×1200) for wide family groups"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOrientationChange('portrait')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                  cardOrientation === 'portrait'
+                    ? 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-600/30'
+                    : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-750'
+                }`}
+              >
+                📱 Portrait 4×6
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOrientationChange('landscape')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                  cardOrientation === 'landscape'
+                    ? 'bg-violet-600 text-white border-violet-400 shadow-md shadow-violet-600/30'
+                    : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-750'
+                }`}
+              >
+                🖥️ Landscape 6×4
+              </button>
+            </div>
+          </Row>
+
+          {/* Inbuilt Templates Grid for active orientation */}
+          <Row>
+            <div className="w-full">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm text-zinc-200 font-semibold">
+                    {cardOrientation === 'portrait' ? 'Portrait 4×6 Presets' : 'Landscape 6×4 Presets'}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Select a curated card template or upload a custom Canva/Photoshop transparent PNG below.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. None / Full Bleed Option */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('none')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    cardTemplateId === 'none'
+                      ? 'bg-violet-600/20 border-violet-500 ring-2 ring-violet-500/30 shadow-lg'
+                      : 'bg-zinc-800/40 border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700">
+                      Standard
+                    </span>
+                    {cardTemplateId === 'none' && (
+                      <div className="w-5 h-5 rounded-full bg-violet-600 border border-white flex items-center justify-center text-white shadow-md">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="font-bold text-xs text-white">None (Full-Bleed 4×6)</p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">Pure edge-to-edge camera capture without commemorative card graphics.</p>
+                </button>
+
+                {/* 2. Curated Presets for Current Orientation */}
+                {activeTemplates.map((t) => {
+                  const isSelected = cardTemplateId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleSelectTemplate(t.id)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all relative ${
+                        isSelected
+                          ? 'bg-violet-600/20 border-violet-500 ring-2 ring-violet-500/30 shadow-lg'
+                          : 'bg-zinc-800/40 border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/70 px-2 py-0.5 rounded-full border border-amber-500/30">
+                          {t.badge}
+                        </span>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-violet-600 border border-white flex items-center justify-center text-white shadow-md">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="font-bold text-xs text-white">{t.name}</p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5 leading-relaxed">{t.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Row>
+
+          {/* Custom Upload 4x6 / 6x4 PNG */}
+          <Row>
+            <div className="shrink-0">
+              <p className="text-sm text-zinc-200 font-medium">Or Upload Custom Card Frame</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Transparent PNG from Canva / Photoshop ({cardOrientation === 'portrait' ? '1200×1800 px' : '1800×1200 px'})
+              </p>
+            </div>
+            <div className="flex-1 max-w-[240px]">
+              <CompactUpload
+                label="Upload 4×6 PNG"
+                accept="image/png"
+                currentUrl={cardTemplateId === 'custom' ? frameUrl : ''}
+                onUploaded={(url) => {
+                  onBrandingChange('cardTemplateId', 'custom');
+                  onBrandingChange('frameUrl', url);
+                }}
+                eventId={event.id}
+                assetType="frame"
+                API_BASE={API_BASE}
+              />
+            </div>
+          </Row>
+
+          {/* Dynamic Template Text Inputs (for easily editing names/dates on built-in cards) */}
+          {cardTemplateId !== 'none' && cardTemplateId !== 'custom' && (
+            <div className="pt-2 border-t border-white/[0.04] space-y-3">
+              <p className="text-xs font-semibold text-zinc-300">
+                ✏️ Customize Card Text (Optional — leaves default if blank)
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Couple / Host Names</label>
+                  <input
+                    type="text"
+                    value={templateNames}
+                    onChange={(e) => handleUpdateTemplateText('templateNames', e.target.value)}
+                    placeholder="e.g. Rahul & Priya"
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Event Date & City</label>
+                  <input
+                    type="text"
+                    value={templateDate}
+                    onChange={(e) => handleUpdateTemplateText('templateDate', e.target.value)}
+                    placeholder="e.g. 18 November 2026 • Hyderabad"
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] text-zinc-400 block mb-1">Headline Text</label>
+                  <input
+                    type="text"
+                    value={templateHeadline}
+                    onChange={(e) => handleUpdateTemplateText('templateHeadline', e.target.value)}
+                    placeholder="Thank You for Attending Our Wedding"
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                  />
+                </div>
+              </div>
             </div>
           )}
         </Section>

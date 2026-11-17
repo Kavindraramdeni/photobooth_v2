@@ -39,6 +39,12 @@ export interface Event {
     glassmorphism?: boolean;
     wallpaperUrl?: string | null;
     fontFamily?: string;
+    cardTemplateId?: string | null;
+    cardOrientation?: 'portrait' | 'landscape';
+    templateHeadline?: string;
+    templateSubtitle?: string;
+    templateNames?: string;
+    templateDate?: string;
   };
   settings: {
     countdownSeconds: number;

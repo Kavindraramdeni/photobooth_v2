@@ -341,9 +341,11 @@ export function LiveKioskSimulator({
                   className="w-full h-full flex flex-col p-3 relative"
                 >
                   <div className="flex-1 relative flex items-center justify-center min-h-0">
-                    <div className="relative rounded-2xl overflow-hidden shadow-xl max-h-full border border-black/10 dark:border-white/20">
+                    <div className={`relative rounded-2xl overflow-hidden shadow-xl border border-black/10 dark:border-white/20 ${
+                      branding['cardOrientation'] === 'landscape' ? 'aspect-[3/2] w-full max-w-[280px]' : 'aspect-[2/3] h-full max-h-[220px]'
+                    }`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={samplePhotoUrl} alt="Preview" className="w-full h-full object-contain max-h-[220px]" />
+                      <img src={samplePhotoUrl} alt="Preview" className="w-full h-full object-cover" />
 
                       {/* Applied Frame Overlay Preview */}
                       {frameUrl && (

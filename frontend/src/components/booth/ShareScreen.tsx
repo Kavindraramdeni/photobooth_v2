@@ -10,8 +10,8 @@ import toast from 'react-hot-toast';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-// ── Print fix — single page ──────────────────────────────────────────────────
-function printPhotoOnly(photoUrl: string, eventName: string, scale = 98, offsetX = 0, offsetY = 0) {
+// ── Print fix — single page with 4x6 (Portrait) & 6x4 (Landscape) native alignment ──────
+function printPhotoOnly(photoUrl: string, eventName: string, scale = 100, offsetX = 0, offsetY = 0, isLandscape = false) {
   const existing = document.getElementById('__snapbooth_print_frame');
   if (existing) existing.remove();
   const iframe = document.createElement('iframe');
@@ -23,30 +23,28 @@ function printPhotoOnly(photoUrl: string, eventName: string, scale = 98, offsetX
   if (!doc || !win) { window.open(photoUrl, '_blank'); return; }
   doc.open(); doc.close();
   const style = doc.createElement('style');
+  const pageSize = isLandscape ? '6in 4in landscape' : '4in 6in portrait';
+  const wrapW = isLandscape ? '6in' : '4in';
+  const wrapH = isLandscape ? '4in' : '6in';
+
   style.textContent = [
     '* { margin:0; padding:0; box-sizing:border-box; }',
     'html, body { width:100%; height:100%; overflow:hidden; background:#fff; }',
-    '@page { margin:0; size:4in 6in portrait; }',
+    `@page { margin:0; size:${pageSize}; }`,
     '@media print { html, body { height:auto; overflow:hidden; }',
     '  * { page-break-after:avoid !important; page-break-before:avoid !important; page-break-inside:avoid !important; }',
     '  img { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }',
-    `.wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; width:4in; height:6in; overflow:hidden; padding:0.15in; gap:0.08in; transform:translate(${offsetX}mm, ${offsetY}mm); }`,
-    'img { width:100%; height:auto; max-height:5.4in; object-fit:contain; display:block; }',
-    '.footer { font-size:8pt; color:#555; text-align:center; }',
-    '.event-name { font-size:9pt; font-weight:bold; color:#333; }',
+    `.wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; width:${wrapW}; height:${wrapH}; overflow:hidden; padding:0; margin:0; transform:translate(${offsetX}mm, ${offsetY}mm); }`,
+    'img { width:100%; height:100%; object-fit:contain; display:block; }',
   ].join(' ');
   doc.head.appendChild(style);
   const wrap = doc.createElement('div'); wrap.className = 'wrap';
-  const safeScale = Number.isFinite(scale) ? Math.max(70, Math.min(110, scale)) : 98;
+  const safeScale = Number.isFinite(scale) ? Math.max(70, Math.min(100, scale)) : 100;
   const img = doc.createElement('img'); img.src = photoUrl; img.alt = 'photo';
   img.style.width = `${safeScale}%`;
+  img.style.height = `${safeScale}%`;
   img.style.margin = '0 auto';
   wrap.appendChild(img);
-  const nameEl = doc.createElement('p'); nameEl.className = 'event-name'; nameEl.textContent = eventName;
-  wrap.appendChild(nameEl);
-  const footer = doc.createElement('p'); footer.className = 'footer';
-  footer.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  wrap.appendChild(footer);
   doc.body.appendChild(wrap);
   function doPrint() { win!.focus(); win!.print(); }
   if (img.complete) { setTimeout(doPrint, 400); } else { img.onload = () => setTimeout(doPrint, 400); }
@@ -268,12 +266,17 @@ export function ShareScreen() {
   async function handlePrint() {
     if (!event) return;
     try {
+      const isLandscape = Boolean(
+        event?.branding?.cardOrientation === 'landscape' ||
+        (event?.branding?.cardTemplateId as string)?.includes('landscape')
+      );
       printPhotoOnly(
         photo.url,
         eventName,
         printScale,
         Number(event?.settings?.printOffsetX ?? 0),
-        Number(event?.settings?.printOffsetY ?? 0)
+        Number(event?.settings?.printOffsetY ?? 0),
+        isLandscape
       );
       await trackAction(event.id, 'photo_printed', { photoId: photo.id });
       toast.success('Sent to printer! 🖨️');

@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useBoothStore } from '@/lib/store';
 import { uploadPhoto, createGIF, createStrip, setBoothToken } from '@/lib/api';
 import { queueOfflinePhoto, removeQueuedPhoto, OfflinePhotoRecord } from '@/lib/offlineQueue';
+import { getCardTemplateById, compositeCardPhoto } from '@/lib/cardTemplates';
 import toast from 'react-hot-toast';
 import { Sparkles, Camera, ArrowLeft } from 'lucide-react';
 
@@ -89,9 +90,29 @@ export function CountdownScreen() {
     return new Blob([u8arr], { type: mime });
   }, []);
 
-  // Composite captured frame with the event frame overlay if configured
+  // Composite captured frame with the event frame overlay or 4x6 / 6x4 card template
   const compositeWithFrame = useCallback(async (blob: Blob): Promise<Blob> => {
+    const cardTemplateId = event?.branding?.cardTemplateId as string | undefined;
     const frameUrl = event?.branding?.frameUrl as string | null | undefined;
+
+    // 1. Check if an authentic 4x6 / 6x4 commemorative card template is active
+    if (cardTemplateId && cardTemplateId !== 'none' && cardTemplateId !== 'custom') {
+      const template = getCardTemplateById(cardTemplateId);
+      if (template) {
+        try {
+          return await compositeCardPhoto(blob, template, {
+            headline: (event?.branding?.templateHeadline as string) || undefined,
+            subtitle: (event?.branding?.templateSubtitle as string) || undefined,
+            names: (event?.branding?.templateNames as string) || undefined,
+            date: (event?.branding?.templateDate as string) || undefined,
+          });
+        } catch (cardErr) {
+          console.warn('[CountdownScreen] Card template compositing fallback:', cardErr);
+        }
+      }
+    }
+
+    // 2. Custom uploaded frame PNG or external URL
     if (!frameUrl) return blob;
 
     return new Promise((resolve) => {
@@ -99,28 +120,39 @@ export function CountdownScreen() {
       photo.crossOrigin = 'anonymous';
 
       photo.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = photo.naturalWidth;
-        canvas.height = photo.naturalHeight;
-        const ctx = canvas.getContext('2d')!;
-
-        ctx.drawImage(photo, 0, 0);
-
         const frame = new Image();
         frame.crossOrigin = 'anonymous';
         frame.onload = () => {
-          ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((composited) => resolve(composited || blob), 'image/jpeg', 0.95);
+          // Preserve 4x6 (1200x1800) or 6x4 (1800x1200) aspect ratio of the frame to prevent distortion
+          const isLandscape = frame.naturalWidth > frame.naturalHeight;
+          const targetW = frame.naturalWidth || (isLandscape ? 1800 : 1200);
+          const targetH = frame.naturalHeight || (isLandscape ? 1200 : 1800);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d')!;
+
+          // Fit photo with cover scaling
+          const scale = Math.max(targetW / photo.naturalWidth, targetH / photo.naturalHeight);
+          const sw = photo.naturalWidth * scale;
+          const sh = photo.naturalHeight * scale;
+          const sx = (targetW - sw) / 2;
+          const sy = (targetH - sh) / 2;
+
+          ctx.drawImage(photo, sx, sy, sw, sh);
+          ctx.drawImage(frame, 0, 0, targetW, targetH);
+          canvas.toBlob((composited) => resolve(composited || blob), 'image/jpeg', 0.96);
         };
         frame.onerror = () => {
-          canvas.toBlob((composited) => resolve(composited || blob), 'image/jpeg', 0.95);
+          resolve(blob);
         };
         frame.src = frameUrl;
       };
       photo.onerror = () => resolve(blob);
       photo.src = URL.createObjectURL(blob);
     });
-  }, [event?.branding?.frameUrl]);
+  }, [event?.branding]);
 
   const processCaptures = useCallback(
     async (frames: Blob[]) => {
