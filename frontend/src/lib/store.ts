@@ -7,6 +7,8 @@ export interface Photo {
   id: string;
   url: string;
   thumbUrl?: string;
+  rawUrl?: string;
+  cardUrl?: string;
   galleryUrl: string;
   qrCode: string;
   whatsappUrl: string;

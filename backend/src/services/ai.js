@@ -27,6 +27,70 @@ try {
 
 const AI_STYLES = {
 
+  maharaja: {
+    name: 'Royal Maharaja',
+    emoji: '👑',
+    prompt: 'Transform this into a grand Indian royal Mughal emperor portrait with intricately embroidered velvet sherwani, pearl necklace, jeweled turban (kalgi), and warm royal palace architecture.',
+    negativePrompt: 'modern, casual, distorted, ugly, blurry',
+    strength: 0.82,
+  },
+
+  bollywood: {
+    name: 'Bollywood Hero',
+    emoji: '🎬',
+    prompt: 'Transform this into a blockbuster Bollywood cinema hero portrait with dramatic golden hour rim lighting, windblown hair, luxury formal attire, and cinematic film depth.',
+    negativePrompt: 'blurry, cartoon, flat, distorted face',
+    strength: 0.78,
+  },
+
+  cyberpunk: {
+    name: 'Cyberpunk',
+    emoji: '🌆',
+    prompt: 'Transform this into a Blade Runner cyberpunk portrait with electric neon rim lighting, rain-soaked megacity backdrop, and glowing holographic effects.',
+    negativePrompt: 'daytime, natural light, cartoon, anime',
+    strength: 0.82,
+  },
+
+  pixar: {
+    name: '3D Animation',
+    emoji: '🎨',
+    prompt: 'Transform this into a heartwarming modern 3D Disney Pixar animated character portrait with expressive eyes, subsurface skin scattering, and playful lighting.',
+    negativePrompt: 'ugly, deformed, photorealistic, creepy, flat',
+    strength: 0.85,
+  },
+
+  hollywood_noir: {
+    name: 'Vintage Hollywood Noir',
+    emoji: '🎞️',
+    prompt: 'Transform this into a glamorous 1940s classic Hollywood black and white silver screen portrait with dramatic chiaroscuro key lighting and rich silver grain.',
+    negativePrompt: 'color, modern, digital clean, washed out',
+    strength: 0.80,
+  },
+
+  mandap: {
+    name: 'Royal Mandap',
+    emoji: '🌺',
+    prompt: 'Transform this portrait into an ornate Indian wedding royal mandap celebration with golden pillars, fresh marigold and jasmine garlands, and festive warmth.',
+    negativePrompt: 'western, casual, dark, drab',
+    strength: 0.78,
+  },
+
+  comic: {
+    name: 'Comic Book',
+    emoji: '💥',
+    prompt: 'Transform this into a Marvel comic book panel with bold ink outlines, flat cel-shaded colours, and Ben-Day halftone dots.',
+    negativePrompt: 'realistic, soft, painterly, anime',
+    strength: 0.82,
+  },
+
+  eighties: {
+    name: '80s Retro',
+    emoji: '✨',
+    prompt: 'Transform this into a 1986 high school yearbook portrait with big hair, period clothing, gradient blue studio backdrop, and warm flash photography.',
+    negativePrompt: 'modern, 21st century, digital clean',
+    strength: 0.72,
+  },
+
   anime: {
     name: 'Anime Art',
     emoji: '🎌',
@@ -434,6 +498,51 @@ async function generateWithSharp(imageBuffer, styleKey, customPrompt = null) {
   let img = sharp(imageBuffer).resize(1024, 1024, { fit: 'cover' });
 
   switch (styleKey) {
+    case 'maharaja':
+      // Royal Maharaja: Rich golden-amber tones, warm royal saturation, lifted contrast
+      img = img
+        .modulate({ brightness: 1.08, saturation: 1.45, hue: 12 })
+        .tint({ r: 255, g: 230, b: 180 })
+        .sharpen({ sigma: 1.8, m1: 2.2, m2: 0.3 })
+        .gamma(0.92);
+      break;
+
+    case 'bollywood':
+      // Bollywood Hero: High-contrast cinematic blockbuster grade, teal and orange warmth
+      img = img
+        .modulate({ brightness: 1.12, saturation: 1.55, hue: 4 })
+        .tint({ r: 255, g: 242, b: 220 })
+        .sharpen({ sigma: 2.4, m1: 2.8, m2: 0.2 })
+        .gamma(0.88);
+      break;
+
+    case 'pixar':
+      // 3D Pixar Animation: Vibrant playful colors, velvety smooth skin tone, luminous highlights
+      img = img
+        .modulate({ brightness: 1.18, saturation: 2.2, hue: 6 })
+        .tint({ r: 255, g: 245, b: 235 })
+        .blur(0.25)
+        .sharpen({ sigma: 1.8, m1: 2.0, m2: 0.4 })
+        .gamma(0.95);
+      break;
+
+    case 'hollywood_noir':
+      // Hollywood Noir: Dramatic 1940s silver-screen black & white, rich deep blacks
+      img = img
+        .modulate({ brightness: 1.05, saturation: 0.0 })
+        .sharpen({ sigma: 2.0, m1: 2.4, m2: 0.3 })
+        .gamma(0.85);
+      break;
+
+    case 'mandap':
+      // Royal Mandap: Warm marigold and saffron hues, festive Indian wedding vibrancy
+      img = img
+        .modulate({ brightness: 1.1, saturation: 1.6, hue: 10 })
+        .tint({ r: 255, g: 225, b: 170 })
+        .sharpen({ sigma: 1.6 })
+        .gamma(0.96);
+      break;
+
     case 'anime':
       // Vivid pop: high saturation, clean whites, strong sharpen — anime cel feel
       img = img

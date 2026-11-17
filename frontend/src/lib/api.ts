@@ -322,7 +322,9 @@ export async function getPhotoCount(eventId: string): Promise<number> {
 // ─── AI ────────────────────────────────────────────────────────────────────
 
 export async function generateAI(blob: Blob, styleKey: string, eventId: string, photoId?: string) {
+  const token = await ensureBoothToken(eventId);
   const form = new FormData();
+  form.append('file', blob, 'photo.jpg');
   form.append('photo', blob, 'photo.jpg');
   form.append('styleKey', styleKey);
   form.append('eventId', eventId);
@@ -330,7 +332,15 @@ export async function generateAI(blob: Blob, styleKey: string, eventId: string, 
     form.append('photoId', photoId);
     form.append('clientPhotoId', photoId);
   }
+  if (token) {
+    form.append('boothToken', token);
+    form.append('sessionToken', token);
+  }
   const headers = getBoothHeaders(eventId, photoId);
+  if (token) {
+    headers['x-booth-session'] = token;
+    headers['X-Booth-Session'] = token;
+  }
   const res = await api.post('/ai/generate', form, { headers });
   return res.data;
 }
