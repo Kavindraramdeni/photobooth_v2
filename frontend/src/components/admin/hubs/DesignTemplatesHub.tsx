@@ -1,9 +1,66 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon, Sparkles, CircleDot, PlayCircle } from 'lucide-react';
+import { Palette, Image as ImageIcon, UploadCloud, X, RefreshCw, Sun, Moon, Sparkles, CircleDot, PlayCircle, Film, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LiveKioskSimulator } from './LiveKioskSimulator';
+
+// ── Built-in Media Presets ────────────────────────────────────────────────────
+
+export const BUILTIN_VIDEOS = [
+  {
+    id: 'landing-snapbooth',
+    name: 'SnapBooth Attract Loop',
+    desc: 'Official landing page motion demo',
+    url: '/video/snapbooth.mp4',
+    badge: 'Official',
+  },
+  {
+    id: 'golden-bokeh',
+    name: 'Golden Bokeh Gala',
+    desc: 'Festive celebration sparkle lights',
+    url: 'https://assets.mixkit.co/videos/preview/mixkit-golden-bokeh-lights-background-41481-large.mp4',
+    badge: 'Festive',
+  },
+  {
+    id: 'neon-waves',
+    name: 'Cyber Laser Club',
+    desc: 'Vibrant neon rays & party glow',
+    url: 'https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-animation-41460-large.mp4',
+    badge: 'Dynamic',
+  },
+];
+
+export const BUILTIN_WALLPAPERS = [
+  {
+    id: 'automotive-stage',
+    name: 'Neon Automotive Stage',
+    desc: 'Luxury showroom stage with ambient lighting',
+    url: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1920&q=80',
+    badge: 'Showcase',
+  },
+  {
+    id: 'floral-abstract',
+    name: 'Warm Floral Abstract',
+    desc: 'LumaBooth signature warm botanical art',
+    url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1920&q=80',
+    badge: 'LumaBooth',
+  },
+  {
+    id: 'midnight-gala',
+    name: 'Midnight Gala Lights',
+    desc: 'Warm celebratory golden bokeh',
+    url: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1920&q=80',
+    badge: 'Wedding',
+  },
+  {
+    id: 'botanical-hedge',
+    name: 'Botanical Greenery Wall',
+    desc: 'Lush natural foliage hedge backdrop',
+    url: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1920&q=80',
+    badge: 'Nature',
+  },
+];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -268,6 +325,13 @@ export function DesignTemplatesHub({
   const handleSelectBgMode = (mode: 'light' | 'dark' | 'video' | 'image') => {
     onBrandingChange('backgroundMode', mode);
     onBrandingChange('themeMode', mode === 'light' ? 'light' : 'dark');
+    if (mode === 'video' && (!mediaUrl || !isVideoMedia)) {
+      onBrandingChange('idleMediaUrl', '/video/snapbooth.mp4');
+      onBrandingChange('wallpaperUrl', '/video/snapbooth.mp4');
+    } else if (mode === 'image' && (!mediaUrl || isVideoMedia)) {
+      onBrandingChange('wallpaperUrl', BUILTIN_WALLPAPERS[0].url);
+      onBrandingChange('idleMediaUrl', BUILTIN_WALLPAPERS[0].url);
+    }
   };
 
   return (
@@ -467,49 +531,150 @@ export function DesignTemplatesHub({
 
           {/* Mutually Exclusive Media Configuration based on currentBgMode */}
           {currentBgMode === 'image' && (
-            <Row>
-              <div className="shrink-0">
-                <p className="text-sm text-zinc-200 font-medium">Background Image (Wallpaper)</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Displays on the idle attract screen. Workflow screens stay clean studio.</p>
-              </div>
-              <div className="flex-1 max-w-[220px]">
-                <CompactUpload
-                  label="Upload wallpaper"
-                  accept="image/png,image/jpeg,image/webp"
-                  currentUrl={wallpaperUrl}
-                  onUploaded={(url) => {
-                    onBrandingChange('wallpaperUrl', url);
-                    onBrandingChange('idleMediaUrl', url);
-                  }}
-                  eventId={event.id}
-                  assetType="idle"
-                  API_BASE={API_BASE}
-                />
-              </div>
-            </Row>
+            <div className="space-y-4 pt-2">
+              <Row>
+                <div className="w-full">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-zinc-200 font-semibold">Built-in Wallpapers</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Select a curated event wallpaper or upload custom artwork below.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {BUILTIN_WALLPAPERS.map((wp) => {
+                      const isSelected = wallpaperUrl === wp.url;
+                      return (
+                        <button
+                          key={wp.id}
+                          type="button"
+                          onClick={() => {
+                            onBrandingChange('wallpaperUrl', wp.url);
+                            onBrandingChange('idleMediaUrl', wp.url);
+                          }}
+                          className={`relative group rounded-2xl overflow-hidden border-2 text-left transition-all duration-200 aspect-[4/3] flex flex-col justify-end p-2.5 ${
+                            isSelected
+                              ? 'border-violet-500 ring-2 ring-violet-500/30 shadow-lg shadow-violet-500/20'
+                              : 'border-white/10 hover:border-white/30'
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={wp.url}
+                            alt={wp.name}
+                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none" />
+                          <div className="relative z-10">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-violet-300 bg-violet-950/70 px-1.5 py-0.5 rounded-full border border-violet-500/30 inline-block mb-1">
+                              {wp.badge}
+                            </span>
+                            <p className="text-xs font-bold text-white truncate">{wp.name}</p>
+                          </div>
+                          {isSelected && (
+                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-violet-600 border border-white flex items-center justify-center text-white z-20 shadow-md">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Row>
+
+              <Row>
+                <div className="shrink-0">
+                  <p className="text-sm text-zinc-200 font-medium">Or Upload Custom Wallpaper</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">JPG, PNG, or WebP (1920×1080 recommended)</p>
+                </div>
+                <div className="flex-1 max-w-[240px]">
+                  <CompactUpload
+                    label="Upload custom image"
+                    accept="image/png,image/jpeg,image/webp"
+                    currentUrl={BUILTIN_WALLPAPERS.some(w => w.url === wallpaperUrl) ? '' : wallpaperUrl}
+                    onUploaded={(url) => {
+                      onBrandingChange('wallpaperUrl', url);
+                      onBrandingChange('idleMediaUrl', url);
+                    }}
+                    eventId={event.id}
+                    assetType="idle"
+                    API_BASE={API_BASE}
+                  />
+                </div>
+              </Row>
+            </div>
           )}
 
           {currentBgMode === 'video' && (
-            <Row>
-              <div className="shrink-0">
-                <p className="text-sm text-zinc-200 font-medium">Playing Video (Attract Media)</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Loops on idle screen. Workflow screens stay clean studio.</p>
-              </div>
-              <div className="flex-1 max-w-[220px]">
-                <CompactUpload
-                  label="Upload idle video"
-                  accept="video/mp4,video/webm"
-                  currentUrl={idleMediaUrl}
-                  onUploaded={(url) => {
-                    onBrandingChange('idleMediaUrl', url);
-                    onBrandingChange('wallpaperUrl', url);
-                  }}
-                  eventId={event.id}
-                  assetType="idle"
-                  API_BASE={API_BASE}
-                />
-              </div>
-            </Row>
+            <div className="space-y-4 pt-2">
+              <Row>
+                <div className="w-full">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-zinc-200 font-semibold">Built-in Attract Videos</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Continuous looping motion backgrounds for the idle landing screen.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {BUILTIN_VIDEOS.map((vid) => {
+                      const isSelected = (!idleMediaUrl && vid.id === 'landing-snapbooth') || idleMediaUrl === vid.url || wallpaperUrl === vid.url;
+                      return (
+                        <button
+                          key={vid.id}
+                          type="button"
+                          onClick={() => {
+                            onBrandingChange('idleMediaUrl', vid.url);
+                            onBrandingChange('wallpaperUrl', vid.url);
+                          }}
+                          className={`relative group rounded-2xl overflow-hidden border-2 text-left transition-all duration-200 p-3.5 backdrop-blur-xl ${
+                            isSelected
+                              ? 'bg-violet-600/20 border-violet-500 ring-2 ring-violet-500/30 shadow-lg shadow-violet-500/20'
+                              : 'bg-zinc-800/40 border-white/10 hover:border-white/30 hover:bg-zinc-800/60'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="w-8 h-8 rounded-xl bg-violet-600/30 border border-violet-500/40 flex items-center justify-center text-violet-300">
+                              <Film className="w-4 h-4" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-violet-300 bg-violet-950/70 px-2 py-0.5 rounded-full border border-violet-500/30">
+                              {vid.badge}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-white mb-0.5">{vid.name}</p>
+                          <p className="text-[11px] text-zinc-400 font-normal leading-relaxed">{vid.desc}</p>
+                          {isSelected && (
+                            <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-violet-600 border border-white flex items-center justify-center text-white z-20 shadow-md">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Row>
+
+              <Row>
+                <div className="shrink-0">
+                  <p className="text-sm text-zinc-200 font-medium">Or Upload Custom Attract Video</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">MP4, WebM, or MOV loop (up to 50MB)</p>
+                </div>
+                <div className="flex-1 max-w-[240px]">
+                  <CompactUpload
+                    label="Upload custom video"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    currentUrl={BUILTIN_VIDEOS.some(v => v.url === idleMediaUrl) ? '' : idleMediaUrl}
+                    onUploaded={(url) => {
+                      onBrandingChange('idleMediaUrl', url);
+                      onBrandingChange('wallpaperUrl', url);
+                    }}
+                    eventId={event.id}
+                    assetType="idle"
+                    API_BASE={API_BASE}
+                  />
+                </div>
+              </Row>
+            </div>
           )}
 
           {(currentBgMode === 'light' || currentBgMode === 'dark') && (

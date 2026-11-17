@@ -781,14 +781,14 @@ router.post('/:id/styles/:styleId/image', requireAuth, requireEventOwner, upload
 
 const uploadAsset = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 }, // Supports up to 50MB for HD video attract loops
 });
 
 /**
  * POST /api/events/:id/upload-asset?type=idle|logo|frame
  * 
  * Handles uploading:
- * - Idle screen background (type=idle) → stored in branding
+ * - Idle screen background / video (type=idle) → stored in branding
  * - Event logo (type=logo) → stored in branding
  * - Frame overlay (type=frame) → stored in event_frames
  */
@@ -809,17 +809,29 @@ router.post('/:id/upload-asset', requireAuth, requireEventOwner, uploadAsset.sin
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    // CASE 1: IDLE SCREEN BACKGROUND
+    // CASE 1: IDLE SCREEN BACKGROUND (Image OR Video)
     if (assetType === 'idle') {
-      const processed = await sharp(req.file.buffer)
-        .resize(1920, 1080, { fit: 'cover' })
-        .jpeg({ quality: 85 })
-        .toBuffer();
+      const isVideo = Boolean(
+        req.file.mimetype?.startsWith('video/') ||
+        req.file.originalname?.match(/\.(mp4|webm|mov)$/i)
+      );
 
-      const key = `events/${eventId}/idle-background.jpg`;
-      const url = await uploadToStorage(processed, key, 'image/jpeg');
+      let uploadBuffer = req.file.buffer;
+      let contentType = req.file.mimetype || 'image/jpeg';
+      let extension = isVideo ? (req.file.originalname?.split('.').pop()?.toLowerCase() || 'mp4') : 'jpg';
 
-      // Save to branding.idleBackgroundUrl
+      if (!isVideo) {
+        uploadBuffer = await sharp(req.file.buffer)
+          .resize(1920, 1080, { fit: 'cover' })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+        contentType = 'image/jpeg';
+      }
+
+      const key = `events/${eventId}/idle-background-${Date.now()}.${extension}`;
+      const url = await uploadToStorage(uploadBuffer, key, contentType);
+
+      // Save to branding.idleBackgroundUrl, idleMediaUrl, and wallpaperUrl
       const { data: event, error: updateError } = await supabase
         .from('events')
         .select('branding')
@@ -831,6 +843,9 @@ router.post('/:id/upload-asset', requireAuth, requireEventOwner, uploadAsset.sin
       const updatedBranding = {
         ...event.branding,
         idleBackgroundUrl: url,
+        idleMediaUrl: url,
+        wallpaperUrl: url,
+        backgroundMode: isVideo ? 'video' : 'image',
       };
 
       const { error: brandingError } = await supabase
@@ -840,8 +855,8 @@ router.post('/:id/upload-asset', requireAuth, requireEventOwner, uploadAsset.sin
 
       if (brandingError) throw brandingError;
 
-      console.log(`[Upload] Idle background: ${url}`);
-      return res.json({ success: true, url, type: 'idle' });
+      console.log(`[Upload] Idle background (${isVideo ? 'video' : 'image'}): ${url}`);
+      return res.json({ success: true, url, type: 'idle', isVideo });
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -48,8 +48,9 @@ export function BoothMain() {
 
   // Video or Image rendered on Idle attract screen, and gently blurred on workflow screens for consistent Liquid Glass ambience
   const showVideo = activeBgMode === 'video';
-  const videoSrc = userMediaUrl || '/video/snapbooth.mp4';
-  const showImage = activeBgMode === 'image' && Boolean(userMediaUrl);
+  // If user uploaded a video, use it; otherwise automatically fallback to the official landing page video!
+  const videoSrc = isVideoMedia && userMediaUrl ? userMediaUrl : '/video/snapbooth.mp4';
+  const showImage = activeBgMode === 'image' && Boolean(userMediaUrl) && !isVideoMedia;
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {

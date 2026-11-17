@@ -48,8 +48,8 @@ export function LiveKioskSimulator({
 
   const isLight = activeBgMode === 'light';
   const showVideo = activeBgMode === 'video' && simScreen === 'idle';
-  const showImage = activeBgMode === 'image' && simScreen === 'idle' && Boolean(mediaUrl);
-  const videoSrc = mediaUrl || '/video/snapbooth.mp4';
+  const showImage = activeBgMode === 'image' && simScreen === 'idle' && Boolean(mediaUrl) && !isVideoMedia;
+  const videoSrc = isVideoMedia && mediaUrl ? mediaUrl : '/video/snapbooth.mp4';
   const samplePhotoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
 
   return (
