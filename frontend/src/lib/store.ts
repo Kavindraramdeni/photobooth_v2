@@ -74,6 +74,7 @@ export interface Event {
     // New sharing features
     shareScreenTimeout?:   number;
     whatsappCountryCode?:  string;
+    whatsappMessage?:      string;
     emailSubject?:         string;
     smsMessage?:           string;
     // Print settings

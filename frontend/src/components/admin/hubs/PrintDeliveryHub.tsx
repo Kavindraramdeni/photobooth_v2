@@ -578,18 +578,54 @@ export function PrintDeliveryHub({
             label="PRO"
           />
         </SettingRow>
-        <SettingRow label="Allow WhatsApp">
+
+        <SettingRow label="Allow WhatsApp Direct">
           <Toggle
             checked={!!settings.allowWhatsApp}
             onChange={(v) => onSettingsChange('allowWhatsApp', v)}
           />
         </SettingRow>
-        <SettingRow label="Allow AirDrop">
+
+        {Boolean(settings.allowWhatsApp) && (
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-3 -mt-1">
+            <label className="flex flex-col gap-1">
+              <span className="text-white/60 text-xs font-medium">WhatsApp Default Country Code</span>
+              <input
+                type="text"
+                value={(settings.whatsappCountryCode as string) ?? '91'}
+                onChange={(e) => onSettingsChange('whatsappCountryCode', e.target.value.replace(/\D/g, ''))}
+                placeholder="91"
+                className="w-32 bg-white/10 border border-white/15 text-white text-xs font-mono rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="text-white/40 text-[10px]">E.g. 91 (India), 1 (US/Canada), 44 (UK)</span>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-white/60 text-xs font-medium">Custom WhatsApp Message Template</span>
+              <textarea
+                rows={2}
+                value={(settings.whatsappMessage as string) ?? ''}
+                onChange={(e) => onSettingsChange('whatsappMessage', e.target.value)}
+                placeholder="Here is your photo from {{eventName}}: {{photoUrl}}"
+                className="w-full bg-white/10 border border-white/15 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-white/30 resize-none"
+              />
+              <span className="text-white/40 text-[10px]">Use &#123;&#123;eventName&#125;&#125; and &#123;&#123;photoUrl&#125;&#125; placeholders</span>
+            </label>
+          </div>
+        )}
+
+        <SettingRow label="Allow AirDrop (iOS Native Share)">
           <Toggle
             checked={!!settings.allowAirDrop}
             onChange={(v) => onSettingsChange('allowAirDrop', v)}
           />
         </SettingRow>
+        {Boolean(settings.allowAirDrop) && (
+          <p className="text-white/40 text-[11px] -mt-2">
+            Invokes iOS Share Sheet with 4K JPEG file binary attached for instant AirDrop transfer to nearby iPhones/iPads.
+          </p>
+        )}
+
         <SettingRow label="Allow Instagram">
           <Toggle
             checked={!!settings.allowInstagram}
