@@ -32,18 +32,16 @@ export function BoothMain() {
   const isVideoMedia = Boolean(userMediaUrl?.match(/\.(mp4|webm|mov)(\?|$)/i));
 
   // Mutually exclusive background mode: 'light' | 'dark' | 'video' | 'image'
-  // Exactly ONE mode active at any time:
-  // - 'light': pure white studio theme (no image, no video)
-  // - 'dark': sleek dark studio theme (no image, no video)
-  // - 'video': playing ambient video on idle screen only
-  // - 'image': background image on idle screen only
-  let activeBgMode: 'light' | 'dark' | 'video' | 'image' = 'dark';
+  // Clean, bright light studio theme is default for cohesive, smooth transitions
+  let activeBgMode: 'light' | 'dark' | 'video' | 'image' = 'light';
   if (rawBgMode === 'light' || rawBgMode === 'dark' || rawBgMode === 'video' || rawBgMode === 'image') {
     activeBgMode = rawBgMode;
-  } else if (branding?.themeMode === 'light') {
-    activeBgMode = 'light';
+  } else if (branding?.themeMode === 'dark') {
+    activeBgMode = 'dark';
   } else if (userMediaUrl) {
     activeBgMode = isVideoMedia ? 'video' : 'image';
+  } else {
+    activeBgMode = 'light';
   }
 
   const isLight = activeBgMode === 'light';
@@ -264,97 +262,95 @@ export function BoothMain() {
 
       {/* Screen Viewport with clean 250ms crossfade */}
       <div className="relative z-10 w-full h-full flex flex-col">
-        {/* ── Apple Liquid Glass Offline & Sync Status Pill (Top Corner) ── */}
-        <div className="absolute top-4 right-4 z-40 pointer-events-auto">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowSyncDetails((prev) => !prev);
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold backdrop-blur-2xl transition-all duration-300 shadow-xl border ${
-              !isOnline
-                ? 'bg-amber-950/80 border-amber-500/50 text-amber-200 shadow-amber-950/40 ring-1 ring-amber-500/30'
-                : isSyncing || pendingSyncCount > 0
-                ? 'bg-violet-950/80 border-violet-500/50 text-violet-200 shadow-violet-950/40'
-                : 'bg-white/10 hover:bg-white/15 border-white/15 text-white/70 hover:text-white'
-            }`}
-          >
-            <span className="relative flex h-2 w-2">
-              <span
-                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  !isOnline ? 'bg-amber-400' : isSyncing || pendingSyncCount > 0 ? 'bg-violet-400' : 'bg-emerald-400'
-                }`}
-              />
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${
-                  !isOnline ? 'bg-amber-500' : isSyncing || pendingSyncCount > 0 ? 'bg-violet-500' : 'bg-emerald-500'
-                }`}
-              />
-            </span>
-            <span>
-              {!isOnline
-                ? `📶 Offline • ${pendingSyncCount} saved locally`
-                : isSyncing
-                ? `🔄 Syncing ${pendingSyncCount} photos…`
-                : pendingSyncCount > 0
-                ? `⏳ ${pendingSyncCount} photos pending`
-                : '🟢 Online'}
-            </span>
-          </button>
+        {/* ── Apple Liquid Glass Offline & Sync Status Pill (Only shown when offline or syncing, no floating online badge) ── */}
+        {(!isOnline || isSyncing || pendingSyncCount > 0) && (
+          <div className="absolute top-4 right-4 z-40 pointer-events-auto">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowSyncDetails((prev) => !prev);
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold backdrop-blur-2xl transition-all duration-300 shadow-xl border ${
+                !isOnline
+                  ? 'bg-amber-950/80 border-amber-500/50 text-amber-200 shadow-amber-950/40 ring-1 ring-amber-500/30'
+                  : 'bg-violet-950/80 border-violet-500/50 text-violet-200 shadow-violet-950/40'
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    !isOnline ? 'bg-amber-400' : 'bg-violet-400'
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    !isOnline ? 'bg-amber-500' : 'bg-violet-500'
+                  }`}
+                />
+              </span>
+              <span>
+                {!isOnline
+                  ? `📶 Offline • ${pendingSyncCount} saved locally`
+                  : isSyncing
+                  ? `🔄 Syncing ${pendingSyncCount} photos…`
+                  : `⏳ ${pendingSyncCount} photos pending`}
+              </span>
+            </button>
 
-          {/* Detailed Sync Popover on Tap */}
-          <AnimatePresence>
-            {showSyncDetails && (
-              <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                className="absolute top-10 right-0 w-72 p-4 rounded-2xl bg-zinc-900/95 backdrop-blur-2xl border border-white/15 shadow-2xl z-50 text-white space-y-3"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span className="font-bold text-xs">Offline Sync Engine</span>
-                  </div>
-                  <button
-                    onClick={() => setShowSyncDetails(false)}
-                    className="p-1 rounded-lg text-zinc-400 hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="space-y-1.5 text-xs text-zinc-300">
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">Venue Network:</span>
-                    <span className={`font-semibold ${isOnline ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {isOnline ? 'Connected' : 'Offline'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">IndexedDB Queue:</span>
-                    <span className="font-semibold text-white font-mono">{pendingSyncCount} photos</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 leading-relaxed pt-1">
-                    Photos are always safely stored in browser local storage. When connection returns, they sync automatically.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={!isOnline || isSyncing}
-                  onClick={() => triggerSync()}
-                  className="w-full py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2"
+            {/* Detailed Sync Popover on Tap */}
+            <AnimatePresence>
+              {showSyncDetails && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                  className="absolute top-10 right-0 w-72 p-4 rounded-2xl bg-zinc-900/95 backdrop-blur-2xl border border-white/15 shadow-2xl z-50 text-white space-y-3"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing Now…' : 'Sync Queue Now'}
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span className="font-bold text-xs">Offline Sync Engine</span>
+                    </div>
+                    <button
+                      onClick={() => setShowSyncDetails(false)}
+                      className="p-1 rounded-lg text-zinc-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-zinc-300">
+                    <div className="flex items-center justify-between">
+                      <span className="text-zinc-500">Venue Network:</span>
+                      <span className={`font-semibold ${isOnline ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {isOnline ? 'Connected' : 'Offline'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-zinc-500">IndexedDB Queue:</span>
+                      <span className="font-semibold text-white font-mono">{pendingSyncCount} photos</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 leading-relaxed pt-1">
+                      Photos are always safely stored in browser local storage. When connection returns, they sync automatically.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!isOnline || isSyncing}
+                    onClick={() => triggerSync()}
+                    className="w-full py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Syncing Now…' : 'Sync Queue Now'}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div

@@ -79,6 +79,8 @@ interface PlacedSticker {
 
 export function PreviewScreen() {
   const { currentPhoto, event, mode, setScreen, resetSession, setEvent, setCurrentPhoto } = useBoothStore();
+  const themeMode = (event?.branding?.themeMode as string) || 'light';
+  const isLight = themeMode !== 'dark';
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showFrames, setShowFrames] = useState(false);
@@ -127,7 +129,7 @@ export function PreviewScreen() {
 
   if (!currentPhoto) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#0a0a12] text-white/50 text-sm">
+      <div className={`w-full h-full flex items-center justify-center text-sm ${isLight ? 'bg-slate-50 text-slate-500' : 'bg-[#0a0a12] text-white/50'}`}>
         Preparing studio preview...
       </div>
     );
@@ -137,8 +139,6 @@ export function PreviewScreen() {
   const branding = event?.branding;
   const settings = event?.settings;
   const primaryColor = (branding?.primaryColor as string) || '#6366f1';
-  const themeMode = (branding?.themeMode as string) || 'dark';
-  const isLight = themeMode === 'light';
   const eventName = (branding?.eventName as string) || event?.name || 'SnapBooth';
   const printScale = (settings?.printScale as number) || 98;
 
@@ -329,7 +329,7 @@ export function PreviewScreen() {
       const copies = Number(event?.settings?.printCopies) || 1;
 
       if (isSilent) {
-        toast.loading('🖨️ Printing 4×6 Card... Sent to DNP printer!', { duration: 2500, id: 'print-toast' });
+        toast.loading('🖨️ Printing photo... Sent to printer!', { duration: 2500, id: 'print-toast' });
         const res = await executeSilentPrint({
           eventId: event.id,
           photoId: photo.id,

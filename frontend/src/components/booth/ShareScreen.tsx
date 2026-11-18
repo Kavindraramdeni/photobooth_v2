@@ -90,6 +90,8 @@ function InputModal({ icon, title, placeholder, inputType, onSubmit, onClose, se
 
 export function ShareScreen() {
   const { currentPhoto, event, setScreen, resetSession } = useBoothStore();
+  const themeMode = (event?.branding?.themeMode as string) || 'light';
+  const isLight = themeMode !== 'dark';
   const [modal, setModal] = useState<'email' | 'sms' | null>(null);
   const [showWhatsAppQR, setShowWhatsAppQR] = useState(false);
   const [whatsAppTab, setWhatsAppTab] = useState<'scan' | 'phone'>('scan');
@@ -138,7 +140,7 @@ export function ShareScreen() {
 
   if (!currentPhoto) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#0a0a12] text-white/50 text-sm">
+      <div className={`w-full h-full flex items-center justify-center text-sm ${isLight ? 'bg-slate-50 text-slate-500' : 'bg-[#0a0a12] text-white/50'}`}>
         Preparing your photo...
       </div>
     );
@@ -328,9 +330,6 @@ export function ShareScreen() {
       toast.error(msg.includes('not configured') ? 'SMS not configured for this booth' : msg);
     } finally { setSending(false); }
   }
-
-  const themeMode = (event?.branding?.themeMode as string) || 'dark';
-  const isLight = themeMode === 'light';
 
   return (
     <div className="w-full h-full flex flex-col bg-transparent select-none overflow-hidden relative z-10">

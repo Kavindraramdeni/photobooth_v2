@@ -463,8 +463,18 @@ router.post('/strip', upload.array('photos', 4), requireBoothSession, async (req
  */
 router.get('/event/:eventId', async (req, res) => {
   try {
-    const { eventId } = req.params;
+    let { eventId } = req.params;
     const { page = 1, limit = 50, include_hidden = 'false' } = req.query;
+
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+    if (!isUUID) {
+      if (eventId === 'snapbooth-demo' || eventId === 'demo') {
+        eventId = '00000000-0000-0000-0000-000000000001';
+      } else {
+        const { data: evBySlug } = await supabase.from('events').select('id').eq('slug', eventId).maybeSingle();
+        if (evBySlug) eventId = evBySlug.id;
+      }
+    }
 
     let query = supabase
       .from('photos')

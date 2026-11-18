@@ -324,9 +324,11 @@ async function generateWithGemini(imageBuffer, styleKey, customPrompt = null) {
   const MODEL_NAMES = (process.env.GEMINI_IMAGE_MODELS
     ? process.env.GEMINI_IMAGE_MODELS.split(',').map(s => s.trim()).filter(Boolean)
     : [
-      'gemini-3.1-flash-image-preview',
+      'imagen-3.0-generate-002',
+      'gemini-2.0-flash-exp',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
       'gemini-2.5-flash-image',
-      'gemini-2.5-flash-image-preview',
     ]);
 
   for (const modelName of MODEL_NAMES) {
@@ -558,6 +560,80 @@ async function generateWithHuggingFace(imageBuffer, styleKey, customPrompt = nul
 
   // Mark as text2img so frontend can show a note if desired
   return { buffer: outputBuffer, style: style.name, styleKey, tier: 'huggingface', isText2Image: true };
+}
+
+// ─── TIER 4: Autonomous Pollinations AI Persona Transformation (FREE, ZERO-KEY) ────────
+// Generates a true AI-transformed themed masterpiece (Flux/Turbo model) without requiring
+// paid API keys, then blends the guest's face cleanly with tone harmonization.
+async function generateWithPollinations(imageBuffer, styleKey, customPrompt = null) {
+  const style = getStyleContext(styleKey, customPrompt);
+  const prompt = style.prompt || 'Portrait transformed in high quality artistic style';
+
+  const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 99999)}`;
+
+  const res = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(35000) });
+  if (!res.ok) {
+    console.warn('[AI] Pollinations failed:', res.status);
+    return null;
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  if (!arrayBuffer || arrayBuffer.byteLength < 5000) {
+    console.warn('[AI] Pollinations returned empty or corrupt image');
+    return null;
+  }
+
+  const aiRawBuffer = Buffer.from(arrayBuffer);
+  if (!sharp || !imageBuffer) {
+    return { buffer: aiRawBuffer, style: style.name, styleKey, tier: 'pollinations' };
+  }
+
+  try {
+    const aiImage = await sharp(aiRawBuffer)
+      .resize(1024, 1024, { fit: 'cover', position: 'center' })
+      .toBuffer();
+
+    // Soft feathered radial vignette focused on guest's face & smile
+    const maskSvg = Buffer.from(`
+      <svg width="1024" height="1024">
+        <defs>
+          <radialGradient id="feather" cx="50%" cy="38%" r="26%">
+            <stop offset="0%" stop-color="#fff" stop-opacity="0.95" />
+            <stop offset="50%" stop-color="#fff" stop-opacity="0.65" />
+            <stop offset="85%" stop-color="#fff" stop-opacity="0.2" />
+            <stop offset="100%" stop-color="#fff" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <rect width="1024" height="1024" fill="url(#feather)" />
+      </svg>
+    `);
+
+    // Prepare user face cut-out with gentle color harmonization
+    const userPhoto = await sharp(imageBuffer)
+      .resize(1024, 1024, { fit: 'cover', position: 'center' })
+      .modulate({ brightness: 1.05, saturation: 1.12 })
+      .toBuffer();
+
+    const maskedFace = await sharp(userPhoto)
+      .composite([{ input: maskSvg, blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+
+    // Composite masked face cleanly over the AI transformed scene
+    const outputBuffer = await sharp(aiImage)
+      .composite([{ input: maskedFace, blend: 'over' }])
+      .jpeg({ quality: 92 })
+      .toBuffer();
+
+    return { buffer: outputBuffer, style: style.name, styleKey, tier: 'pollinations_blend' };
+  } catch (compErr) {
+    console.warn('[AI] Pollinations compositing warning, returning pure AI scene:', compErr.message);
+    const fallbackBuffer = await sharp(aiRawBuffer)
+      .resize(1024, 1024, { fit: 'cover' })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    return { buffer: fallbackBuffer, style: style.name, styleKey, tier: 'pollinations' };
+  }
 }
 
 // ─── Sharp colour grading — professional per-style looks ─────────────────────
@@ -808,6 +884,13 @@ async function generateAIImage(imageBuffer, styleKey = 'anime', customPrompt = n
     console.warn('[AI] HuggingFace failed:', err.message);
   }
   if (result) { console.log('[AI] ✅ Generated via HuggingFace text2img fallback'); return result; }
+
+  // Tier 4: Autonomous Pollinations AI Persona Transformation (FREE, ZERO API KEY REQUIRED)
+  result = await generateWithPollinations(imageBuffer, styleKey, customPrompt).catch(err => {
+    console.warn('[AI] Pollinations failed:', err.message);
+    return null;
+  });
+  if (result) { console.log('[AI] ✅ Generated via Pollinations AI Persona Transformation'); return result; }
 
   // Final fallback: Sharp local filters — instant, face always preserved
   // Clean colour grading applied per style. Not "AI art" but better than a hard failure.

@@ -56,6 +56,7 @@ export function CountdownScreen() {
     setScreen, setCurrentPhoto,
     clearFrames,
     setProcessing, triggerFlash,
+    selectedAIStyle,
   } = useBoothStore();
 
   const webcamRef = useRef<Webcam>(null);
@@ -362,13 +363,14 @@ export function CountdownScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraReady]);
 
+  const formattedStyleName = selectedAIStyle ? selectedAIStyle.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'AI Theme';
   const modeBadge: Record<string, { label: string; icon: string }> = {
     single: { label: 'Single Shot', icon: '📸' },
     strip: { label: `Photo Strip (${shotsTaken}/${STRIP_COUNT})`, icon: '🎞️' },
     gif: { label: `GIF Burst (${shotsTaken}/${GIF_COUNT})`, icon: '🎬' },
     boomerang: { label: `Boomerang (${shotsTaken}/${BOOMERANG_COUNT})`, icon: '🔄' },
     burst: { label: `Burst (${shotsTaken}/${GIF_COUNT})`, icon: '⚡' },
-    aistudio: { label: 'AI Studio Portrait', icon: '✨' },
+    aistudio: { label: `Pose for ${formattedStyleName}`, icon: '✨' },
   };
   const activeBadge = modeBadge[mode] || { label: 'Photo', icon: '📸' };
 

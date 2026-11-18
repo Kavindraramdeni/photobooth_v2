@@ -343,18 +343,25 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
     }
 
     // Resolve event details safely (by ID, slug, or demo fallback)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
     let eventSlug = 'gallery';
     let loadedEvent = null;
+    let resolvedEventId = isUUID ? eventId : null;
+
     try {
-      const { data: eventData } = await supabase
-        .from('events')
-        .select('id, slug, name, owner_id, settings, branding')
-        .eq('id', eventId)
-        .maybeSingle();
-      if (eventData) {
-        loadedEvent = eventData;
-        if (eventData.slug) eventSlug = eventData.slug;
-      } else {
+      if (isUUID) {
+        const { data: eventData } = await supabase
+          .from('events')
+          .select('id, slug, name, owner_id, settings, branding')
+          .eq('id', eventId)
+          .maybeSingle();
+        if (eventData) {
+          loadedEvent = eventData;
+          if (eventData.slug) eventSlug = eventData.slug;
+        }
+      }
+
+      if (!loadedEvent) {
         const { data: bySlug } = await supabase
           .from('events')
           .select('id, slug, name, owner_id, settings, branding')
@@ -362,24 +369,31 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
           .maybeSingle();
         if (bySlug) {
           loadedEvent = bySlug;
+          resolvedEventId = bySlug.id;
           if (bySlug.slug) eventSlug = bySlug.slug;
         }
       }
+
       if (!loadedEvent && (eventId === '00000000-0000-0000-0000-000000000001' || eventId === 'snapbooth-demo' || eventId === 'demo')) {
         loadedEvent = {
           id: '00000000-0000-0000-0000-000000000001',
           name: 'SnapBooth Grand Gala Demo',
           slug: 'snapbooth-demo',
         };
+        resolvedEventId = '00000000-0000-0000-0000-000000000001';
         eventSlug = 'snapbooth-demo';
       }
     } catch (e) {
       console.warn('[AI Generate] Event fetch warning:', e.message);
     }
 
+    if (!resolvedEventId) {
+      resolvedEventId = isUUID ? eventId : '00000000-0000-0000-0000-000000000001';
+    }
+
     // Upload AI image to storage
     const aiId = uuidv4();
-    const storageKey = `events/${eventId || 'unknown'}/ai/${aiId}.jpg`;
+    const storageKey = `events/${resolvedEventId || 'unknown'}/ai/${aiId}.jpg`;
     let aiUrl = null;
     try {
       aiUrl = await uploadToStorage(result.buffer, storageKey, 'image/jpeg');
@@ -403,7 +417,7 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
 
     const aiPhotoRecord = {
       id: aiId,
-      event_id: eventId,
+      event_id: resolvedEventId,
       owner_id: loadedEvent?.owner_id || null,
       url: aiUrl,
       thumb_url: aiUrl,
@@ -435,14 +449,19 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
     // Broadcast new photo event via Socket.IO for live gallery & slideshow
     const io = req.app.get('io');
     if (io) {
-      io.to(`event-${eventId}`).emit('photo-taken', {
+      const payload = {
         photoId: aiId,
         thumbUrl: aiUrl,
         galleryUrl,
         mode: 'ai',
         timestamp: new Date().toISOString(),
-      });
-      io.to(`event-${eventId}`).emit('new-photo', savedPhoto);
+      };
+      io.to(`event-${resolvedEventId}`).emit('photo-taken', payload);
+      io.to(`event-${resolvedEventId}`).emit('new-photo', savedPhoto);
+      if (eventId !== resolvedEventId) {
+        io.to(`event-${eventId}`).emit('photo-taken', payload);
+        io.to(`event-${eventId}`).emit('new-photo', savedPhoto);
+      }
     }
 
     // Dispatch background cloud sync (Dropbox / Google Drive / Webhooks)
@@ -453,7 +472,7 @@ router.post('/generate', uploadFlexibleAI, requireBoothSession, async (req, res)
     // Track analytics (non-blocking)
     try {
       supabase.from('analytics').insert({
-        event_id: eventId,
+        event_id: resolvedEventId,
         action: 'ai_generated',
         metadata: { style: styleKey, aiId },
       }).catch(() => {});

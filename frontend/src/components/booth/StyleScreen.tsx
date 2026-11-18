@@ -16,7 +16,11 @@ export function StyleScreen() {
 
   const handleSelectMode = (mode: BoothMode) => {
     setMode(mode);
-    setScreen('countdown');
+    if (mode === 'aistudio') {
+      setScreen('ai');
+    } else {
+      setScreen('countdown');
+    }
   };
 
   const formats: Array<{

@@ -57,15 +57,15 @@ export function BeforeAfterSlider({
       onMouseMove={handleMouseMove}
       onTouchMove={handleTouchMove}
       onClick={(e) => handleMove(e.clientX)}
-      className={`relative select-none overflow-hidden rounded-3xl border border-white/20 shadow-2xl cursor-ew-resize group w-auto h-full max-h-[72vh] ${className}`}
+      className={`relative select-none overflow-hidden rounded-3xl border border-white/20 shadow-2xl cursor-ew-resize group w-full max-w-[480px] min-w-[280px] h-full max-h-[72vh] mx-auto ${className}`}
       style={{ aspectRatio }}
     >
       {/* 1. Transformed (After) Image - Full background */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={transformedUrl}
+        src={transformedUrl || originalUrl}
         alt="AI Transformed"
-        className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none bg-slate-900"
       />
 
       {/* 2. Original (Before) Image - Clipped by slider position */}
@@ -79,7 +79,7 @@ export function BeforeAfterSlider({
         <img
           src={originalUrl}
           alt="Original"
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover bg-slate-900"
         />
       </div>
 
